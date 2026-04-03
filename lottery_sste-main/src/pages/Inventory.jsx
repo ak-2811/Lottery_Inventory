@@ -94,7 +94,7 @@ const API_BASE = 'http://127.0.0.1:8000/api'
 //     date: 'Oct 15, 2023',
 //   },
 // ]
-export default function Inventory() {
+export default function Inventory({ onNavigate }) {
   const [showModal, setShowModal] = useState(false)
   const [modalItems, setModalItems] = useState([])
   const [ticketInput, setTicketInput] = useState('')
@@ -255,12 +255,14 @@ export default function Inventory() {
 
   return (
     <div className="app-container">
-      <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+      <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>  
+        <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          ☰
+        </button>
         <div className="sidebar-header">
           <h1 className="logo">The Lottery System</h1>
           <p className="logo-subtitle">PREMIUM INVENTORY</p>
         </div>
-
         <nav className="sidebar-nav">
           <a href="#" className="nav-item active">
             <span className="nav-icon">⊞</span> <span className="nav-label">Dashboard</span>
@@ -274,22 +276,19 @@ export default function Inventory() {
           <a href="#" className="nav-item">
             <span className="nav-icon">📊</span> <span className="nav-label">Analytics</span>
           </a>
+          <button 
+            className="nav-item"
+            onClick={() => onNavigate('activate')}
+            style={{ background: 'transparent', color: '#666' }}
+          >
+            <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>
+          </button>
         </nav>
-
-        <button className="new-collection-btn">
-          <span>+</span> <span className="btn-label">New Collection</span>
-        </button>
-
         <div className="sidebar-footer">
           <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>
           <a href="#" className="sidebar-link">🚪 <span className="link-label">Logout</span></a>
         </div>
       </div>
-
-      <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
-        ☰
-      </button>
-
       <div className="main-content">
         <div className="header">
           <div className="header-left">
