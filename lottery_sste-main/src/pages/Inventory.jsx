@@ -356,20 +356,31 @@ export default function Inventory({ onNavigate }) {
         </div>
 
         <div className="table-container">
-          <table className="inventory-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>PREVIEW</th>
-                <th>ITEM NAME</th>
-                <th>GAME #</th>
-                <th>PACK #</th>
-                <th>VALUE</th>
-                <th>PACK SIZE</th>
-                <th>DATE ADDED</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
+         <table className="inventory-table">
+          <colgroup>
+            <col style={{ width: '55px' }} />   {/* # */}
+            <col style={{ width: '75px' }} />   {/* PREVIEW */}
+            <col style={{ width: '180px' }} />  {/* ITEM NAME */}
+            <col style={{ width: '100px' }} />  {/* GAME # */}
+            <col style={{ width: '110px' }} />  {/* PACK # */}
+            <col style={{ width: '100px' }} />  {/* VALUE */}
+            <col style={{ width: '100px' }} />  {/* PACK SIZE */}
+            <col style={{ width: '140px' }} />  {/* DATE ADDED */}
+            <col style={{ width: '150px' }} />  {/* ACTIONS */}
+          </colgroup>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>PREVIEW</th>
+              <th>ITEM NAME</th>
+              <th>GAME #</th>
+              <th>PACK #</th>
+              <th>VALUE</th>
+              <th>PACK SIZE</th>
+              <th>DATE ADDED</th>
+              <th>ACTIONS</th>
+            </tr>
+          </thead>
             <tbody>
               {filteredRows.length > 0 ? (
                 filteredRows.map((r, index) => (
@@ -379,7 +390,7 @@ export default function Inventory({ onNavigate }) {
                       {r.image ? (
                         <img src={r.image} alt={r.name || 'preview'} />
                       ) : (
-                        <div>No Image</div>
+                        <div className="no-img">🎟️</div>
                       )}
                     </td>
                     <td className="item-name">
@@ -392,7 +403,7 @@ export default function Inventory({ onNavigate }) {
                     <td>{r.packSize}</td>
                     <td>{r.date}</td>
                     <td className="actions">
-                      <button className="mark-sold-btn">MARK SOLD</button>
+                      <span className="mark-sold-text">Mark Sold</span>
                       <button className="delete-btn" onClick={() => handleDeleteMainItem(r.id)}>🗑️</button>
                     </td>
                   </tr>

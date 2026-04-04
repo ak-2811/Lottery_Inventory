@@ -285,9 +285,13 @@
 .action-links {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
 }
 
 .pack-image {
   font-size: 24px;
   text-align: center;
+}
+.inventory-table th:last-child {
+  text-align: left;
 }
