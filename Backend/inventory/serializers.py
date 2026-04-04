@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import LotteryGame, InventoryBook
+from .models import LotteryGame, InventoryBook, ActivatedPack
 
 
 class LotteryGameSerializer(serializers.ModelSerializer):
@@ -38,6 +38,7 @@ class InventoryBookSerializer(serializers.ModelSerializer):
             'total_tickets',
             'remaining_tickets',
             'ticket_value',
+            'is_activated',
             'created_at',
         ]
 
@@ -61,3 +62,45 @@ class InventoryBookSerializer(serializers.ModelSerializer):
 
     def get_subtitle(self, obj):
         return f"{obj.remaining_tickets} LEFT"
+
+class ActivatedPackSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='inventory_book.game.name', read_only=True)
+    gameNum = serializers.CharField(source='inventory_book.game.game_id', read_only=True)
+    packNum = serializers.CharField(source='inventory_book.pack_id', read_only=True)
+    value = serializers.SerializerMethodField()
+    image = serializers.SerializerMethodField()
+    boxNum = serializers.CharField(source='box_num', read_only=True)
+    reversed = serializers.BooleanField(source='reverse_mode', read_only=True)
+    currentNum = serializers.IntegerField(source='current_num', read_only=True)
+    dateUpdated = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ActivatedPack
+        fields = [
+            'id',
+            'boxNum',
+            'name',
+            'gameNum',
+            'packNum',
+            'reversed',
+            'value',
+            'image',
+            'currentNum',
+            'dateUpdated',
+            'created_at',
+        ]
+
+    def get_value(self, obj):
+        return f"${obj.inventory_book.ticket_value:.2f}"
+
+    def get_image(self, obj):
+        request = self.context.get('request')
+        image = obj.inventory_book.game.image
+        if image:
+            if request:
+                return request.build_absolute_uri(image.url)
+            return image.url
+        return None
+
+    def get_dateUpdated(self, obj):
+        return obj.updated_at.strftime('%B %d, %Y')

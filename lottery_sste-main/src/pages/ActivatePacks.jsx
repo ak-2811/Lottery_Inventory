@@ -1,119 +1,135 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import '../App.css'
 import './inventory.css'
 import './activatePacks.css'
+
+const API_BASE = 'http://127.0.0.1:8000/api'
 
 export default function ActivatePacks({ onNavigate }) {
   const [searchText, setSearchText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showActivateModal, setShowActivateModal] = useState(false)
   const [scanBarcode, setScanBarcode] = useState('')
-  const [boxNum, setBoxNum] = useState('')
   const [reverseMode, setReverseMode] = useState(false)
   const [activatedItems, setActivatedItems] = useState([])
-  const [packs, setPacks] = useState([
-    {
-      id: 1,
-      boxNum: '#1',
-      image: '🎰',
-      name: 'MAGNIFICENT JUMBO BUCKS',
-      currentNum: 4,
-      gameNum: 1628,
-      packNum: 279132,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 2,
-      boxNum: '#2',
-      image: '🎰',
-      name: 'MAGNIFICENT JUMBO BUCKS',
-      currentNum: 29,
-      gameNum: 1628,
-      packNum: 295636,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 3,
-      boxNum: '#3',
-      image: '🎰',
-      name: 'MAGNIFICENT JUMBO BUCKS',
-      currentNum: 23,
-      gameNum: 1628,
-      packNum: 307700,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 4,
-      boxNum: '#4',
-      image: '🎲',
-      name: '200 X',
-      currentNum: 17,
-      gameNum: 1665,
-      packNum: 145376,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 5,
-      boxNum: '#5',
-      image: '🎲',
-      name: '200 X',
-      currentNum: 8,
-      gameNum: 1665,
-      packNum: 153718,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 6,
-      boxNum: '#6',
-      image: '🎲',
-      name: '200 X',
-      currentNum: 20,
-      gameNum: 1665,
-      packNum: 145372,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 7,
-      boxNum: '#7',
-      image: '💰',
-      name: '$100,$200, OR $300!',
-      currentNum: 6,
-      gameNum: 1660,
-      packNum: 38403,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 8,
-      boxNum: '#8',
-      image: '💰',
-      name: '$100,$200, OR $300!',
-      currentNum: 12,
-      gameNum: 1660,
-      packNum: 129894,
-      dateUpdated: 'April 03, 2026',
-    },
-    {
-      id: 9,
-      boxNum: '#9',
-      image: '💰',
-      name: '$100,$200, OR $300!',
-      currentNum: 3,
-      gameNum: 1660,
-      packNum: 142795,
-      dateUpdated: 'April 03, 2026',
-    },
-  ])
+  const [packs, setPacks] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
-  const filteredPacks = packs.filter(pack =>
-    pack.name.toLowerCase().includes(searchText.toLowerCase()) ||
-    pack.boxNum.toLowerCase().includes(searchText.toLowerCase()) ||
-    pack.gameNum.toString().includes(searchText) ||
-    pack.packNum.toString().includes(searchText)
-  )
+  const fetchActivatedPacks = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/activated-books/`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch activated packs')
+      }
+      const data = await response.json()
+
+      const formatted = data.map((item) => ({
+        id: item.id,
+        image: item.image,
+        name: item.name,
+        currentNum: 0,
+        gameNum: item.game,
+        packNum: item.pack,
+        dateUpdated: item.date,
+        value: item.value,
+      }))
+
+      setPacks(formatted)
+      setActivatedItems(formatted)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  useEffect(() => {
+    fetchActivatedPacks()
+  }, [])
+
+  const handleOpenModal = () => {
+    setShowActivateModal(true)
+    setScanBarcode('')
+    setReverseMode(false)
+    setErrorMessage('')
+  }
+
+  const handleCloseModal = () => {
+    setShowActivateModal(false)
+    setScanBarcode('')
+    setReverseMode(false)
+    setErrorMessage('')
+  }
+
+  const handleActivatePack = async () => {
+    const barcodeValue = String(scanBarcode || '').trim()
+
+    if (!barcodeValue) {
+      setErrorMessage('Barcode is required.')
+      return
+    }
+
+    try {
+      setLoading(true)
+      setErrorMessage('')
+
+      const response = await fetch(`${API_BASE}/activated-books/activate/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raw_barcode: barcodeValue,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to activate pack')
+      }
+
+      const formattedItem = {
+        id: data.id,
+        image: data.image,
+        name: data.name,
+        currentNum: 0,
+        gameNum: data.game,
+        packNum: data.pack,
+        dateUpdated: data.date,
+        value: data.value,
+      }
+
+      setActivatedItems((prev) => [...prev, formattedItem])
+      setPacks((prev) => [...prev, formattedItem])
+
+      setScanBarcode('')
+      setReverseMode(false)
+      setShowActivateModal(false)
+    } catch (error) {
+      setErrorMessage(error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredPacks = useMemo(() => {
+    return packs.filter(pack =>
+      String(pack.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
+      String(pack.gameNum || '').includes(searchText) ||
+      String(pack.packNum || '').includes(searchText)
+    )
+  }, [packs, searchText])
+
+  const calculateTotal = () => {
+    return activatedItems
+      .reduce((sum, item) => {
+        const val = parseFloat(String(item.value || '$0').replace('$', '')) || 0
+        return sum + val
+      }, 0)
+      .toFixed(2)
+  }
 
   return (
     <div className="app-container">
-      <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>  
+      <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
           ☰
         </button>
@@ -125,7 +141,7 @@ export default function ActivatePacks({ onNavigate }) {
           <a href="#" className="nav-item">
             <span className="nav-icon">⊞</span> <span className="nav-label">Dashboard</span>
           </a>
-          <button 
+          <button
             className="nav-item"
             onClick={() => onNavigate('inventory')}
             style={{ background: 'transparent', color: '#666' }}
@@ -175,7 +191,7 @@ export default function ActivatePacks({ onNavigate }) {
           <div className="activate-title">
             <h1>Activate Packs</h1>
           </div>
-          <button className="activate-btn" onClick={() => setShowActivateModal(true)}>Activate</button>
+          <button className="activate-btn" onClick={handleOpenModal}>Activate</button>
         </div>
 
         <div className="table-container">
@@ -193,25 +209,41 @@ export default function ActivatePacks({ onNavigate }) {
               </tr>
             </thead>
             <tbody>
-              {filteredPacks.map((pack) => (
-                <tr key={pack.id}>
-                  <td>{pack.boxNum}</td>
-                  <td>
-                    <div className="pack-image">{pack.image}</div>
-                  </td>
-                  <td>{pack.name}</td>
-                  <td>{pack.currentNum}</td>
-                  <td>{pack.gameNum}</td>
-                  <td>{pack.packNum}</td>
-                  <td>{pack.dateUpdated}</td>
-                  <td>
-                    <div className="action-links">
-                      <a href="#" className="action-link">Move</a>
-                      <a href="#" className="action-link">Pause</a>
-                    </div>
-                  </td>
+              {filteredPacks.length > 0 ? (
+                filteredPacks.map((pack, index) => (
+                  <tr key={pack.id}>
+                    <td>{index + 1}</td>
+                    <td>
+                      <div className="pack-image">
+                        {pack.image ? (
+                          <img
+                            src={pack.image}
+                            alt={pack.name}
+                            style={{ width: '44px', height: '44px', objectFit: 'contain' }}
+                          />
+                        ) : (
+                          '🎰'
+                        )}
+                      </div>
+                    </td>
+                    <td>{pack.name}</td>
+                    <td>{pack.currentNum}</td>
+                    <td>{pack.gameNum}</td>
+                    <td>{pack.packNum}</td>
+                    <td>{pack.dateUpdated}</td>
+                    <td>
+                      <div className="action-links">
+                        <a href="#" className="action-link">Move</a>
+                        <a href="#" className="action-link">Pause</a>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="no-data">No data</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -222,7 +254,7 @@ export default function ActivatePacks({ onNavigate }) {
           <div className="modal">
             <div className="modal-header">
               <h2>Activate</h2>
-              <button className="modal-close" onClick={() => setShowActivateModal(false)}>✕</button>
+              <button className="modal-close" onClick={handleCloseModal}>✕</button>
             </div>
             <div className="modal-content">
               <div className="activate-modal-content">
@@ -234,20 +266,12 @@ export default function ActivatePacks({ onNavigate }) {
                       placeholder="eg. Scan the barcode"
                       value={scanBarcode}
                       onChange={(e) => setScanBarcode(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleActivatePack()}
                       className="activate-input"
                       autoFocus
                     />
                   </div>
-                  <div className="activate-form-group">
-                    <label>Box #</label>
-                    <input
-                      type="text"
-                      placeholder="eg. any numeric value"
-                      value={boxNum}
-                      onChange={(e) => setBoxNum(e.target.value)}
-                      className="activate-input"
-                    />
-                  </div>
+
                   <div className="activate-form-group">
                     <label>Reverse Mode</label>
                     <div className={`toggle-switch ${reverseMode ? 'active' : ''}`}>
@@ -262,12 +286,27 @@ export default function ActivatePacks({ onNavigate }) {
                   </div>
                 </div>
 
+                {errorMessage && (
+                  <div style={{ color: 'red', marginBottom: '10px' }}>
+                    {errorMessage}
+                  </div>
+                )}
+
                 <div className="activate-summary">
                   <div className="activate-price">
-                    <span className="price-label">$0</span>
-                    <span className="price-text">Total pack : 0</span>
+                    <span className="price-label">${calculateTotal()}</span>
+                    <span className="price-text">Total pack : {activatedItems.length}</span>
                   </div>
-                  <button className="activate-clear-btn">Clear</button>
+                  <button
+                    className="activate-clear-btn"
+                    onClick={() => {
+                      setScanBarcode('')
+                      setReverseMode(false)
+                      setErrorMessage('')
+                    }}
+                  >
+                    Clear
+                  </button>
                 </div>
 
                 <div className="activate-table-wrap">
@@ -291,12 +330,12 @@ export default function ActivatePacks({ onNavigate }) {
                           </td>
                         </tr>
                       ) : (
-                        activatedItems.map((item) => (
+                        activatedItems.map((item, index) => (
                           <tr key={item.id}>
-                            <td>{item.boxNum}</td>
+                            <td>{index + 1}</td>
                             <td>{item.name}</td>
                             <td>{item.packNum}</td>
-                            <td>{item.reversed ? 'Yes' : 'No'}</td>
+                            <td>{reverseMode ? 'Yes' : 'No'}</td>
                             <td>{item.value}</td>
                             <td>
                               <button className="activate-delete-btn">✕</button>
@@ -310,8 +349,10 @@ export default function ActivatePacks({ onNavigate }) {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="modal-cancel-btn" onClick={() => setShowActivateModal(false)}>Cancel</button>
-              <button className="modal-ok-btn">OK</button>
+              <button className="modal-cancel-btn" onClick={handleCloseModal}>Cancel</button>
+              <button className="modal-ok-btn" onClick={handleActivatePack} disabled={loading}>
+                {loading ? 'Saving...' : 'OK'}
+              </button>
             </div>
           </div>
         </div>

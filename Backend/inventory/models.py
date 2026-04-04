@@ -15,6 +15,7 @@ class InventoryBook(models.Model):
     game = models.ForeignKey(LotteryGame, on_delete=models.CASCADE, related_name='books')
     pack_id = models.CharField(max_length=20)
     raw_barcode = models.CharField(max_length=100, unique=True)
+    is_activated = models.BooleanField(default=False)
 
     total_tickets = models.PositiveIntegerField()
     remaining_tickets = models.PositiveIntegerField()
@@ -28,3 +29,22 @@ class InventoryBook(models.Model):
 
     def __str__(self):
         return f"{self.game.game_id} - {self.pack_id}"
+
+class ActivatedPack(models.Model):
+    inventory_book = models.ForeignKey(
+        InventoryBook,
+        on_delete=models.CASCADE,
+        related_name='activated_packs'
+    )
+    box_num = models.CharField(max_length=20)
+    reverse_mode = models.BooleanField(default=False)
+    current_num = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('box_num',)
+
+    def __str__(self):
+        return f"Box {self.box_num} - {self.inventory_book.game.name}"
