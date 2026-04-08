@@ -204,13 +204,17 @@ export default function ActivatePacks({ onNavigate }) {
           <p className="logo-subtitle">PREMIUM INVENTORY</p>
         </div>
         <nav className="sidebar-nav">
-          <a href="#" className="nav-item">
+          <button 
+            className="nav-item"
+            onClick={() => onNavigate('dashboard')}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
+          >
             <span className="nav-icon">⊞</span> <span className="nav-label">Dashboard</span>
-          </a>
+          </button>
           <button
             className="nav-item"
             onClick={() => onNavigate('inventory')}
-            style={{ background: 'transparent', color: '#666' }}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📦</span> <span className="nav-label">Inventory</span>
           </button>
@@ -220,9 +224,13 @@ export default function ActivatePacks({ onNavigate }) {
           <a href="#" className="nav-item">
             <span className="nav-icon">📊</span> <span className="nav-label">Analytics</span>
           </a>
-          <a href="#" className="nav-item active-highlight">
+          <button 
+            className="nav-item active-highlight"
+            onClick={() => onNavigate('activate')}
+            style={{ background: 'transparent', border: 'none', color: '#1a7a6f' }}
+          >
             <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>
-          </a>
+          </button>
         </nav>
         <div className="sidebar-footer">
           <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>

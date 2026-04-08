@@ -264,9 +264,13 @@ export default function Inventory({ onNavigate }) {
           <p className="logo-subtitle">PREMIUM INVENTORY</p>
         </div>
         <nav className="sidebar-nav">
-          <a href="#" className="nav-item active">
+          <button 
+            className="nav-item"
+            onClick={() => onNavigate('dashboard')}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
+          >
             <span className="nav-icon">⊞</span> <span className="nav-label">Dashboard</span>
-          </a>
+          </button>
           <a href="#" className="nav-item active-highlight">
             <span className="nav-icon">📦</span> <span className="nav-label">Inventory</span>
           </a>
@@ -279,7 +283,7 @@ export default function Inventory({ onNavigate }) {
           <button 
             className="nav-item"
             onClick={() => onNavigate('activate')}
-            style={{ background: 'transparent', color: '#666' }}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>
           </button>
