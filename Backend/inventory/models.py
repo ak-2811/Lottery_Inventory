@@ -18,7 +18,7 @@ class InventoryBook(models.Model):
     is_activated = models.BooleanField(default=False)
 
     total_tickets = models.PositiveIntegerField()
-    remaining_tickets = models.PositiveIntegerField()
+    # remaining_tickets = models.PositiveIntegerField()
     ticket_value = models.DecimalField(max_digits=10, decimal_places=2)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -38,13 +38,31 @@ class ActivatedPack(models.Model):
     )
     box_num = models.CharField(max_length=20)
     reverse_mode = models.BooleanField(default=False)
-    current_num = models.PositiveIntegerField(default=0)
+    # current_num = models.PositiveIntegerField(default=0)
+    current_count = models.PositiveIntegerField(default=0)
+    # last_scanned_ticket = models.CharField(max_length=3, null=True, blank=True)
+    last_ticket = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         unique_together = ('box_num',)
 
     def __str__(self):
         return f"Box {self.box_num} - {self.inventory_book.game.name}"
+    
+class SoldTicket(models.Model):
+    inventory_book = models.ForeignKey(
+        InventoryBook,
+        on_delete=models.CASCADE,
+        related_name='sold_tickets'
+    )
+    ticket_number = models.PositiveIntegerField()
+    scanned_code = models.CharField(max_length=100, unique=True)
+    sold_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('inventory_book', 'ticket_number')
+
+    def __str__(self):
+        return f"{self.inventory_book.pack_id} - {self.ticket_number}"

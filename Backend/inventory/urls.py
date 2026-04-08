@@ -5,6 +5,7 @@ from .views import (
     InventoryBookDeleteView,
     ActivatedInventoryBookListView,
     ActivateInventoryBookView,
+    ScanSoldTicketView,
 )
 
 urlpatterns = [
@@ -16,5 +17,6 @@ urlpatterns = [
     # path('activated-packs/<int:pk>/', ActivatedPackDeleteView.as_view(), name='activated-pack-delete'),
     path('activated-books/', ActivatedInventoryBookListView.as_view(), name='activated-book-list'),
     path('activated-books/activate/', ActivateInventoryBookView.as_view(), name='activated-book-activate'),
+    path('tickets/scan/', ScanSoldTicketView.as_view(), name='scan-sold-ticket'),
 
 ]

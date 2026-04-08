@@ -15,6 +15,8 @@ export default function ActivatePacks({ onNavigate }) {
   const [packs, setPacks] = useState([])
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [scannerBuffer, setScannerBuffer] = useState('')
+  const [scanMessage, setScanMessage] = useState('')
 
   const fetchActivatedPacks = async () => {
     try {
@@ -24,15 +26,18 @@ export default function ActivatePacks({ onNavigate }) {
       }
       const data = await response.json()
 
-      const formatted = data.map((item) => ({
+      const formatted = data.map((item, index) => ({
         id: item.id,
         image: item.image,
         name: item.name,
-        currentNum: 0,
-        gameNum: item.game,
-        packNum: item.pack,
-        dateUpdated: item.date,
+        currentNum: item.currentNum || 0,
+        lastTicket: item.lastTicket || 0,
+        gameNum: item.gameNum,
+        packNum: item.packNum,
+        dateUpdated: item.dateUpdated,
         value: item.value,
+        reversed: item.reversed,
+        boxNum: index + 1,
       }))
 
       setPacks(formatted)
@@ -42,6 +47,64 @@ export default function ActivatePacks({ onNavigate }) {
     }
   }
 
+  const handleTicketScan = async (rawBarcode) => {
+    try {
+      const response = await fetch(`${API_BASE}/tickets/scan/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_barcode: rawBarcode }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid input')
+      }
+
+      setScanMessage(`Ticket ${data.ticket_number} scanned`)
+      fetchActivatedPacks()
+    } catch (error) {
+      setScanMessage(error.message || 'Invalid input')
+    }
+  }
+
+  useEffect(() => {
+  let timeoutId = null
+
+  const handleGlobalKeyDown = (e) => {
+    const tag = document.activeElement?.tagName?.toLowerCase()
+    const isTypingInInput =
+      tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+    if (showActivateModal || isTypingInInput) return
+
+    if (e.key === 'Enter') {
+      const scannedValue = scannerBuffer.trim()
+
+      if (/^\d{12,16}$/.test(scannedValue)) {
+        handleTicketScan(scannedValue)
+      }
+
+      setScannerBuffer('')
+      return
+    }
+
+    if (/^\d$/.test(e.key)) {
+      setScannerBuffer((prev) => prev + e.key)
+
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        setScannerBuffer('')
+      }, 300)
+    }
+  }
+
+  window.addEventListener('keydown', handleGlobalKeyDown)
+  return () => {
+    window.removeEventListener('keydown', handleGlobalKeyDown)
+    clearTimeout(timeoutId)
+  }
+}, [scannerBuffer, showActivateModal, packs])
   useEffect(() => {
     fetchActivatedPacks()
   }, [])
@@ -90,11 +153,14 @@ export default function ActivatePacks({ onNavigate }) {
         id: data.id,
         image: data.image,
         name: data.name,
-        currentNum: 0,
-        gameNum: data.game,
-        packNum: data.pack,
-        dateUpdated: data.date,
+        currentNum: data.currentNum || 0,
+        lastTicket: data.lastTicket || 0,
+        gameNum: data.gameNum,
+        packNum: data.packNum,
+        dateUpdated: data.dateUpdated,
         value: data.value,
+        reversed: data.reversed,
+        boxNum: packs.length + 1,
       }
 
       setActivatedItems((prev) => [...prev, formattedItem])
@@ -193,6 +259,23 @@ export default function ActivatePacks({ onNavigate }) {
           </div>
           <button className="activate-btn" onClick={handleOpenModal}>Activate</button>
         </div>
+
+        {scanMessage && (
+          <div
+            style={{
+              color:
+                scanMessage.toLowerCase().includes('invalid') ||
+                scanMessage.toLowerCase().includes('not found') ||
+                scanMessage.toLowerCase().includes('already') ||
+                scanMessage.toLowerCase().includes('greater')
+                  ? 'red'
+                  : 'green',
+              padding: '10px 28px'
+            }}
+          >
+            {scanMessage}
+          </div>
+        )}
 
         <div className="table-container">
           <table className="inventory-table">

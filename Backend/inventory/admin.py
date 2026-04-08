@@ -15,7 +15,7 @@ class InventoryBookAdmin(admin.ModelAdmin):
         'game',
         'pack_id',
         'total_tickets',
-        'remaining_tickets',
+        # 'remaining_tickets',
         'ticket_value',
         'created_at',
     )

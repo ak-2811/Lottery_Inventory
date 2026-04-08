@@ -18,7 +18,6 @@ class InventoryBookSerializer(serializers.ModelSerializer):
     totalValue = serializers.SerializerMethodField()
     packSize = serializers.IntegerField(source='total_tickets', read_only=True)
     date = serializers.SerializerMethodField()
-    subtitle = serializers.SerializerMethodField()
 
     class Meta:
         model = InventoryBook
@@ -27,7 +26,6 @@ class InventoryBookSerializer(serializers.ModelSerializer):
             'game',
             'name',
             'image',
-            'subtitle',
             'pack',
             'value',
             'totalValue',
@@ -36,7 +34,6 @@ class InventoryBookSerializer(serializers.ModelSerializer):
             'pack_id',
             'raw_barcode',
             'total_tickets',
-            'remaining_tickets',
             'ticket_value',
             'is_activated',
             'created_at',
@@ -60,8 +57,6 @@ class InventoryBookSerializer(serializers.ModelSerializer):
     def get_date(self, obj):
         return obj.created_at.strftime('%b %d, %Y')
 
-    def get_subtitle(self, obj):
-        return f"{obj.remaining_tickets} LEFT"
 
 class ActivatedPackSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='inventory_book.game.name', read_only=True)
@@ -71,7 +66,8 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     boxNum = serializers.CharField(source='box_num', read_only=True)
     reversed = serializers.BooleanField(source='reverse_mode', read_only=True)
-    currentNum = serializers.IntegerField(source='current_num', read_only=True)
+    currentNum = serializers.IntegerField(source='current_count', read_only=True)
+    lastTicket = serializers.IntegerField(source='last_ticket', read_only=True)
     dateUpdated = serializers.SerializerMethodField()
 
     class Meta:
@@ -86,10 +82,11 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
             'value',
             'image',
             'currentNum',
+            'lastTicket',
             'dateUpdated',
             'created_at',
         ]
-
+        
     def get_value(self, obj):
         return f"${obj.inventory_book.ticket_value:.2f}"
 
