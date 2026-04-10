@@ -15,7 +15,7 @@ def finalize_sold_pack(inventory_book, activated_pack):
     activated_pack.delete()
 
 class InventoryBookListView(generics.ListAPIView):
-    queryset = InventoryBook.objects.select_related('game').order_by('-created_at')
+    queryset = InventoryBook.objects.select_related('game').filter(is_sold=False).order_by('-created_at')
     serializer_class = InventoryBookSerializer
 
     def get_serializer_context(self):
@@ -221,6 +221,7 @@ class ScanSoldTicketView(APIView):
 
         return Response({
             'message': 'Ticket scanned successfully',
+            'ticket_number': ticket_number,
             'current_count': activated_pack.current_count,
             'last_ticket': activated_pack.last_ticket,
             'delta_count': delta_count,
@@ -238,42 +239,31 @@ class MarkInventoryBookSoldView(APIView):
         if inventory_book.is_sold:
             return Response({'error': 'Pack is already sold.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Case 1: not activated -> directly mark sold
         if not inventory_book.is_activated:
-            return Response(
-                {'error': 'Please activate the ticket before selling it.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            inventory_book.is_sold = True
+            inventory_book.is_activated = False
+            inventory_book.save(update_fields=['is_sold', 'is_activated', 'updated_at'])
 
+            return Response({
+                'message': 'Pack marked as sold successfully.'
+            }, status=status.HTTP_200_OK)
+
+        # Case 2: activated -> move to last ticket and mark sold
         try:
             activated_pack = ActivatedPack.objects.get(inventory_book=inventory_book)
         except ActivatedPack.DoesNotExist:
-            return Response(
-                {'error': 'Activated pack not found for this inventory book.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # even if activated flag is true but row is missing, still mark sold
+            inventory_book.is_sold = True
+            inventory_book.is_activated = False
+            inventory_book.save(update_fields=['is_sold', 'is_activated', 'updated_at'])
+
+            return Response({
+                'message': 'Pack marked as sold successfully.'
+            }, status=status.HTTP_200_OK)
 
         final_ticket_number = inventory_book.total_tickets - 1
-        current_ticket = activated_pack.current_count
-        delta_count = final_ticket_number - current_ticket
-
-        if delta_count < 0:
-            return Response(
-                {'error': 'Current ticket count is already beyond sellable limit.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if delta_count > 0:
-            system_code = f"MARKSOLD-{inventory_book.id}-{timezone.now().timestamp()}"
-
-            SoldTicket.objects.create(
-                inventory_book=inventory_book,
-                ticket_number=final_ticket_number,
-                scanned_code=system_code,
-                delta_count=delta_count,
-                is_reversal=False
-            )
-
-        activated_pack.last_ticket = current_ticket
+        activated_pack.last_ticket = activated_pack.current_count
         activated_pack.current_count = final_ticket_number
         activated_pack.save()
 
@@ -282,7 +272,6 @@ class MarkInventoryBookSoldView(APIView):
         return Response({
             'message': 'Pack marked as sold successfully.',
             'final_ticket_number': final_ticket_number,
-            'delta_count': delta_count,
         }, status=status.HTTP_200_OK)
     
 class DashboardStatsView(APIView):
@@ -307,7 +296,8 @@ class DashboardStatsView(APIView):
         ).count()
 
         inactive_packs = InventoryBook.objects.filter(
-            is_activated=False
+            is_activated=False,
+            is_sold=False
         ).count()
 
         instant_sales_today = Decimal('0.00')

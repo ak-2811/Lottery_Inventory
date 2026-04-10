@@ -56,14 +56,27 @@ export default function ActivatePacks({ onNavigate }) {
         body: JSON.stringify({ raw_barcode: rawBarcode }),
       })
 
-      const data = await response.json()
+      const contentType = response.headers.get('content-type') || ''
+      const rawText = await response.text()
+
+      let data = {}
+      if (contentType.includes('application/json')) {
+        data = JSON.parse(rawText)
+      } else {
+        throw new Error(`Server error (${response.status}). Check Django console.`)
+      }
 
       if (!response.ok) {
         throw new Error(data.error || 'Invalid input')
       }
 
-      setScanMessage(`Ticket ${data.ticket_number} scanned`)
-      fetchActivatedPacks()
+      setScanMessage(
+        data.pack_sold
+          ? 'Pack sold successfully and removed from active boxes'
+          : `Ticket ${data.ticket_number} scanned successfully`
+      )
+
+      await fetchActivatedPacks()
     } catch (error) {
       setScanMessage(error.message || 'Invalid input')
     }
@@ -166,26 +179,25 @@ export default function ActivatePacks({ onNavigate }) {
       throw new Error(data.error || 'Failed to activate pack')
     }
 
-    const formattedItem = {
-      id: data.id,
-      image: data.image,
-      name: data.name,
-      currentNum: data.currentNum || 0,
-      lastTicket: data.lastTicket || 0,
-      gameNum: data.gameNum,
-      packNum: data.packNum,
-      dateUpdated: data.dateUpdated,
-      value: data.value,
-      reversed: data.reversed,
-      boxNum: data.boxNum,
-    }
-
-    setActivatedItems((prev) => [...prev, formattedItem])
-    setPacks((prev) => [...prev, formattedItem])
+    // const formattedItem = {
+    //   id: data.id,
+    //   image: data.image,
+    //   name: data.name,
+    //   currentNum: data.currentNum || 0,
+    //   lastTicket: data.lastTicket || 0,
+    //   gameNum: data.gameNum,
+    //   packNum: data.packNum,
+    //   dateUpdated: data.dateUpdated,
+    //   value: data.value,
+    //   reversed: data.reversed,
+    //   boxNum: data.boxNum,
+    // }
 
     setScanBarcode('')
     setReverseMode(false)
     setShowActivateModal(false)
+    setSelectedBox('')
+    await fetchActivatedPacks()
   } catch (error) {
     setErrorMessage(error.message)
   } finally {

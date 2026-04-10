@@ -62,11 +62,11 @@ class SoldTicket(models.Model):
     ticket_number = models.PositiveIntegerField()
     delta_count = models.IntegerField(default=0)
     is_reversal = models.BooleanField(default=False)
-    scanned_code = models.CharField(max_length=100, unique=True)
+    scanned_code = models.CharField(max_length=100)
     sold_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('inventory_book', 'ticket_number')
+        ordering = ['-sold_at']
 
     def __str__(self):
         return f"{self.inventory_book.pack_id} - {self.ticket_number}"

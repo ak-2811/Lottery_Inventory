@@ -3,9 +3,13 @@ import axios from 'axios'
 import '../App.css'
 import './dashboard.css'
 
+const API_BASE = 'http://127.0.0.1:8000/api'
+
 export default function Dashboard({ onNavigate }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [ticketOnScreen, setTicketOnScreen] = useState([])
+  const [scannerBuffer, setScannerBuffer] = useState('')
+  const [scanMessage, setScanMessage] = useState('')
 
   const [stats, setStats] = useState({
     instant_sales_today: '0.00',
@@ -15,9 +19,10 @@ export default function Dashboard({ onNavigate }) {
     activated_this_month: 0,
     inactive_packs: 0,
   })
+
   const fetchTicketValues = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/ticket-values/')
+      const res = await axios.get(`${API_BASE}/ticket-values/`)
       setTicketOnScreen(res.data)
     } catch (error) {
       console.error('Error fetching ticket values:', error)
@@ -32,16 +37,84 @@ export default function Dashboard({ onNavigate }) {
 
   const fetchDashboardStats = async () => {
     try {
-      const res = await axios.get('http://127.0.0.1:8000/api/dashboard-stats/')
+      const res = await axios.get(`${API_BASE}/dashboard-stats/`)
       setStats(res.data)
     } catch (error) {
       console.error('Error fetching dashboard stats:', error)
     }
   }
 
+  const handleTicketScan = async (rawBarcode) => {
+    try {
+      const response = await fetch(`${API_BASE}/tickets/scan/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ raw_barcode: rawBarcode }),
+      })
+
+      const contentType = response.headers.get('content-type') || ''
+      const rawText = await response.text()
+
+      let data = {}
+      if (contentType.includes('application/json')) {
+        data = JSON.parse(rawText)
+      } else {
+        throw new Error(`Server error (${response.status}). Check Django console.`)
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid input')
+      }
+
+      setScanMessage(
+        data.pack_sold
+          ? 'Pack sold successfully and removed from active boxes'
+          : `Ticket ${data.ticket_number} scanned successfully`
+      )
+
+      await fetchDashboardStats()
+    } catch (error) {
+      setScanMessage(error.message || 'Invalid input')
+    }
+  }
+
   useEffect(() => {
-    fetchDashboardStats()
-  }, [])
+    let timeoutId = null
+
+    const handleGlobalKeyDown = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      const isTypingInInput =
+        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+      if (isTypingInInput) return
+
+      if (e.key === 'Enter') {
+        const scannedValue = scannerBuffer.trim()
+
+        if (/^\d{12,16}$/.test(scannedValue)) {
+          handleTicketScan(scannedValue)
+        }
+
+        setScannerBuffer('')
+        return
+      }
+
+      if (/^\d$/.test(e.key)) {
+        setScannerBuffer((prev) => prev + e.key)
+
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          setScannerBuffer('')
+        }, 300)
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+      clearTimeout(timeoutId)
+    }
+  }, [scannerBuffer])
 
   useEffect(() => {
     fetchDashboardStats()
@@ -59,14 +132,14 @@ export default function Dashboard({ onNavigate }) {
           <p className="logo-subtitle">PREMIUM INVENTORY</p>
         </div>
         <nav className="sidebar-nav">
-          <button 
+          <button
             className="nav-item active-highlight"
             onClick={() => onNavigate('dashboard')}
             style={{ background: 'transparent', border: 'none', color: '#1a7a6f' }}
           >
             <span className="nav-icon">⊞</span> <span className="nav-label">Dashboard</span>
           </button>
-          <button 
+          <button
             className="nav-item"
             onClick={() => onNavigate('inventory')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
@@ -79,7 +152,7 @@ export default function Dashboard({ onNavigate }) {
           <a href="#" className="nav-item">
             <span className="nav-icon">📊</span> <span className="nav-label">Analytics</span>
           </a>
-          <button 
+          <button
             className="nav-item"
             onClick={() => onNavigate('activate')}
             style={{ background: 'transparent', color: '#666', border: 'none' }}
@@ -117,6 +190,23 @@ export default function Dashboard({ onNavigate }) {
             <button className="header-btn end-btn">End Shift</button>
           </div>
         </div>
+
+        {scanMessage && (
+          <div
+            style={{
+              color:
+                scanMessage.toLowerCase().includes('invalid') ||
+                scanMessage.toLowerCase().includes('not found') ||
+                scanMessage.toLowerCase().includes('already') ||
+                scanMessage.toLowerCase().includes('greater')
+                  ? 'red'
+                  : 'green',
+              padding: '10px 28px'
+            }}
+          >
+            {scanMessage}
+          </div>
+        )}
 
         <div className="dashboard-content">
           <div className="stats-grid">

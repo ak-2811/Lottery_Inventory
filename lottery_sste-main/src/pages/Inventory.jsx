@@ -104,6 +104,7 @@ export default function Inventory({ onNavigate }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [inventoryRows, setInventoryRows] = useState([])
   const [searchText, setSearchText] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
 
   const fetchInventoryRows = async () => {
     try {
@@ -111,9 +112,14 @@ export default function Inventory({ onNavigate }) {
       if (!response.ok) {
         throw new Error('Failed to fetch inventory books')
       }
+
       const data = await response.json()
-      setInventoryRows(data)
-      setModalItems(data)
+
+      // hide sold packs from normal inventory listing
+      const filteredData = data.filter((item) => !item.is_sold)
+
+      setInventoryRows(filteredData)
+      setModalItems(filteredData)
     } catch (error) {
       console.error(error)
     }
@@ -128,6 +134,33 @@ export default function Inventory({ onNavigate }) {
     setTicketInput('')
     setErrorMessage('')
     await fetchInventoryRows()
+  }
+  const handleMarkSold = async (id) => {
+    try {
+      setActionMessage('')
+
+      const response = await fetch(`${API_BASE}/inventory-books/${id}/mark-sold/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to mark pack as sold')
+      }
+
+      setActionMessage(data.message || 'Pack marked as sold successfully.')
+
+      // remove sold pack from inventory list
+      setInventoryRows((prev) => prev.filter((item) => item.id !== id))
+      setModalItems((prev) => prev.filter((item) => item.id !== id))
+    } catch (error) {
+      setActionMessage(error.message || 'Failed to mark pack as sold')
+      alert(error.message || 'Failed to mark pack as sold')
+    }
   }
 
   const handleCloseModal = () => {
@@ -359,6 +392,19 @@ export default function Inventory({ onNavigate }) {
           </button>
         </div>
 
+        {actionMessage && (
+          <div
+            style={{
+              color: actionMessage.toLowerCase().includes('failed') || actionMessage.toLowerCase().includes('please activate')
+                ? 'red'
+                : 'green',
+              padding: '10px 0'
+            }}
+          >
+            {actionMessage}
+          </div>
+        )}
+
         <div className="table-container">
          <table className="inventory-table">
           <colgroup>
@@ -407,7 +453,18 @@ export default function Inventory({ onNavigate }) {
                     <td>{r.packSize}</td>
                     <td>{r.date}</td>
                     <td className="actions">
-                      <span className="mark-sold-text">Mark Sold</span>
+                      <button
+                        className="mark-sold-text"
+                        onClick={() => handleMarkSold(r.id)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                      >
+                        Mark Sold
+                      </button>
                       <button className="delete-btn" onClick={() => handleDeleteMainItem(r.id)}>🗑️</button>
                     </td>
                   </tr>
