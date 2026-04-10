@@ -1,28 +1,52 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import axios from 'axios'
 import '../App.css'
 import './dashboard.css'
 
 export default function Dashboard({ onNavigate }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [ticketOnScreen, setTicketOnScreen] = useState([])
 
-  const ticketOnScreen = [
-    { value: '$1', label: '$1' },
-    { value: '$2', label: '$2' },
-    { value: '$3', label: '$3' },
-    { value: '$5', label: '$5' },
-    { value: '$7', label: '$7' },
-    { value: '$10', label: '$10' },
-    { value: '$20', label: '$20' },
-    { value: '$25', label: '$25' },
-    { value: '$30', label: '$30' },
-    { value: '$50', label: '$50' },
-  ]
+  const [stats, setStats] = useState({
+    instant_sales_today: '0.00',
+    active_boxes: 0,
+    activated_today: 0,
+    activated_this_week: 0,
+    activated_this_month: 0,
+    inactive_packs: 0,
+  })
+  const fetchTicketValues = async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:8000/api/ticket-values/')
+      setTicketOnScreen(res.data)
+    } catch (error) {
+      console.error('Error fetching ticket values:', error)
+    }
+  }
 
   const ticketTypes = [
     { name: 'New Tickets', icon: '👥' },
     { name: 'Lucky Tickets', icon: '👥' },
     { name: 'Ending Tickets', icon: '👥' },
   ]
+
+  const fetchDashboardStats = async () => {
+    try {
+      const res = await axios.get('http://127.0.0.1:8000/api/dashboard-stats/')
+      setStats(res.data)
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error)
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboardStats()
+  }, [])
+
+  useEffect(() => {
+    fetchDashboardStats()
+    fetchTicketValues()
+  }, [])
 
   return (
     <div className="app-container">
@@ -76,8 +100,19 @@ export default function Dashboard({ onNavigate }) {
           </div>
 
           <div className="header-right">
-            <button className="header-btn refresh-btn" title="Reload Screen">↻</button>
-            <button className="header-btn reload-btn">Reload Screen</button>
+            <button
+              className="header-btn refresh-btn"
+              title="Reload Screen"
+              onClick={fetchDashboardStats}
+            >
+              ↻
+            </button>
+            <button
+              className="header-btn reload-btn"
+              onClick={fetchDashboardStats}
+            >
+              Reload Screen
+            </button>
             <button className="header-btn manage-btn">Manage Current Shift</button>
             <button className="header-btn end-btn">End Shift</button>
           </div>
@@ -87,30 +122,30 @@ export default function Dashboard({ onNavigate }) {
           <div className="stats-grid">
             <div className="stat-box large">
               <label>Instant Sales ( Today )</label>
-              <div className="stat-value large-value">$ 240</div>
+              <div className="stat-value large-value">$ {stats.instant_sales_today}</div>
             </div>
           </div>
 
           <div className="stats-grid">
             <div className="stat-box">
               <label>Active Boxes</label>
-              <div className="stat-value">53</div>
+              <div className="stat-value">{stats.active_boxes}</div>
             </div>
             <div className="stat-box">
               <label>Activated Today</label>
-              <div className="stat-value">0</div>
+              <div className="stat-value">{stats.activated_today}</div>
             </div>
             <div className="stat-box">
               <label>Activated This Week</label>
-              <div className="stat-value">3</div>
+              <div className="stat-value">{stats.activated_this_week}</div>
             </div>
             <div className="stat-box">
               <label>Activated This Month</label>
-              <div className="stat-value">49</div>
+              <div className="stat-value">{stats.activated_this_month}</div>
             </div>
             <div className="stat-box">
               <label>Inactive Packs</label>
-              <div className="stat-value">96</div>
+              <div className="stat-value">{stats.inactive_packs}</div>
             </div>
           </div>
 

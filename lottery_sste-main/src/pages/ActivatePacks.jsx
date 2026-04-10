@@ -17,6 +17,7 @@ export default function ActivatePacks({ onNavigate }) {
   const [errorMessage, setErrorMessage] = useState('')
   const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
+  const [selectedBox, setSelectedBox] = useState('')
 
   const fetchActivatedPacks = async () => {
     try {
@@ -26,7 +27,7 @@ export default function ActivatePacks({ onNavigate }) {
       }
       const data = await response.json()
 
-      const formatted = data.map((item, index) => ({
+      const formatted = data.map((item) => ({
         id: item.id,
         image: item.image,
         name: item.name,
@@ -37,7 +38,7 @@ export default function ActivatePacks({ onNavigate }) {
         dateUpdated: item.dateUpdated,
         value: item.value,
         reversed: item.reversed,
-        boxNum: index + 1,
+        boxNum: item.boxNum,
       }))
 
       setPacks(formatted)
@@ -114,6 +115,7 @@ export default function ActivatePacks({ onNavigate }) {
     setScanBarcode('')
     setReverseMode(false)
     setErrorMessage('')
+    setSelectedBox('')
   }
 
   const handleCloseModal = () => {
@@ -121,60 +123,75 @@ export default function ActivatePacks({ onNavigate }) {
     setScanBarcode('')
     setReverseMode(false)
     setErrorMessage('')
+    setSelectedBox('')
   }
 
   const handleActivatePack = async () => {
-    const barcodeValue = String(scanBarcode || '').trim()
+  const barcodeValue = String(scanBarcode || '').trim()
 
-    if (!barcodeValue) {
-      setErrorMessage('Barcode is required.')
-      return
-    }
-
-    try {
-      setLoading(true)
-      setErrorMessage('')
-
-      const response = await fetch(`${API_BASE}/activated-books/activate/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          raw_barcode: barcodeValue,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to activate pack')
-      }
-
-      const formattedItem = {
-        id: data.id,
-        image: data.image,
-        name: data.name,
-        currentNum: data.currentNum || 0,
-        lastTicket: data.lastTicket || 0,
-        gameNum: data.gameNum,
-        packNum: data.packNum,
-        dateUpdated: data.dateUpdated,
-        value: data.value,
-        reversed: data.reversed,
-        boxNum: packs.length + 1,
-      }
-
-      setActivatedItems((prev) => [...prev, formattedItem])
-      setPacks((prev) => [...prev, formattedItem])
-
-      setScanBarcode('')
-      setReverseMode(false)
-      setShowActivateModal(false)
-    } catch (error) {
-      setErrorMessage(error.message)
-    } finally {
-      setLoading(false)
-    }
+  if (!barcodeValue) {
+    setErrorMessage('Barcode is required.')
+    return
   }
+  if (!selectedBox) {
+  setErrorMessage('Box number is required.')
+  return
+}
+
+  try {
+    setLoading(true)
+    setErrorMessage('')
+
+    const response = await fetch(`${API_BASE}/activated-books/activate/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        raw_barcode: barcodeValue,
+        reverse_mode: reverseMode,
+        box_num: selectedBox
+      }),
+    })
+
+    const contentType = response.headers.get('content-type') || ''
+    const rawText = await response.text()
+
+    let data = {}
+    if (contentType.includes('application/json')) {
+      data = JSON.parse(rawText)
+    } else {
+      throw new Error(`Server error (${response.status}). Check Django console.`)
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to activate pack')
+    }
+
+    const formattedItem = {
+      id: data.id,
+      image: data.image,
+      name: data.name,
+      currentNum: data.currentNum || 0,
+      lastTicket: data.lastTicket || 0,
+      gameNum: data.gameNum,
+      packNum: data.packNum,
+      dateUpdated: data.dateUpdated,
+      value: data.value,
+      reversed: data.reversed,
+      boxNum: data.boxNum,
+    }
+
+    setActivatedItems((prev) => [...prev, formattedItem])
+    setPacks((prev) => [...prev, formattedItem])
+
+    setScanBarcode('')
+    setReverseMode(false)
+    setShowActivateModal(false)
+  } catch (error) {
+    setErrorMessage(error.message)
+  } finally {
+    setLoading(false)
+  }
+}
 
   const filteredPacks = useMemo(() => {
     return packs.filter(pack =>
@@ -192,6 +209,15 @@ export default function ActivatePacks({ onNavigate }) {
       }, 0)
       .toFixed(2)
   }
+  const availableBoxes = useMemo(() => {
+    const usedBoxes = new Set(
+      packs.map((pack) => String(pack.boxNum))
+    )
+
+    return [...Array(59)]
+      .map((_, i) => String(i + 1))
+      .filter((box) => !usedBoxes.has(box))
+  }, [packs])
 
   return (
     <div className="app-container">
@@ -267,7 +293,6 @@ export default function ActivatePacks({ onNavigate }) {
           </div>
           <button className="activate-btn" onClick={handleOpenModal}>Activate</button>
         </div>
-
         {scanMessage && (
           <div
             style={{
@@ -284,7 +309,6 @@ export default function ActivatePacks({ onNavigate }) {
             {scanMessage}
           </div>
         )}
-
         <div className="table-container">
           <table className="inventory-table">
             <thead>
@@ -301,9 +325,9 @@ export default function ActivatePacks({ onNavigate }) {
             </thead>
             <tbody>
               {filteredPacks.length > 0 ? (
-                filteredPacks.map((pack, index) => (
+                filteredPacks.map((pack) => (
                   <tr key={pack.id}>
-                    <td>{index + 1}</td>
+                    <td>{pack.boxNum}</td>
                     <td>
                       <div className="pack-image">
                         {pack.image ? (
@@ -361,6 +385,19 @@ export default function ActivatePacks({ onNavigate }) {
                       className="activate-input"
                       autoFocus
                     />
+                    <label>Box Number</label>
+                    <select
+                      value={selectedBox}
+                      onChange={(e) => setSelectedBox(e.target.value)}
+                      className="activate-input"
+                    >
+                      <option value="">Select Box</option>
+                      {availableBoxes.map((box) => (
+                        <option key={box} value={box}>
+                          Box {box}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="activate-form-group">
@@ -421,9 +458,9 @@ export default function ActivatePacks({ onNavigate }) {
                           </td>
                         </tr>
                       ) : (
-                        activatedItems.map((item, index) => (
+                        activatedItems.map((item) => (
                           <tr key={item.id}>
-                            <td>{index + 1}</td>
+                            <td>{item.boxNum}</td>
                             <td>{item.name}</td>
                             <td>{item.packNum}</td>
                             <td>{reverseMode ? 'Yes' : 'No'}</td>

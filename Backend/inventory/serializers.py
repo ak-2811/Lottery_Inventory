@@ -36,6 +36,7 @@ class InventoryBookSerializer(serializers.ModelSerializer):
             'total_tickets',
             'ticket_value',
             'is_activated',
+            'is_sold',
             'created_at',
         ]
 

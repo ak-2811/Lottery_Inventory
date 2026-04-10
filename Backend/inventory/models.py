@@ -16,6 +16,8 @@ class InventoryBook(models.Model):
     pack_id = models.CharField(max_length=20)
     raw_barcode = models.CharField(max_length=100, unique=True)
     is_activated = models.BooleanField(default=False)
+    is_sold = models.BooleanField(default=False)
+
 
     total_tickets = models.PositiveIntegerField()
     # remaining_tickets = models.PositiveIntegerField()
@@ -58,6 +60,8 @@ class SoldTicket(models.Model):
         related_name='sold_tickets'
     )
     ticket_number = models.PositiveIntegerField()
+    delta_count = models.IntegerField(default=0)
+    is_reversal = models.BooleanField(default=False)
     scanned_code = models.CharField(max_length=100, unique=True)
     sold_at = models.DateTimeField(auto_now_add=True)
 
