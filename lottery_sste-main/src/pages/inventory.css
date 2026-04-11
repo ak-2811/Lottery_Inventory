@@ -53,10 +53,15 @@ body {
 
 .sidebar.closed {
   width: 72px;
-  padding: 16px 8px;
+  padding: 60px 8px 16px 8px;
   overflow: visible;
   align-items: center;
   gap: 8px;
+}
+
+.sidebar.closed .nav-item:hover {
+  background: var(--border-light);
+  color: var(--text-primary);
 }
 
 .sidebar.closed .nav-label,
@@ -85,12 +90,14 @@ body {
 
 .nav-item.active-highlight { background: var(--teal-light); color: var(--teal); font-weight: 600; }
 
+.sidebar.closed .nav-item.active-highlight { background: var(--teal-light); color: var(--teal); border-radius: 10px; }
+
 .nav-icon { display: inline-flex; width: 20px; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
 
 .nav-label, .btn-label, .link-label { transition: opacity 0.2s; }
 
-.sidebar.closed .nav-item { width: 44px; height: 44px; padding: 0; justify-content: center; gap: 0; }
-.sidebar.closed .nav-icon { font-size: 18px; width: auto; }
+.sidebar.closed .nav-item { width: 44px; height: 44px; padding: 0; justify-content: center; gap: 0; border-radius: 10px; }
+.sidebar.closed .nav-icon { font-size: 20px; width: auto; }
 
 .sidebar-footer { display: flex; flex-direction: column; gap: 3px; padding-top: 20px; border-top: 1px solid var(--border); margin-top: auto; }
 

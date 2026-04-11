@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import '../App.css'
 import './inventory.css'
 import './activatePacks.css'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
 
-export default function ActivatePacks({ onNavigate }) {
+export default function ActivatePacks() {
+  const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showActivateModal, setShowActivateModal] = useState(false)
@@ -313,27 +315,28 @@ export default function ActivatePacks({ onNavigate }) {
         <nav className="sidebar-nav">
           <button 
             className="nav-item"
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate('/dashboard')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
-            <span className="nav-icon">⊞</span> <span className="nav-label">Dashboard</span>
+            <span className="nav-icon">🎯</span> <span className="nav-label">Dashboard</span>
           </button>
           <button
             className="nav-item"
-            onClick={() => onNavigate('inventory')}
+            onClick={() => navigate('/inventory')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📦</span> <span className="nav-label">Inventory</span>
           </button>
-          <a href="#" className="nav-item">
-            <span className="nav-icon">💰</span> <span className="nav-label">Sales</span>
-          </a>
-          <a href="#" className="nav-item">
-            <span className="nav-icon">📊</span> <span className="nav-label">Analytics</span>
-          </a>
+          <button
+            className="nav-item"
+            onClick={() => navigate('/reports')}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
+          >
+            <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
+          </button>
           <button 
             className="nav-item active-highlight"
-            onClick={() => onNavigate('activate')}
+            onClick={() => navigate('/activate-packs')}
             style={{ background: 'transparent', border: 'none', color: '#1a7a6f' }}
           >
             <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>

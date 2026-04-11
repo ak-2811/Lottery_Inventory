@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 import './dashboard.css'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard() {
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [ticketOnScreen, setTicketOnScreen] = useState([])
   const [scannerBuffer, setScannerBuffer] = useState('')
@@ -134,27 +136,28 @@ export default function Dashboard({ onNavigate }) {
         <nav className="sidebar-nav">
           <button
             className="nav-item active-highlight"
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => navigate('/dashboard')}
             style={{ background: 'transparent', border: 'none', color: '#1a7a6f' }}
           >
-            <span className="nav-icon">⊞</span> <span className="nav-label">Dashboard</span>
+            <span className="nav-icon">🎯</span> <span className="nav-label">Dashboard</span>
           </button>
           <button
             className="nav-item"
-            onClick={() => onNavigate('inventory')}
+            onClick={() => navigate('/inventory')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📦</span> <span className="nav-label">Inventory</span>
           </button>
-          <a href="#" className="nav-item">
-            <span className="nav-icon">💰</span> <span className="nav-label">Sales</span>
-          </a>
-          <a href="#" className="nav-item">
-            <span className="nav-icon">📊</span> <span className="nav-label">Analytics</span>
-          </a>
           <button
             className="nav-item"
-            onClick={() => onNavigate('activate')}
+            onClick={() => navigate('/reports')}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
+          >
+            <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
+          </button>
+          <button
+            className="nav-item"
+            onClick={() => navigate('/activate-packs')}
             style={{ background: 'transparent', color: '#666', border: 'none' }}
           >
             <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>
