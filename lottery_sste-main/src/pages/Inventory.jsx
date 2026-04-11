@@ -323,6 +323,13 @@ export default function Inventory() {
           >
             <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>
           </button>
+          <button 
+            className="nav-item"
+            onClick={() => window.open('/live-display', '_blank')}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
+          >
+            <span className="nav-icon">📺</span> <span className="nav-label">Live Display</span>
+          </button>
         </nav>
         <div className="sidebar-footer">
           <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>

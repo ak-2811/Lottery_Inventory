@@ -23,21 +23,20 @@ export default function Reports() {
     { label: 'Instant Cashes', value: '$20,884', color: '#1a7a6f' },
     { label: 'Online Sales', value: '$13,215', color: '#1a7a6f' },
     { label: 'Online Cashes', value: '$5,124', color: '#1a7a6f' },
-    { label: 'Reg Cash', value: '$20,808', color: '#1a7a6f' },
   ]
 
   const reportData = [
-    { id: 1, date: 'April 10, 2026', instantSales: 3124, instantCashes: 1386, onlineSales: 1309, onlineCashes: 126, cashInReg: 2921 },
-    { id: 2, date: 'April 09, 2026', instantSales: 2583, instantCashes: 1465, onlineSales: 897, onlineCashes: 296, cashInReg: 1719 },
-    { id: 3, date: 'April 08, 2026', instantSales: 2898, instantCashes: 1446, onlineSales: 1198.5, onlineCashes: 625, cashInReg: 2025.5 },
-    { id: 4, date: 'April 07, 2026', instantSales: 2916, instantCashes: 1321, onlineSales: 951.5, onlineCashes: 102, cashInReg: 2444.5 },
-    { id: 5, date: 'April 06, 2026', instantSales: 2878, instantCashes: 1849, onlineSales: 1422.5, onlineCashes: 135, cashInReg: 2316.5 },
-    { id: 6, date: 'April 05, 2026', instantSales: 1293, instantCashes: 633, onlineSales: 769.5, onlineCashes: 44, cashInReg: 1385.5 },
-    { id: 7, date: 'April 04, 2026', instantSales: 3234, instantCashes: 2924, onlineSales: 1795, onlineCashes: 757, cashInReg: 1348 },
-    { id: 8, date: 'April 03, 2026', instantSales: 4884, instantCashes: 3531, onlineSales: 852, onlineCashes: 1129, cashInReg: 1076 },
-    { id: 9, date: 'April 02, 2026', instantSales: 2911, instantCashes: 2224, onlineSales: 1364, onlineCashes: 1211, cashInReg: 840 },
-    { id: 10, date: 'April 01, 2026', instantSales: 3147, instantCashes: 1512, onlineSales: 1524, onlineCashes: 357, cashInReg: 2802 },
-    { id: 11, date: 'March 31, 2026', instantSales: 3745, instantCashes: 2593, onlineSales: 1120.5, onlineCashes: 342, cashInReg: 1930.5 },
+    { id: 1, date: 'April 10, 2026', instantSales: 3124, instantCashes: 1386, onlineSales: 1309, onlineCashes: 126 },
+    { id: 2, date: 'April 09, 2026', instantSales: 2583, instantCashes: 1465, onlineSales: 897, onlineCashes: 296 },
+    { id: 3, date: 'April 08, 2026', instantSales: 2898, instantCashes: 1446, onlineSales: 1198.5, onlineCashes: 625 },
+    { id: 4, date: 'April 07, 2026', instantSales: 2916, instantCashes: 1321, onlineSales: 951.5, onlineCashes: 102 },
+    { id: 5, date: 'April 06, 2026', instantSales: 2878, instantCashes: 1849, onlineSales: 1422.5, onlineCashes: 135 },
+    { id: 6, date: 'April 05, 2026', instantSales: 1293, instantCashes: 633, onlineSales: 769.5, onlineCashes: 44 },
+    { id: 7, date: 'April 04, 2026', instantSales: 3234, instantCashes: 2924, onlineSales: 1795, onlineCashes: 757 },
+    { id: 8, date: 'April 03, 2026', instantSales: 4884, instantCashes: 3531, onlineSales: 852, onlineCashes: 1129 },
+    { id: 9, date: 'April 02, 2026', instantSales: 2911, instantCashes: 2224, onlineSales: 1364, onlineCashes: 1211 },
+    { id: 10, date: 'April 01, 2026', instantSales: 3147, instantCashes: 1512, onlineSales: 1524, onlineCashes: 357 },
+    { id: 11, date: 'March 31, 2026', instantSales: 3745, instantCashes: 2593, onlineSales: 1120.5, onlineCashes: 342 },
   ]
 
   const boxDetails = [
@@ -127,6 +126,13 @@ export default function Reports() {
           >
             <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>
           </button>
+          <button 
+            className="nav-item"
+            onClick={() => window.open('/live-display', '_blank')}
+            style={{ background: 'transparent', border: 'none', color: '#666' }}
+          >
+            <span className="nav-icon">📺</span> <span className="nav-label">Live Display</span>
+          </button>
         </nav>
         <div className="sidebar-footer">
           <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>
@@ -187,7 +193,6 @@ export default function Reports() {
                   <th>Instant Cashes</th>
                   <th>Online Sales</th>
                   <th>Online Cashes</th>
-                  <th>Cash In Reg</th>
                   <th style={{ textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
@@ -200,7 +205,6 @@ export default function Reports() {
                     <td>{row.instantCashes}</td>
                     <td>{row.onlineSales}</td>
                     <td>{row.onlineCashes}</td>
-                    <td>{row.cashInReg}</td>
                     <td className="action-cell">
                       <button 
                         className="view-detail-link"

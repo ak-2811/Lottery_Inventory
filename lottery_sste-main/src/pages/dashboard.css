@@ -1,5 +1,9 @@
 /* Dashboard Specific Styles */
 
+.main-content {
+  background: white;
+}
+
 .dashboard-content {
   padding: 32px;
   flex: 1;

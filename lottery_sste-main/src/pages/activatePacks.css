@@ -1,4 +1,9 @@
 /* Activate Packs Page - Improved Modal Styles */
+
+.main-content {
+  background: white;
+}
+
 .activate-modal-content {
   display: flex;
   flex-direction: column;
