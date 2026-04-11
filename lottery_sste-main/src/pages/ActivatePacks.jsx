@@ -18,6 +18,11 @@ export default function ActivatePacks({ onNavigate }) {
   const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
   const [selectedBox, setSelectedBox] = useState('')
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [moveTargetBox, setMoveTargetBox] = useState('')
+  const [selectedMovePack, setSelectedMovePack] = useState(null)
+  const [moveError, setMoveError] = useState('')
+  const [moveLoading, setMoveLoading] = useState(false)
 
   const fetchActivatedPacks = async () => {
     try {
@@ -45,6 +50,70 @@ export default function ActivatePacks({ onNavigate }) {
       setActivatedItems(formatted)
     } catch (error) {
       console.error(error)
+    }
+  }
+
+  const handleOpenMoveModal = (pack) => {
+    setSelectedMovePack(pack)
+    setMoveTargetBox('')
+    setMoveError('')
+    setShowMoveModal(true)
+  }
+
+  const handleCloseMoveModal = () => {
+    setShowMoveModal(false)
+    setMoveTargetBox('')
+    setSelectedMovePack(null)
+    setMoveError('')
+  }
+
+  const moveBoxOptions = useMemo(() => {
+    if (!selectedMovePack) return []
+
+    return [...Array(59)]
+      .map((_, i) => String(i + 1))
+      .filter((box) => box !== String(selectedMovePack.boxNum))
+  }, [selectedMovePack])
+
+  const handleMovePack = async () => {
+    if (!selectedMovePack) return
+
+    if (!moveTargetBox) {
+      setMoveError('Please select a target box.')
+      return
+    }
+
+    try {
+      setMoveLoading(true)
+      setMoveError('')
+
+      const response = await fetch(`${API_BASE}/activated-books/${selectedMovePack.id}/move/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_box: moveTargetBox }),
+      })
+
+      const contentType = response.headers.get('content-type') || ''
+      const rawText = await response.text()
+
+      let data = {}
+      if (contentType.includes('application/json')) {
+        data = JSON.parse(rawText)
+      } else {
+        throw new Error(`Server error (${response.status}). Check Django console.`)
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to move pack')
+      }
+
+      setScanMessage(data.message || 'Pack moved successfully')
+      handleCloseMoveModal()
+      await fetchActivatedPacks()
+    } catch (error) {
+      setMoveError(error.message || 'Failed to move pack')
+    } finally {
+      setMoveLoading(false)
     }
   }
 
@@ -360,7 +429,14 @@ export default function ActivatePacks({ onNavigate }) {
                     <td>{pack.dateUpdated}</td>
                     <td>
                       <div className="action-links">
-                        <a href="#" className="action-link">Move</a>
+                        {/* <a href="#" className="action-link">Move</a> */}
+                        <button
+                          className="action-link"
+                          onClick={() => handleOpenMoveModal(pack)}
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                        >
+                          Move
+                        </button>
                         <a href="#" className="action-link">Pause</a>
                       </div>
                     </td>
@@ -375,7 +451,61 @@ export default function ActivatePacks({ onNavigate }) {
           </table>
         </div>
       </div>
+      {showMoveModal && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <div className="modal-header">
+              <h2>Move Pack</h2>
+              <button className="modal-close" onClick={handleCloseMoveModal}>✕</button>
+            </div>
 
+            <div className="modal-content">
+              <div className="activate-modal-content">
+                <div className="activate-form-row">
+                  <div className="activate-form-group">
+                    <label>Current Box</label>
+                    <input
+                      type="text"
+                      value={selectedMovePack ? `Box ${selectedMovePack.boxNum}` : ''}
+                      className="activate-input"
+                      disabled
+                    />
+
+                    <label>Target Box</label>
+                    <select
+                      value={moveTargetBox}
+                      onChange={(e) => setMoveTargetBox(e.target.value)}
+                      className="activate-input"
+                    >
+                      <option value="">Select Box</option>
+                      {moveBoxOptions.map((box) => (
+                        <option key={box} value={box}>
+                          Box {box}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {moveError && (
+                  <div style={{ color: 'red', marginBottom: '10px' }}>
+                    {moveError}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="modal-cancel-btn" onClick={handleCloseMoveModal}>
+                Cancel
+              </button>
+              <button className="modal-ok-btn" onClick={handleMovePack} disabled={moveLoading}>
+                {moveLoading ? 'Moving...' : 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showActivateModal && (
         <div className="modal-overlay">
           <div className="modal">

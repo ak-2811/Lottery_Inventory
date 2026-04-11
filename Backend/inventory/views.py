@@ -194,6 +194,8 @@ class ScanSoldTicketView(APIView):
             delta_count=count+1
         elif (count<0):
             delta_count=count-1
+        elif (count==0):
+            delta_count=0
         is_reversal = delta_count < 0
 
         if delta_count == 0:
@@ -336,4 +338,47 @@ class TicketValuesView(APIView):
         ]
 
         return Response(ticket_values)
+    
+class MoveActivatedPackView(APIView):
+    def post(self, request, pk):
+        target_box = str(request.data.get('target_box', '')).strip()
+
+        if not target_box:
+            return Response({'error': 'Target box is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            source_pack = ActivatedPack.objects.get(pk=pk)
+        except ActivatedPack.DoesNotExist:
+            return Response({'error': 'Activated pack not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        source_box = str(source_pack.box_num)
+
+        if target_box == source_box:
+            return Response({'error': 'Selected box is same as current box.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        target_pack = ActivatedPack.objects.filter(box_num=target_box).first()
+
+        if target_pack:
+            # swap box numbers safely
+            temp_box = f"temp-{source_pack.id}"
+
+            source_pack.box_num = temp_box
+            source_pack.save(update_fields=['box_num'])
+
+            target_pack.box_num = source_box
+            target_pack.save(update_fields=['box_num'])
+
+            source_pack.box_num = target_box
+            source_pack.save(update_fields=['box_num'])
+
+            return Response({
+                'message': f'Boxes swapped successfully. Box {source_box} ↔ Box {target_box}'
+            }, status=status.HTTP_200_OK)
+
+        source_pack.box_num = target_box
+        source_pack.save(update_fields=['box_num'])
+
+        return Response({
+            'message': f'Pack moved successfully to Box {target_box}'
+        }, status=status.HTTP_200_OK)
     

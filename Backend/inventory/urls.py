@@ -9,6 +9,7 @@ from .views import (
     DashboardStatsView,
     TicketValuesView,
     MarkInventoryBookSoldView,
+    MoveActivatedPackView,
 )
 
 urlpatterns = [
@@ -24,5 +25,6 @@ urlpatterns = [
     path('dashboard-stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('ticket-values/', TicketValuesView.as_view(), name='ticket-values'),
     path('inventory-books/<int:pk>/mark-sold/', MarkInventoryBookSoldView.as_view(), name='mark-inventory-book-sold'),
+    path('activated-books/<int:pk>/move/', MoveActivatedPackView.as_view(), name='move-activated-pack'),
 
 ]
