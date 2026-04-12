@@ -586,3 +586,33 @@ class DailyReportBoxDetailListView(APIView):
             ).order_by('box_num', 'id')
         serializer = DailyReportBoxDetailSerializer(details, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+class DailySalesView(APIView):
+    def get(self, request):
+        """
+        Returns daily sales data with totals for:
+        instant_sales, instant_cashes, online_sales, online_cashes, online_cancels
+        """
+        reports = DailyReport.objects.all().order_by('report_date')
+        
+        data = []
+        for report in reports:
+            total = (
+                report.instant_sales +
+                report.instant_cashes +
+                report.online_sales +
+                report.online_cashes +
+                report.online_cancels
+            )
+            
+            data.append({
+                'date': report.report_date.strftime('%b %d'),
+                'instant_sales': float(report.instant_sales),
+                'instant_cashes': float(report.instant_cashes),
+                'online_sales': float(report.online_sales),
+                'online_cashes': float(report.online_cashes),
+                'online_cancels': float(report.online_cancels),
+                'total': float(total),
+            })
+        
+        return Response(data, status=status.HTTP_200_OK)

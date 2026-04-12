@@ -291,8 +291,8 @@ export default function Dashboard() {
                   labels: dailySalesData.map((item) => item.date),
                   datasets: [
                     {
-                      label: 'Sales ($)',
-                      data: dailySalesData.map((item) => item.sales),
+                      label: 'Total Sales ($)',
+                      data: dailySalesData.map((item) => item.total),
                       borderColor: '#1a7a6f',
                       backgroundColor: 'rgba(26, 122, 111, 0.1)',
                       borderWidth: 2,
@@ -323,7 +323,7 @@ export default function Dashboard() {
                       padding: 12,
                       callbacks: {
                         label: function (context) {
-                          return `Sales: $${context.parsed.y.toLocaleString()}`;
+                          return `Total Sales: $${context.parsed.y.toLocaleString()}`;
                         },
                       },
                     },
