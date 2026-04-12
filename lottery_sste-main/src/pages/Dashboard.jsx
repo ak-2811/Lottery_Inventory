@@ -85,7 +85,7 @@ export default function Dashboard() {
   const handleEndShift = async () => {
     try {
       await axios.post('http://127.0.0.1:8000/api/end-shift/')
-      navigate('/reports')
+      navigate('/end-shift')
     } catch (error) {
       console.error('Error ending shift:', error)
       setScanMessage('Failed to end shift')

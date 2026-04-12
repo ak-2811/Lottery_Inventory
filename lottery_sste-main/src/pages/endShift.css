@@ -1,0 +1,312 @@
+.end-shift-content {
+  padding: 32px;
+  background: linear-gradient(135deg, #f5fafb 0%, #f0f7f9 100%);
+  min-height: 100vh;
+}
+
+/* Sales Summary Cards */
+.sales-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.summary-card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.3s ease;
+}
+
+.summary-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.summary-card label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a7a6f;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.summary-card .summary-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.summary-card input {
+  font-size: 24px;
+  font-weight: 700;
+  padding: 12px;
+  border: 2px solid #e5e5e5;
+  border-radius: 8px;
+  color: #1a1a1a;
+  font-family: inherit;
+  background: #fafbfc;
+  transition: all 0.2s;
+}
+
+.summary-card input:focus {
+  outline: none;
+  border-color: #1a7a6f;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(26, 122, 111, 0.1);
+}
+
+.summary-card input::placeholder {
+  color: #ccc;
+}
+
+/* Sales by Game Section */
+.sales-by-game-section {
+  margin-bottom: 40px;
+}
+
+.sales-by-game-section h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 24px;
+  margin-top: 0;
+}
+
+.table-container {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid #f0f0f0;
+}
+
+.details-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.details-table thead {
+  background: #f8f9fa;
+  border-bottom: 2px solid #e5e5e5;
+}
+
+.details-table th {
+  padding: 16px 14px;
+  text-align: left;
+  font-weight: 700;
+  color: #1a1a1a;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.details-table th:last-child {
+  text-align: center;
+}
+
+.details-table td {
+  padding: 14px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #333;
+}
+
+.details-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.details-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.details-table tbody tr.active-row {
+  background-color: #f0f7f5;
+}
+
+.details-table tbody tr.sold-row {
+  background-color: #fef3f1;
+}
+
+.box-number {
+  display: inline-block;
+  background: linear-gradient(135deg, #fce8e2 0%, #f9d7ce 100%);
+  color: #d63219;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 50px;
+  text-align: center;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.status-badge.active {
+  background: linear-gradient(135deg, #d4edda 0%, #c6e6d6 100%);
+  color: #1a7a6f;
+}
+
+.status-badge.sold {
+  background: linear-gradient(135deg, #fce8e2 0%, #f9d7ce 100%);
+  color: #d63219;
+}
+
+.details-table .actions {
+  text-align: center;
+  padding: 14px !important;
+}
+
+.mark-sold-text {
+  color: #d63219;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.mark-sold-text:hover {
+  color: #b32511;
+  background: rgba(214, 50, 25, 0.05);
+}
+
+.sold-section-header {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-top: 40px;
+  margin-bottom: 24px;
+  padding-top: 20px;
+  border-top: 2px solid #e5e5e5;
+}
+
+/* Action Buttons */
+.end-shift-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 24px;
+  border-top: 1px solid #e5e5e5;
+  margin-top: 40px;
+}
+
+.btn {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  background: white;
+  color: #1a7a6f;
+  border: 1px solid #1a7a6f;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background: #f0f7f5;
+  box-shadow: 0 2px 8px rgba(26, 122, 111, 0.1);
+}
+
+.btn-save {
+  background: linear-gradient(135deg, #1a7a6f 0%, #156055 100%);
+  color: white;
+}
+
+.btn-save:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(26, 122, 111, 0.3);
+}
+
+.get-report-btn {
+  background: linear-gradient(135deg, #d63219 0%, #b32511 100%);
+  color: white;
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.get-report-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(214, 50, 25, 0.3);
+}
+
+.get-report-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .end-shift-content {
+    padding: 20px;
+  }
+
+  .sales-summary {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .summary-card {
+    padding: 16px;
+  }
+
+  .summary-card input {
+    font-size: 18px;
+    padding: 8px;
+  }
+
+  .details-table {
+    font-size: 12px;
+  }
+
+  .details-table th,
+  .details-table td {
+    padding: 8px;
+  }
+
+  .end-shift-actions {
+    flex-direction: column-reverse;
+  }
+
+  .btn {
+    width: 100%;
+  }
+}
+
