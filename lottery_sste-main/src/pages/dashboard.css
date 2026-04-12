@@ -516,3 +516,32 @@
   }
 }
 
+/* Sales Chart Container */
+.sales-chart-container {
+  background: white;
+  padding: 32px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #f0f0f0;
+  margin-bottom: 32px;
+  height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sales-chart-container h3 {
+  margin-top: 0 !important;
+}
+
+.sales-chart-container canvas {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .sales-chart-container {
+    height: 300px;
+    padding: 20px;
+  }
+}
+
