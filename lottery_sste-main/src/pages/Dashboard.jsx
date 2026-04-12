@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 import './dashboard.css'
+// import { useNavigate } from 'react-router-dom'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
 
@@ -37,6 +38,15 @@ export default function Dashboard() {
     { name: 'Ending Tickets', icon: '👥' },
   ]
 
+  const handleEndShift = async () => {
+    try {
+      await axios.post('http://127.0.0.1:8000/api/end-shift/')
+      navigate('/reports')
+    } catch (error) {
+      console.error('Error ending shift:', error)
+      setScanMessage('Failed to end shift')
+    }
+  }
   const fetchDashboardStats = async () => {
     try {
       const res = await axios.get(`${API_BASE}/dashboard-stats/`)
@@ -197,7 +207,8 @@ export default function Dashboard() {
               Reload Screen
             </button>
             <button className="header-btn manage-btn">Manage Current Shift</button>
-            <button className="header-btn end-btn">End Shift</button>
+            {/* <button className="header-btn end-btn">End Shift</button> */}
+            <button className="header-btn end-btn" onClick={handleEndShift}>End Shift</button>
           </div>
         </div>
 

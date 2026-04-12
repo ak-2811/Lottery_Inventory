@@ -1,74 +1,161 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../App.css'
 import './reports.css'
 
+const API_BASE = 'http://127.0.0.1:8000/api'
+
 export default function Reports() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [startDate, setStartDate] = useState('2026/04/01')
-  const [endDate, setEndDate] = useState('2026/04/11')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState(null)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [saveLoading, setSaveLoading] = useState(false)
+  const [pageMessage, setPageMessage] = useState('')
   const [detailFormData, setDetailFormData] = useState({
     onlineSales: '',
     instantCashes: '',
     onlineCashes: '',
-    onlineCancel: '',
+    onlineCancels: '',
   })
 
-  const reportStats = [
-    { label: 'Instant Sales', value: '$33,613', color: '#1a7a6f' },
-    { label: 'Instant Cashes', value: '$20,884', color: '#1a7a6f' },
-    { label: 'Online Sales', value: '$13,215', color: '#1a7a6f' },
-    { label: 'Online Cashes', value: '$5,124', color: '#1a7a6f' },
-  ]
+  // const boxDetails = []
+  const [boxDetails, setBoxDetails] = useState([])
 
-  const reportData = [
-    { id: 1, date: 'April 10, 2026', instantSales: 3124, instantCashes: 1386, onlineSales: 1309, onlineCashes: 126 },
-    { id: 2, date: 'April 09, 2026', instantSales: 2583, instantCashes: 1465, onlineSales: 897, onlineCashes: 296 },
-    { id: 3, date: 'April 08, 2026', instantSales: 2898, instantCashes: 1446, onlineSales: 1198.5, onlineCashes: 625 },
-    { id: 4, date: 'April 07, 2026', instantSales: 2916, instantCashes: 1321, onlineSales: 951.5, onlineCashes: 102 },
-    { id: 5, date: 'April 06, 2026', instantSales: 2878, instantCashes: 1849, onlineSales: 1422.5, onlineCashes: 135 },
-    { id: 6, date: 'April 05, 2026', instantSales: 1293, instantCashes: 633, onlineSales: 769.5, onlineCashes: 44 },
-    { id: 7, date: 'April 04, 2026', instantSales: 3234, instantCashes: 2924, onlineSales: 1795, onlineCashes: 757 },
-    { id: 8, date: 'April 03, 2026', instantSales: 4884, instantCashes: 3531, onlineSales: 852, onlineCashes: 1129 },
-    { id: 9, date: 'April 02, 2026', instantSales: 2911, instantCashes: 2224, onlineSales: 1364, onlineCashes: 1211 },
-    { id: 10, date: 'April 01, 2026', instantSales: 3147, instantCashes: 1512, onlineSales: 1524, onlineCashes: 357 },
-    { id: 11, date: 'March 31, 2026', instantSales: 3745, instantCashes: 2593, onlineSales: 1120.5, onlineCashes: 342 },
-  ]
+  const fetchReportBoxDetails = async (reportId) => {
+    try {
+      const response = await fetch(`${API_BASE}/reports/${reportId}/box-details/`)
+      const data = await response.json()
 
-  const boxDetails = [
-    { id: 1, boxNum: '#1', game: 'MAGNIFICENT JUMBO BUCKS - 307701', startNum: 18, endNum: 23, value: '$20', total: '$100', status: 'Active' },
-    { id: 2, boxNum: '#2', game: 'MAGNIFICENT JUMBO BUCKS - 279133', startNum: 1, endNum: 5, value: '$20', total: '$80', status: 'Active' },
-    { id: 3, boxNum: '#3', game: 'MAGNIFICENT JUMBO BUCKS - 279130', startNum: 16, endNum: 19, value: '$20', total: '$60', status: 'Active' },
-    { id: 4, boxNum: '#4', game: '200 X - 131618', startNum: 20, endNum: 22, value: '$20', total: '$40', status: 'Active' },
-    { id: 5, boxNum: '#5', game: '200 X - 160919', startNum: 5, endNum: 13, value: '$20', total: '$160', status: 'Active' },
-  ]
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch box details')
+      }
 
-  const handleViewDetail = (report) => {
+      setBoxDetails(data)
+    } catch (error) {
+      setPageMessage(error.message || 'Failed to fetch box details')
+      setBoxDetails([])
+    }
+  }
+
+  const formatDisplayDate = (value) => {
+    if (!value) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }
+
+  const formatMoney = (value) => {
+    const num = parseFloat(value || 0)
+    return `$${num.toFixed(2)}`
+  }
+
+  const fetchReports = async () => {
+    try {
+      setLoading(true)
+      setPageMessage('')
+
+      const response = await fetch(`${API_BASE}/reports/`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fetch reports')
+      }
+
+      setReports(data)
+
+      if (data.length > 0) {
+        const sortedDates = [...data]
+          .map((item) => item.report_date)
+          .filter(Boolean)
+          .sort()
+
+        setStartDate(sortedDates[0] || '')
+        setEndDate(sortedDates[sortedDates.length - 1] || '')
+      } else {
+        setStartDate('')
+        setEndDate('')
+      }
+    } catch (error) {
+      setPageMessage(error.message || 'Failed to fetch reports')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchReports()
+  }, [])
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      if (!report.report_date) return false
+
+      if (startDate && report.report_date < startDate) return false
+      if (endDate && report.report_date > endDate) return false
+
+      return true
+    })
+  }, [reports, startDate, endDate])
+
+  const reportStats = useMemo(() => {
+    const totals = filteredReports.reduce(
+      (acc, report) => {
+        acc.instantSales += parseFloat(report.instantSales || 0)
+        acc.instantCashes += parseFloat(report.instantCashes || 0)
+        acc.onlineSales += parseFloat(report.onlineSales || 0)
+        acc.onlineCashes += parseFloat(report.onlineCashes || 0)
+        return acc
+      },
+      {
+        instantSales: 0,
+        instantCashes: 0,
+        onlineSales: 0,
+        onlineCashes: 0,
+      }
+    )
+
+    return [
+      { label: 'Instant Sales', value: formatMoney(totals.instantSales), color: '#1a7a6f' },
+      { label: 'Instant Cashes', value: formatMoney(totals.instantCashes), color: '#1a7a6f' },
+      { label: 'Online Sales', value: formatMoney(totals.onlineSales), color: '#1a7a6f' },
+      { label: 'Online Cashes', value: formatMoney(totals.onlineCashes), color: '#1a7a6f' },
+    ]
+  }, [filteredReports])
+
+  const handleViewDetail = async (report) => {
     setSelectedReport(report)
     setDetailFormData({
-      onlineSales: report.onlineSales,
-      instantCashes: report.instantCashes,
-      onlineCashes: report.onlineCashes,
-      onlineCancel: 0,
+      onlineSales: report.onlineSales ?? '0.00',
+      instantCashes: report.instantCashes ?? '0.00',
+      onlineCashes: report.onlineCashes ?? '0.00',
+      onlineCancels: report.onlineCancels ?? '0.00',
     })
     setIsEditMode(false)
     setShowDetailModal(true)
+    await fetchReportBoxDetails(report.id)
   }
 
   const handleCloseModal = () => {
     setShowDetailModal(false)
     setSelectedReport(null)
     setIsEditMode(false)
+    setBoxDetails([])
   }
 
   const handleInputChange = (field, value) => {
-    setDetailFormData(prev => ({
+    setDetailFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }))
   }
 
@@ -76,15 +163,56 @@ export default function Reports() {
     setIsEditMode(true)
   }
 
-  const handleSaveChanges = () => {
-    // TODO: Implement save functionality
-    alert('Changes saved successfully!')
-    setIsEditMode(false)
+  const handleSaveChanges = async () => {
+    if (!selectedReport) return
+
+    try {
+      setSaveLoading(true)
+
+      const response = await fetch(`${API_BASE}/reports/${selectedReport.id}/`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          instantCashes: detailFormData.instantCashes,
+          onlineSales: detailFormData.onlineSales,
+          onlineCashes: detailFormData.onlineCashes,
+          onlineCancels: detailFormData.onlineCancels,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save changes')
+      }
+
+      setSelectedReport(data)
+      setDetailFormData({
+        onlineSales: data.onlineSales ?? '0.00',
+        instantCashes: data.instantCashes ?? '0.00',
+        onlineCashes: data.onlineCashes ?? '0.00',
+        onlineCancels: data.onlineCancels ?? '0.00',
+      })
+
+      await fetchReports()
+
+      setIsEditMode(false)
+      setPageMessage('Report updated successfully.')
+    } catch (error) {
+      setPageMessage(error.message || 'Failed to save changes')
+    } finally {
+      setSaveLoading(false)
+    }
   }
 
   const handleDownloadReport = () => {
-    // TODO: Implement download functionality
     alert('Download functionality to be implemented')
+  }
+
+  const handleRefresh = async () => {
+    await fetchReports()
   }
 
   return (
@@ -98,35 +226,35 @@ export default function Reports() {
           <p className="logo-subtitle">PREMIUM INVENTORY</p>
         </div>
         <nav className="sidebar-nav">
-          <button 
+          <button
             className="nav-item"
             onClick={() => navigate('/dashboard')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">🎯</span> <span className="nav-label">Dashboard</span>
           </button>
-          <button 
+          <button
             className="nav-item"
             onClick={() => navigate('/inventory')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📦</span> <span className="nav-label">Inventory</span>
           </button>
-          <button 
+          <button
             className="nav-item active-highlight"
             onClick={() => navigate('/reports')}
             style={{ background: 'transparent', border: 'none', color: '#1a7a6f' }}
           >
             <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
           </button>
-          <button 
+          <button
             className="nav-item"
             onClick={() => navigate('/activate-packs')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">⏱️</span> <span className="nav-label">Activate Packs</span>
           </button>
-          <button 
+          <button
             className="nav-item"
             onClick={() => window.open('/live-display', '_blank')}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
@@ -147,25 +275,40 @@ export default function Reports() {
           </div>
 
           <div className="header-right">
-            <button className="header-btn refresh-btn" title="Reload Screen">↻</button>
+            <button className="header-btn refresh-btn" title="Reload Screen" onClick={handleRefresh}>↻</button>
             <button className="header-btn more-btn" title="More options">⋯</button>
           </div>
         </div>
 
+        {pageMessage && (
+          <div
+            style={{
+              color:
+                pageMessage.toLowerCase().includes('failed') ||
+                pageMessage.toLowerCase().includes('error')
+                  ? 'red'
+                  : 'green',
+              padding: '10px 28px'
+            }}
+          >
+            {pageMessage}
+          </div>
+        )}
+
         <div className="reports-content">
           <div className="reports-filter">
             <div className="date-range">
-              <input 
-                type="date" 
-                value={startDate.replace(/\//g, '-')} 
-                onChange={(e) => setStartDate(e.target.value.replace(/-/g, '/'))}
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
                 className="date-input"
               />
               <span className="date-separator">—</span>
-              <input 
-                type="date" 
-                value={endDate.replace(/\//g, '-')} 
-                onChange={(e) => setEndDate(e.target.value.replace(/-/g, '/'))}
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
                 className="date-input"
               />
               <button className="calendar-btn" title="Pick dates">📅</button>
@@ -197,16 +340,16 @@ export default function Reports() {
                 </tr>
               </thead>
               <tbody>
-                {reportData.map((row) => (
+                {filteredReports.map((row, index) => (
                   <tr key={row.id}>
-                    <td className="row-num">{row.id}</td>
-                    <td>{row.date}</td>
-                    <td>{row.instantSales}</td>
-                    <td>{row.instantCashes}</td>
-                    <td>{row.onlineSales}</td>
-                    <td>{row.onlineCashes}</td>
+                    <td className="row-num">{index + 1}</td>
+                    <td>{formatDisplayDate(row.date)}</td>
+                    <td>{formatMoney(row.instantSales)}</td>
+                    <td>{formatMoney(row.instantCashes)}</td>
+                    <td>{formatMoney(row.onlineSales)}</td>
+                    <td>{formatMoney(row.onlineCashes)}</td>
                     <td className="action-cell">
-                      <button 
+                      <button
                         className="view-detail-link"
                         onClick={() => handleViewDetail(row)}
                         style={{ background: 'none', border: 'none', cursor: 'pointer' }}
@@ -216,6 +359,14 @@ export default function Reports() {
                     </td>
                   </tr>
                 ))}
+
+                {!loading && filteredReports.length === 0 && (
+                  <tr>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>
+                      No reports found
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -232,26 +383,26 @@ export default function Reports() {
                   <div className="detail-section">
                     <div className="detail-row">
                       <span className="detail-label">Report Date</span>
-                      <span className="detail-value">{selectedReport.date}</span>
+                      <span className="detail-value">{formatDisplayDate(selectedReport.date)}</span>
                     </div>
                     <div className="detail-row">
                       <span className="detail-label">Instant Sales</span>
-                      <span className="detail-value">${selectedReport.instantSales}</span>
+                      <span className="detail-value">{formatMoney(selectedReport.instantSales)}</span>
                     </div>
                     <div className="detail-row">
                       <span className="detail-label">Online Sales</span>
-                      <span className="detail-value">${selectedReport.onlineSales}</span>
+                      <span className="detail-value">{formatMoney(selectedReport.onlineSales)}</span>
                     </div>
                   </div>
 
                   <div className="detail-form-section">
                     <h3>Enter Additional Information</h3>
-                    
+
                     <div className="form-fields-grid">
                       <div className="form-field-card">
                         <label>Online Sales</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           placeholder="$0.00"
                           value={detailFormData.onlineSales}
                           onChange={(e) => handleInputChange('onlineSales', e.target.value)}
@@ -262,8 +413,8 @@ export default function Reports() {
 
                       <div className="form-field-card">
                         <label>Instant Cashes</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           placeholder="$0.00"
                           value={detailFormData.instantCashes}
                           onChange={(e) => handleInputChange('instantCashes', e.target.value)}
@@ -274,8 +425,8 @@ export default function Reports() {
 
                       <div className="form-field-card">
                         <label>Online Cashes</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           placeholder="$0.00"
                           value={detailFormData.onlineCashes}
                           onChange={(e) => handleInputChange('onlineCashes', e.target.value)}
@@ -286,11 +437,11 @@ export default function Reports() {
 
                       <div className="form-field-card">
                         <label>Online Cancel</label>
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           placeholder="$0.00"
-                          value={detailFormData.onlineCancel}
-                          onChange={(e) => handleInputChange('onlineCancel', e.target.value)}
+                          value={detailFormData.onlineCancels}
+                          onChange={(e) => handleInputChange('onlineCancels', e.target.value)}
                           disabled={!isEditMode}
                           className="form-field-input"
                         />
@@ -313,17 +464,25 @@ export default function Reports() {
                         </tr>
                       </thead>
                       <tbody>
-                        {boxDetails.map((box) => (
-                          <tr key={box.id}>
-                            <td>{box.boxNum}</td>
-                            <td>{box.game}</td>
-                            <td>{box.startNum}</td>
-                            <td>{box.endNum}</td>
-                            <td>{box.value}</td>
-                            <td>{box.total}</td>
-                            <td className="status-active">{box.status}</td>
+                        {boxDetails.length > 0 ? (
+                          boxDetails.map((box) => (
+                            <tr key={box.id}>
+                              <td>{box.boxNum}</td>
+                              <td>{box.game}</td>
+                              <td>{box.startNum}</td>
+                              <td>{box.endNum}</td>
+                              <td>{box.value}</td>
+                              <td>{box.total}</td>
+                              <td className="status-active">{box.status}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="7" style={{ textAlign: 'center', padding: '16px' }}>
+                              No box details available
+                            </td>
                           </tr>
-                        ))}
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -331,7 +490,9 @@ export default function Reports() {
 
                 <div className="detail-modal-footer">
                   {isEditMode ? (
-                    <button className="btn-save-changes" onClick={handleSaveChanges}>Save Changes</button>
+                    <button className="btn-save-changes" onClick={handleSaveChanges} disabled={saveLoading}>
+                      {saveLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
                   ) : (
                     <button className="btn-edit" onClick={handleEditClick}>Edit</button>
                   )}

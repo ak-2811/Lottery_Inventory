@@ -10,6 +10,10 @@ from .views import (
     TicketValuesView,
     MarkInventoryBookSoldView,
     MoveActivatedPackView,
+    DailyReportListView,
+    DailyReportUpdateView,
+    EndShiftView,
+    DailyReportBoxDetailListView,
 )
 
 urlpatterns = [
@@ -26,5 +30,9 @@ urlpatterns = [
     path('ticket-values/', TicketValuesView.as_view(), name='ticket-values'),
     path('inventory-books/<int:pk>/mark-sold/', MarkInventoryBookSoldView.as_view(), name='mark-inventory-book-sold'),
     path('activated-books/<int:pk>/move/', MoveActivatedPackView.as_view(), name='move-activated-pack'),
+    path('reports/', DailyReportListView.as_view(), name='daily-report-list'),
+    path('reports/<int:pk>/', DailyReportUpdateView.as_view(), name='daily-report-update'),
+    path('end-shift/', EndShiftView.as_view(), name='end-shift'),
+    path('reports/<int:pk>/box-details/', DailyReportBoxDetailListView.as_view(), name='report-box-details'),
 
 ]

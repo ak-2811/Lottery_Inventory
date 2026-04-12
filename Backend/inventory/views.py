@@ -2,8 +2,8 @@ from decimal import Decimal
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, InventoryBook, ActivatedPack
-from .serializers import InventoryBookSerializer, ActivatedPackSerializer
+from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail
+from .serializers import InventoryBookSerializer, ActivatedPackSerializer, DailyReportSerializer, DailyReportBoxDetailSerializer
 from django.utils import timezone
 
 
@@ -13,6 +13,127 @@ def finalize_sold_pack(inventory_book, activated_pack):
     inventory_book.save(update_fields=['is_sold', 'is_activated', 'updated_at'])
 
     activated_pack.delete()
+
+def get_business_date():
+    return timezone.localtime().date()
+
+def calculate_box_total(start_num, current_num, ticket_value, closing_status):
+    sold_count = max(current_num - start_num, 0)
+
+    # sold pack includes the final ticket
+    if closing_status == 'Sold':
+        sold_count += 1
+
+    return Decimal(sold_count) * Decimal(ticket_value)
+
+def create_active_box_detail(activated_pack, report_date=None):
+    if report_date is None:
+        report_date = get_business_date()
+
+    book = activated_pack.inventory_book
+
+    total_amount = calculate_box_total(
+        activated_pack.today_start,
+        activated_pack.current_count,
+        book.ticket_value,
+        'Active'
+    )
+
+    # CHECK if already exists → SAME snapshot
+    existing = DailyReportBoxDetail.objects.filter(
+        report_date=report_date,
+        inventory_book=book,
+        box_num=activated_pack.box_num,
+        start_num=activated_pack.today_start,
+        current_num=activated_pack.current_count,
+        closing_status='Active'
+    ).first()
+
+    if existing:
+        return existing
+
+    # UPDATE latest instead of creating duplicate
+    latest = DailyReportBoxDetail.objects.filter(
+        report_date=report_date,
+        inventory_book=book,
+        closing_status='Active'
+    ).order_by('-id').first()
+
+    if latest:
+        latest.box_num = activated_pack.box_num
+        latest.start_num = activated_pack.today_start
+        latest.current_num = activated_pack.current_count
+        latest.total_amount = total_amount
+        latest.save()
+        return latest
+
+    # CREATE only if nothing exists
+    return DailyReportBoxDetail.objects.create(
+        report_date=report_date,
+        box_num=activated_pack.box_num,
+        inventory_book=book,
+        lottery_name=book.game.name or book.game.game_id,
+        game_num=book.game.game_id,
+        pack_num=book.pack_id,
+        start_num=activated_pack.today_start,
+        current_num=activated_pack.current_count,
+        ticket_value=book.ticket_value,
+        total_amount=total_amount,
+        closing_status='Active'
+    )
+
+def create_sold_box_detail(activated_pack, report_date=None):
+    if report_date is None:
+        report_date = get_business_date()
+
+    book = activated_pack.inventory_book
+
+    total_amount = calculate_box_total(
+        activated_pack.today_start,
+        activated_pack.current_count,
+        book.ticket_value,
+        'Sold'
+    )
+
+    # prevent duplicate SOLD rows
+    existing = DailyReportBoxDetail.objects.filter(
+        report_date=report_date,
+        inventory_book=book,
+        box_num=activated_pack.box_num,
+        start_num=activated_pack.today_start,
+        current_num=activated_pack.current_count,
+        closing_status='Sold'
+    ).first()
+
+    if existing:
+        return existing
+
+    latest = DailyReportBoxDetail.objects.filter(
+        report_date=report_date,
+        inventory_book=book,
+        closing_status='Active'
+    ).order_by('-id').first()
+
+    if latest:
+        latest.current_num = activated_pack.current_count
+        latest.total_amount = total_amount
+        latest.closing_status = 'Sold'
+        latest.save()
+        return latest
+
+    return DailyReportBoxDetail.objects.create(
+        report_date=report_date,
+        box_num=activated_pack.box_num,
+        inventory_book=book,
+        lottery_name=book.game.name or book.game.game_id,
+        game_num=book.game.game_id,
+        pack_num=book.pack_id,
+        start_num=activated_pack.today_start,
+        current_num=activated_pack.current_count,
+        ticket_value=book.ticket_value,
+        total_amount=total_amount,
+        closing_status='Sold'
+    )
 
 class InventoryBookListView(generics.ListAPIView):
     queryset = InventoryBook.objects.select_related('game').filter(is_sold=False).order_by('-created_at')
@@ -130,9 +251,10 @@ class ActivateInventoryBookView(APIView):
             box_num=box_num,
             reverse_mode=reverse_mode,
             current_count=0,
-            last_ticket=0
+            last_ticket=0,
+            today_start=0,
+            tomorrow_start=0
         )
-
         serializer = ActivatedPackSerializer(activated_pack, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -216,8 +338,11 @@ class ScanSoldTicketView(APIView):
         activated_pack.current_count = ticket_number
         activated_pack.save()
 
+        create_active_box_detail(activated_pack,report_date=get_business_date())
+
         pack_sold = False
         if activated_pack.current_count == (book.total_tickets - 1):
+            create_sold_box_detail(activated_pack)
             finalize_sold_pack(book, activated_pack)
             pack_sold = True
 
@@ -245,7 +370,8 @@ class MarkInventoryBookSoldView(APIView):
         if not inventory_book.is_activated:
             inventory_book.is_sold = True
             inventory_book.is_activated = False
-            inventory_book.save(update_fields=['is_sold', 'is_activated', 'updated_at'])
+            inventory_book.is_returned = True
+            inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned','updated_at'])
 
             return Response({
                 'message': 'Pack marked as sold successfully.'
@@ -377,8 +503,86 @@ class MoveActivatedPackView(APIView):
 
         source_pack.box_num = target_box
         source_pack.save(update_fields=['box_num'])
+        create_active_box_detail(source_pack)
 
         return Response({
             'message': f'Pack moved successfully to Box {target_box}'
         }, status=status.HTTP_200_OK)
     
+class DailyReportListView(APIView):
+    def get(self, request):
+        reports = DailyReport.objects.all().order_by('-report_date')
+        serializer = DailyReportSerializer(reports, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class DailyReportUpdateView(APIView):
+    def put(self, request, pk):
+        try:
+            report = DailyReport.objects.get(pk=pk)
+        except DailyReport.DoesNotExist:
+            return Response({'error': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        def parse_decimal(value):
+            if value in [None, '', 'null']:
+                return Decimal('0.00')
+            return Decimal(str(value))
+
+        report.instant_cashes = parse_decimal(request.data.get('instantCashes'))
+        report.online_sales = parse_decimal(request.data.get('onlineSales'))
+        report.online_cashes = parse_decimal(request.data.get('onlineCashes'))
+        report.online_cancels = parse_decimal(request.data.get('onlineCancels'))
+        report.save()
+
+        serializer = DailyReportSerializer(report)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class EndShiftView(APIView):
+    def post(self, request):
+        today = get_business_date()
+
+        instant_sales_today = Decimal('0.00')
+
+        today_scans = SoldTicket.objects.filter(
+            sold_at__date=today
+        ).select_related('inventory_book__game')
+
+        for row in today_scans:
+            instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+
+        report, created = DailyReport.objects.get_or_create(
+            report_date=today,
+            defaults={
+                'instant_sales': instant_sales_today,
+                'instant_cashes': Decimal('0.00'),
+                'online_sales': Decimal('0.00'),
+                'online_cashes': Decimal('0.00'),
+                'online_cancels': Decimal('0.00'),
+            }
+        )
+
+        if not created:
+            report.instant_sales = instant_sales_today
+            report.save(update_fields=['instant_sales', 'updated_at'])
+
+        # make sure all currently active packs have their final active row snapshot
+        active_packs = ActivatedPack.objects.select_related('inventory_book__game').all()
+        for pack in active_packs:
+            create_active_box_detail(pack, report_date=today)
+
+        # attach today's box rows to this report
+        DailyReportBoxDetail.objects.filter(
+            report_date=today
+        ).update(report=report)
+
+        serializer = DailyReportSerializer(report)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class DailyReportBoxDetailListView(APIView):
+    def get(self, request, pk):
+        details = DailyReportBoxDetail.objects.filter(
+                report_id=pk
+            ).exclude(
+                inventory_book__is_returned=True
+            ).order_by('box_num', 'id')
+        serializer = DailyReportBoxDetailSerializer(details, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)

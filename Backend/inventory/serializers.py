@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import LotteryGame, InventoryBook, ActivatedPack
+from .models import LotteryGame, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail
 
 
 class LotteryGameSerializer(serializers.ModelSerializer):
@@ -37,6 +37,7 @@ class InventoryBookSerializer(serializers.ModelSerializer):
             'ticket_value',
             'is_activated',
             'is_sold',
+            'is_returned',
             'created_at',
         ]
 
@@ -102,3 +103,60 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
 
     def get_dateUpdated(self, obj):
         return obj.updated_at.strftime('%B %d, %Y')
+    
+class DailyReportSerializer(serializers.ModelSerializer):
+    date = serializers.SerializerMethodField()
+    instantSales = serializers.DecimalField(source='instant_sales', max_digits=12, decimal_places=2, read_only=True)
+    instantCashes = serializers.DecimalField(source='instant_cashes', max_digits=12, decimal_places=2, read_only=True)
+    onlineSales = serializers.DecimalField(source='online_sales', max_digits=12, decimal_places=2, read_only=True)
+    onlineCashes = serializers.DecimalField(source='online_cashes', max_digits=12, decimal_places=2, read_only=True)
+    onlineCancels = serializers.DecimalField(source='online_cancels', max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = DailyReport
+        fields = [
+            'id',
+            'report_date',
+            'date',
+            'instantSales',
+            'instantCashes',
+            'onlineSales',
+            'onlineCashes',
+            'onlineCancels',
+            'created_at',
+            'updated_at',
+        ]
+
+    def get_date(self, obj):
+        return obj.report_date.strftime('%B %d, %Y')
+
+class DailyReportBoxDetailSerializer(serializers.ModelSerializer):
+    boxNum = serializers.CharField(source='box_num', read_only=True)
+    game = serializers.SerializerMethodField()
+    startNum = serializers.IntegerField(source='start_num', read_only=True)
+    endNum = serializers.IntegerField(source='current_num', read_only=True)
+    value = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+    status = serializers.CharField(source='closing_status', read_only=True)
+
+    class Meta:
+        model = DailyReportBoxDetail
+        fields = [
+            'id',
+            'boxNum',
+            'game',
+            'startNum',
+            'endNum',
+            'value',
+            'total',
+            'status',
+        ]
+
+    def get_game(self, obj):
+        return f"{obj.lottery_name} - {obj.pack_num}"
+
+    def get_value(self, obj):
+        return f"${obj.ticket_value:.2f}"
+
+    def get_total(self, obj):
+        return f"${obj.total_amount:.2f}"
