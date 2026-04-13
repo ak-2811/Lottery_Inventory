@@ -358,15 +358,15 @@ export default function EndShift() {
               </table>
             </div>
           </div>
+        </div>
 
-          <div className="end-shift-actions">
-            <button className="btn btn-cancel" onClick={handleCancel}>
-              Cancel
-            </button>
-            <button className="btn btn-save" onClick={handleSave} disabled={saveLoading}>
-              {saveLoading ? 'Saving...' : 'Save Report'}
-            </button>
-          </div>
+        <div className="end-shift-actions">
+          <button className="btn btn-cancel" onClick={handleCancel}>
+            Cancel
+          </button>
+          <button className="btn btn-save" onClick={handleSave} disabled={saveLoading}>
+            {saveLoading ? 'Saving...' : 'Save Report'}
+          </button>
         </div>
       </div>
     </div>

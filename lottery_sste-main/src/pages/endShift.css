@@ -1,8 +1,9 @@
 .end-shift-content {
   padding: 32px;
   background: linear-gradient(135deg, #f5fafb 0%, #f0f7f9 100%);
-  min-height: 100vh;
+  min-height: calc(100vh - 200px);
   overflow-y: auto;
+  margin-bottom: 80px;
 }
 
 /* Sales Summary Cards */
@@ -206,9 +207,15 @@
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  padding-top: 24px;
+  padding: 24px 32px;
   border-top: 1px solid #e5e5e5;
-  margin-top: 40px;
+  background: linear-gradient(135deg, #f5fafb 0%, #f0f7f9 100%);
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  left: 68px;
+  z-index: 100;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .btn {
