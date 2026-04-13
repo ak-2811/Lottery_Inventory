@@ -88,7 +88,7 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
             'dateUpdated',
             'created_at',
         ]
-        
+
     def get_value(self, obj):
         return f"${obj.inventory_book.ticket_value:.2f}"
 
@@ -103,7 +103,8 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
 
     def get_dateUpdated(self, obj):
         return obj.updated_at.strftime('%B %d, %Y')
-    
+
+
 class DailyReportSerializer(serializers.ModelSerializer):
     date = serializers.SerializerMethodField()
     instantSales = serializers.DecimalField(source='instant_sales', max_digits=12, decimal_places=2, read_only=True)
@@ -129,6 +130,7 @@ class DailyReportSerializer(serializers.ModelSerializer):
 
     def get_date(self, obj):
         return obj.report_date.strftime('%B %d, %Y')
+
 
 class DailyReportBoxDetailSerializer(serializers.ModelSerializer):
     boxNum = serializers.CharField(source='box_num', read_only=True)

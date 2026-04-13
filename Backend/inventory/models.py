@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class LotteryGame(models.Model):
@@ -11,29 +12,31 @@ class LotteryGame(models.Model):
     def __str__(self):
         return self.game_id
 
+
 class InventoryBook(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name='inventory_books')
     game = models.ForeignKey(LotteryGame, on_delete=models.CASCADE, related_name='books')
     pack_id = models.CharField(max_length=20)
-    raw_barcode = models.CharField(max_length=100, unique=True)
+    raw_barcode = models.CharField(max_length=100)
     is_activated = models.BooleanField(default=False)
     is_sold = models.BooleanField(default=False)
     is_returned = models.BooleanField(default=False)
 
-
     total_tickets = models.PositiveIntegerField()
-    # remaining_tickets = models.PositiveIntegerField()
     ticket_value = models.DecimalField(max_digits=10, decimal_places=2)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('game', 'pack_id')
+        unique_together = ('user', 'game', 'pack_id')
 
     def __str__(self):
-        return f"{self.game.game_id} - {self.pack_id}"
+        return f"{self.user.username} - {self.game.game_id} - {self.pack_id}"
+
 
 class ActivatedPack(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name='activated_packs')
     inventory_book = models.ForeignKey(
         InventoryBook,
         on_delete=models.CASCADE,
@@ -41,22 +44,23 @@ class ActivatedPack(models.Model):
     )
     box_num = models.CharField(max_length=20)
     reverse_mode = models.BooleanField(default=False)
-    # current_num = models.PositiveIntegerField(default=0)
     current_count = models.PositiveIntegerField(default=0)
-    # last_scanned_ticket = models.CharField(max_length=3, null=True, blank=True)
     last_ticket = models.PositiveIntegerField(default=0)
     today_start = models.PositiveIntegerField(default=0)
     tomorrow_start = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
-        unique_together = ('box_num',)
+        unique_together = ('user', 'box_num')
 
     def __str__(self):
-        return f"Box {self.box_num} - {self.inventory_book.game.name}"
-    
+        return f"{self.user.username} - Box {self.box_num}"
+
+
 class SoldTicket(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name='sold_tickets')
     inventory_book = models.ForeignKey(
         InventoryBook,
         on_delete=models.CASCADE,
@@ -72,10 +76,12 @@ class SoldTicket(models.Model):
         ordering = ['-sold_at']
 
     def __str__(self):
-        return f"{self.inventory_book.pack_id} - {self.ticket_number}"
+        return f"{self.user.username} - {self.inventory_book.pack_id} - {self.ticket_number}"
+
 
 class DailyReport(models.Model):
-    report_date = models.DateField(unique=True)
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name='daily_reports')
+    report_date = models.DateField()
     instant_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     instant_cashes = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     online_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -87,11 +93,14 @@ class DailyReport(models.Model):
 
     class Meta:
         ordering = ['-report_date']
+        unique_together = ('user', 'report_date')
 
     def __str__(self):
-        return str(self.report_date)
+        return f"{self.user.username} - {self.report_date}"
+
 
 class DailyReportBoxDetail(models.Model):
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name='daily_report_box_details')
     report = models.ForeignKey(
         'DailyReport',
         on_delete=models.CASCADE,
@@ -130,4 +139,4 @@ class DailyReportBoxDetail(models.Model):
         ordering = ['box_num', 'id']
 
     def __str__(self):
-        return f"{self.report_date} - Box {self.box_num} - {self.pack_num}"
+        return f"{self.user.username} - {self.report_date} - Box {self.box_num}"

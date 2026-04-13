@@ -7,6 +7,13 @@ import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
 const API_BASE = 'http://127.0.0.1:8000/api'
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
 
 // ─── Price to footer color mapping ─────────────────────────────────────────
 const PRICE_COLOR_MAP = {
@@ -21,7 +28,9 @@ const PRICE_COLOR_MAP = {
 // ─── Fetch activated packs from API and build ticket list ──────────────────
 async function fetchTicketsFromAPI() {
   try {
-    const response = await fetch(`${API_BASE}/activated-books/`)
+    const response = await fetch(`${API_BASE}/activated-books/`, {
+      headers: getAuthHeaders(),
+    })
     if (!response.ok) {
       throw new Error('Failed to fetch activated packs')
     }

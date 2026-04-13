@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './auth.css'
 
+const API_BASE_URL = 'http://127.0.0.1:8000/api'
+
 export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -9,13 +11,10 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Prevent back button navigation on login page
   useEffect(() => {
-    // Push a new entry to browser history
     window.history.pushState(null, null, window.location.href)
 
     const handlePopState = (event) => {
-      // Prevent back navigation
       event.preventDefault()
       window.history.pushState(null, null, window.location.href)
     }
@@ -32,21 +31,41 @@ export default function Login() {
     setError('')
     setLoading(true)
 
-    // For now, static validation - no API call
     if (!email || !password) {
       setError('Please enter both email and password')
       setLoading(false)
       return
     }
 
-    // Static credentials for demo
-    if (email === 'admin@lottery.com' && password === 'password123') {
-      // Simulate API delay
-      setTimeout(() => {
-        navigate('/dashboard')
-      }, 500)
-    } else {
-      setError('Invalid email or password')
+    try {
+      const response = await fetch(`${API_BASE_URL}/login/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Invalid email or password')
+        setLoading(false)
+        return
+      }
+
+      localStorage.setItem('access_token', data.access)
+      localStorage.setItem('refresh_token', data.refresh)
+      localStorage.setItem('user', JSON.stringify(data.user))
+
+      navigate('/dashboard')
+    } catch (err) {
+      console.log(err)
+      setError('Server error. Please try again.')
+    } finally {
       setLoading(false)
     }
   }
@@ -114,9 +133,6 @@ export default function Login() {
               >
                 Sign up here
               </button>
-            </p>
-            <p className="demo-credentials">
-              <small>Demo Credentials:<br />Email: admin@lottery.com<br />Password: password123</small>
             </p>
           </div>
         </div>

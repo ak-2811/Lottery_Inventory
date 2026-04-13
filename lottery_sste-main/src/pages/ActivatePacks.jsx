@@ -5,7 +5,13 @@ import './inventory.css'
 import './activatePacks.css'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
-
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
 export default function ActivatePacks() {
   const navigate = useNavigate()
   const [searchText, setSearchText] = useState('')
@@ -28,7 +34,9 @@ export default function ActivatePacks() {
 
   const fetchActivatedPacks = async () => {
     try {
-      const response = await fetch(`${API_BASE}/activated-books/`)
+      const response = await fetch(`${API_BASE}/activated-books/`, {
+        headers: getAuthHeaders(),
+      })
       if (!response.ok) {
         throw new Error('Failed to fetch activated packs')
       }
@@ -91,7 +99,7 @@ export default function ActivatePacks() {
 
       const response = await fetch(`${API_BASE}/activated-books/${selectedMovePack.id}/move/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ target_box: moveTargetBox }),
       })
 
@@ -123,7 +131,7 @@ export default function ActivatePacks() {
     try {
       const response = await fetch(`${API_BASE}/tickets/scan/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ raw_barcode: rawBarcode }),
       })
 
@@ -228,7 +236,7 @@ export default function ActivatePacks() {
 
     const response = await fetch(`${API_BASE}/activated-books/activate/`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         raw_barcode: barcodeValue,
         reverse_mode: reverseMode,

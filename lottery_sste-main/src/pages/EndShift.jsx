@@ -5,6 +5,20 @@ import '../App.css'
 import './endShift.css'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
+
+const getOnlyAuthHeader = () => {
+  const token = localStorage.getItem('access_token')
+  return {
+    Authorization: `Bearer ${token}`,
+  }
+}
 
 export default function EndShift() {
   const navigate = useNavigate()
@@ -15,6 +29,7 @@ export default function EndShift() {
   const [saveLoading, setSaveLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [isLoggedOut, setIsLoggedOut] = useState(false)
+
   const [formData, setFormData] = useState({
     instantCashes: '',
     onlineSales: '',
@@ -22,29 +37,33 @@ export default function EndShift() {
     onlineCancels: '',
   })
 
+  const formatMoney = (value) => {
+    const num = parseFloat(value || 0)
+    return `$${num.toFixed(2)}`
+  }
+
   const fetchTodayReport = async () => {
     try {
       setLoading(true)
-      const response = await axios.get(`${API_BASE}/reports/`)
-      const reports = response.data
-      
-      if (reports.length > 0) {
-        // Get today's report (last one)
-        const todayReport = reports[reports.length - 1]
-        setReport(todayReport)
-        setFormData({
-          instantCashes: todayReport.instantCashes ?? '',
-          onlineSales: todayReport.onlineSales ?? '',
-          onlineCashes: todayReport.onlineCashes ?? '',
-          onlineCancels: todayReport.onlineCancels ?? '',
-        })
-        
-        // Fetch box details
-        await fetchBoxDetails(todayReport.id)
-      }
+      setMessage('')
+
+      const response = await axios.get(`${API_BASE}/reports/today/`, {
+        headers: getAuthHeaders(),
+      })
+      const todayReport = response.data
+
+      setReport(todayReport)
+      setFormData({
+        instantCashes: todayReport.instantCashes ?? '',
+        onlineSales: todayReport.onlineSales ?? '',
+        onlineCashes: todayReport.onlineCashes ?? '',
+        onlineCancels: todayReport.onlineCancels ?? '',
+      })
+
+      await fetchBoxDetails(todayReport.id)
     } catch (error) {
-      console.error('Error fetching report:', error)
-      setMessage('Failed to load end shift data')
+      console.error('Error fetching today report:', error)
+      setMessage(error.response?.data?.error || 'Failed to load end shift data')
     } finally {
       setLoading(false)
     }
@@ -52,7 +71,9 @@ export default function EndShift() {
 
   const fetchBoxDetails = async (reportId) => {
     try {
-      const response = await axios.get(`${API_BASE}/reports/${reportId}/box-details/`)
+      const response = await axios.get(`${API_BASE}/reports/${reportId}/box-details/`, {
+        headers: getAuthHeaders(),
+      })
       setBoxDetails(response.data)
     } catch (error) {
       console.error('Error fetching box details:', error)
@@ -67,35 +88,6 @@ export default function EndShift() {
     }))
   }
 
-  const handleMarkSold = async (inventoryBookId) => {
-    try {
-      setMessage('')
-
-      const response = await fetch(`${API_BASE}/inventory-books/${inventoryBookId}/mark-sold/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to mark pack as sold')
-      }
-
-      setMessage('Pack marked as sold successfully!')
-      
-      // Refresh box details
-      if (report) {
-        await fetchBoxDetails(report.id)
-      }
-    } catch (error) {
-      console.error('Error marking sold:', error)
-      setMessage(error.message || 'Failed to mark pack as sold')
-    }
-  }
-
   const handleSave = async () => {
     if (!report) return
 
@@ -108,31 +100,55 @@ export default function EndShift() {
         onlineSales: formData.onlineSales,
         onlineCashes: formData.onlineCashes,
         onlineCancels: formData.onlineCancels,
+        }, {
+        headers: getAuthHeaders(),
       })
 
       setReport(response.data)
       setMessage('Report saved successfully! Logging out...')
-      
-      // Mark as logged out to prevent back navigation
+
       setIsLoggedOut(true)
 
-      // Clear any stored user data (tokens, user info, etc.)
-      localStorage.removeItem('token')
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
       localStorage.removeItem('authData')
       sessionStorage.clear()
-      
-      // Clear browser history and redirect
+
       setTimeout(() => {
-        // Push login page to history to prevent going back to end-shift
         window.history.pushState(null, null, '/login')
         navigate('/login', { replace: true })
       }, 1500)
     } catch (error) {
       console.error('Error saving report:', error)
-      setMessage('Failed to save report')
+      setMessage(error.response?.data?.error || 'Failed to save report')
     } finally {
       setSaveLoading(false)
+    }
+  }
+
+  const handleDownloadReport = async () => {
+    if (!report) return
+
+    try {
+      const response = await fetch(`${API_BASE}/reports/${report.id}/download/`, {
+        headers: getOnlyAuthHeader(),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to download report')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reports_eod_${report.report_date}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      setMessage(error.message || 'Failed to download report')
     }
   }
 
@@ -144,7 +160,6 @@ export default function EndShift() {
     fetchTodayReport()
   }, [])
 
-  // Prevent browser back button after logout
   useEffect(() => {
     if (!isLoggedOut) return
 
@@ -168,11 +183,6 @@ export default function EndShift() {
         </div>
       </div>
     )
-  }
-
-  const formatMoney = (value) => {
-    const num = parseFloat(value || 0)
-    return `$${num.toFixed(2)}`
   }
 
   return (
@@ -234,8 +244,8 @@ export default function EndShift() {
             <h2>End Shift</h2>
           </div>
           <div className="header-right">
-            <button className="header-btn get-report-btn" onClick={handleSave} disabled={saveLoading}>
-              {saveLoading ? 'Saving...' : 'Get Report'}
+            <button className="header-btn get-report-btn" onClick={handleDownloadReport}>
+              Get Report
             </button>
           </div>
         </div>
@@ -253,7 +263,6 @@ export default function EndShift() {
         )}
 
         <div className="end-shift-content">
-          {/* Sales Summary Cards */}
           <div className="sales-summary">
             <div className="summary-card">
               <label>Instant Sales</label>
@@ -305,123 +314,51 @@ export default function EndShift() {
             </div>
           </div>
 
-          {/* Sales by Game and Pack */}
           <div className="sales-by-game-section">
             <h3>Sales by Game and Pack #</h3>
-            
-            {/* Active Items */}
-            {boxDetails.filter(d => (d.closing_status || 'Active').toLowerCase() === 'active').length > 0 && (
-              <div className="table-container">
-                <table className="details-table">
-                  <thead>
-                    <tr>
-                      <th>Box #</th>
-                      <th>Game</th>
-                      <th>Start #</th>
-                      <th>End #</th>
-                      <th>Value</th>
-                      <th>Total</th>
-                      <th>Current Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {boxDetails
-                      .filter(d => (d.closing_status || 'Active').toLowerCase() === 'active')
-                      .map((detail, index) => (
-                        <tr key={index} className="active-row">
-                          <td>
-                            <span className="box-number">{detail.box_num || '-'}</span>
-                          </td>
-                          <td>{detail.lottery_name || '-'}</td>
-                          <td>{detail.start_num || 0}</td>
-                          <td>{detail.current_num || 0}</td>
-                          <td>{formatMoney(detail.ticket_value || 0)}</td>
-                          <td>{formatMoney(detail.total_amount || 0)}</td>
-                          <td className="actions">
-                            <button
-                              className="mark-sold-text"
-                              onClick={() => handleMarkSold(detail.inventory_book)}
-                            >
-                              Mark Sold
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
 
-            {/* Sold Items */}
-            {boxDetails.filter(d => (d.closing_status || 'Active').toLowerCase() === 'sold').length > 0 && (
-              <>
-                <div className="sold-section-header">Sold Items</div>
-                <div className="table-container">
-                  <table className="details-table">
-                    <thead>
-                      <tr>
-                        <th>Box #</th>
-                        <th>Game</th>
-                        <th>Start #</th>
-                        <th>End #</th>
-                        <th>Value</th>
-                        <th>Total</th>
-                        <th>Current Status</th>
+            <div className="table-container">
+              <table className="details-table">
+                <thead>
+                  <tr>
+                    <th>Box #</th>
+                    <th>Game</th>
+                    <th>Start #</th>
+                    <th>End #</th>
+                    <th>Value</th>
+                    <th>Total</th>
+                    <th>Current Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {boxDetails.length > 0 ? (
+                    boxDetails.map((detail) => (
+                      <tr key={detail.id}>
+                        <td>{detail.boxNum}</td>
+                        <td>{detail.game}</td>
+                        <td>{detail.startNum}</td>
+                        <td>{detail.endNum}</td>
+                        <td>{detail.value}</td>
+                        <td>{detail.total}</td>
+                        <td>
+                          <span className={`status-badge ${(detail.status || 'Active').toLowerCase()}`}>
+                            {detail.status || 'Active'}
+                          </span>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {boxDetails
-                        .filter(d => (d.closing_status || 'Active').toLowerCase() === 'sold')
-                        .map((detail, index) => (
-                          <tr key={index} className="sold-row">
-                            <td>
-                              <span className="box-number">{detail.box_num || '-'}</span>
-                            </td>
-                            <td>{detail.lottery_name || '-'}</td>
-                            <td>{detail.start_num || 0}</td>
-                            <td>{detail.current_num || 0}</td>
-                            <td>{formatMoney(detail.ticket_value || 0)}</td>
-                            <td>{formatMoney(detail.total_amount || 0)}</td>
-                            <td>
-                              <span className={`status-badge ${(detail.closing_status || 'active').toLowerCase()}`}>
-                                {detail.closing_status || 'Active'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-
-            {boxDetails.length === 0 && (
-              <div className="table-container">
-                <table className="details-table">
-                  <thead>
-                    <tr>
-                      <th>Box #</th>
-                      <th>Game</th>
-                      <th>Start #</th>
-                      <th>End #</th>
-                      <th>Value</th>
-                      <th>Total</th>
-                      <th>Current Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                    ))
+                  ) : (
                     <tr>
                       <td colSpan="7" style={{ textAlign: 'center', padding: '20px' }}>
                         No box details available
                       </td>
                     </tr>
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="end-shift-actions">
             <button className="btn btn-cancel" onClick={handleCancel}>
               Cancel

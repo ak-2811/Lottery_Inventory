@@ -4,6 +4,20 @@ import '../App.css'
 import './reports.css'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
+
+const getOnlyAuthHeader = () => {
+  const token = localStorage.getItem('access_token')
+  return {
+    Authorization: `Bearer ${token}`,
+  }
+}
 
 export default function Reports() {
   const navigate = useNavigate()
@@ -29,7 +43,9 @@ export default function Reports() {
 
   const fetchReportBoxDetails = async (reportId) => {
     try {
-      const response = await fetch(`${API_BASE}/reports/${reportId}/box-details/`)
+      const response = await fetch(`${API_BASE}/reports/${reportId}/box-details/`, {
+        headers: getAuthHeaders(),
+      })
       const data = await response.json()
 
       if (!response.ok) {
@@ -64,7 +80,9 @@ export default function Reports() {
       setLoading(true)
       setPageMessage('')
 
-      const response = await fetch(`${API_BASE}/reports/`)
+      const response = await fetch(`${API_BASE}/reports/`, {
+        headers: getAuthHeaders(),
+      })
       const data = await response.json()
 
       if (!response.ok) {
@@ -171,9 +189,7 @@ export default function Reports() {
 
       const response = await fetch(`${API_BASE}/reports/${selectedReport.id}/`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           instantCashes: detailFormData.instantCashes,
           onlineSales: detailFormData.onlineSales,
@@ -207,8 +223,29 @@ export default function Reports() {
     }
   }
 
-  const handleDownloadReport = () => {
-    alert('Download functionality to be implemented')
+  const handleDownloadReport = async () => {
+    if (!selectedReport) return
+
+    try {
+      const response = await fetch(`${API_BASE}/reports/${selectedReport.id}/download/`, {
+        headers: getOnlyAuthHeader(),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to download report')
+      }
+
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `reports_eod_${selectedReport.report_date}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      setPageMessage(error.message || 'Failed to download report')
+    }
   }
 
   const handleRefresh = async () => {

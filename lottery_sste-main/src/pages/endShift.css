@@ -2,6 +2,7 @@
   padding: 32px;
   background: linear-gradient(135deg, #f5fafb 0%, #f0f7f9 100%);
   min-height: 100vh;
+  overflow-y: auto;
 }
 
 /* Sales Summary Cards */

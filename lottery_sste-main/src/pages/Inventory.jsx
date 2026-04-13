@@ -5,6 +5,13 @@ import './inventory.css'
 // import heroImg from '../assets/hero.png'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token')
+
+  return {
+    Authorization: `Bearer ${token}`,
+  }
+}
 // const sampleRows = [
 //   {
 //     id: 1,
@@ -110,7 +117,9 @@ export default function Inventory() {
 
   const fetchInventoryRows = async () => {
     try {
-      const response = await fetch(`${API_BASE}/books/`)
+      const response = await fetch(`${API_BASE}/books/`, {
+        headers: getAuthHeaders(),
+      })
       if (!response.ok) {
         throw new Error('Failed to fetch inventory books')
       }
@@ -143,9 +152,7 @@ export default function Inventory() {
 
       const response = await fetch(`${API_BASE}/inventory-books/${id}/mark-sold/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
       })
 
       const data = await response.json()
@@ -178,10 +185,13 @@ export default function Inventory() {
       setLoading(true)
       setErrorMessage('')
 
+      const token = localStorage.getItem('access_token')
+
       const response = await fetch(`${API_BASE}/books/add/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           raw_barcode: ticketInput.trim(),
@@ -208,6 +218,7 @@ export default function Inventory() {
     try {
       const response = await fetch(`${API_BASE}/books/${id}/`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       })
 
       if (!response.ok) {
@@ -225,6 +236,7 @@ export default function Inventory() {
     try {
       const response = await fetch(`${API_BASE}/books/${id}/`, {
         method: 'DELETE',
+        headers: getAuthHeaders(),
       })
 
       if (!response.ok) {

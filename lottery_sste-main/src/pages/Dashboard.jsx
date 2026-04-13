@@ -28,6 +28,13 @@ ChartJS.register(
 )
 
 const API_BASE = 'http://127.0.0.1:8000/api'
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token')
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  }
+}
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -36,6 +43,7 @@ export default function Dashboard() {
   const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
   const [dailySalesData, setDailySalesData] = useState([])
+  const [isEndShiftClosed, setIsEndShiftClosed] = useState(false)
 
   const [stats, setStats] = useState({
     instant_sales_today: '0.00',
@@ -48,16 +56,34 @@ export default function Dashboard() {
 
   const fetchTicketValues = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/ticket-values/`)
+      const res = await axios.get(`${API_BASE}/ticket-values/`, {
+        headers: getAuthHeaders(),
+      })
       setTicketOnScreen(res.data)
     } catch (error) {
       console.error('Error fetching ticket values:', error)
     }
   }
 
+  const fetchTodayEndShiftStatus = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/reports/today-status/`, {
+        headers: getAuthHeaders(),
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setIsEndShiftClosed(data.is_closed)
+      }
+    } catch (error) {
+      console.error('Failed to fetch end shift status', error)
+    }
+  }
+
   const fetchDailySalesData = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/daily-sales/`)
+      const res = await axios.get(`${API_BASE}/daily-sales/`, {
+        headers: getAuthHeaders(),
+      })
       setDailySalesData(res.data)
     } catch (error) {
       console.error('Error fetching daily sales data:', error)
@@ -84,7 +110,9 @@ export default function Dashboard() {
 
   const handleEndShift = async () => {
     try {
-      await axios.post('http://127.0.0.1:8000/api/end-shift/')
+      await axios.post(`${API_BASE}/end-shift/`, {}, {
+      headers: getAuthHeaders(),
+    })
       navigate('/end-shift')
     } catch (error) {
       console.error('Error ending shift:', error)
@@ -93,7 +121,9 @@ export default function Dashboard() {
   }
   const fetchDashboardStats = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/dashboard-stats/`)
+      const res = await axios.get(`${API_BASE}/dashboard-stats/`, {
+        headers: getAuthHeaders(),
+      })
       setStats(res.data)
     } catch (error) {
       console.error('Error fetching dashboard stats:', error)
@@ -104,7 +134,7 @@ export default function Dashboard() {
     try {
       const response = await fetch(`${API_BASE}/tickets/scan/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ raw_barcode: rawBarcode }),
       })
 
@@ -176,6 +206,7 @@ export default function Dashboard() {
     fetchDashboardStats()
     fetchTicketValues()
     fetchDailySalesData()
+    fetchTodayEndShiftStatus()
   }, [])
 
   return (
@@ -253,7 +284,7 @@ export default function Dashboard() {
             </button>
             <button className="header-btn manage-btn">Manage Current Shift</button>
             {/* <button className="header-btn end-btn">End Shift</button> */}
-            <button className="header-btn end-btn" onClick={handleEndShift}>End Shift</button>
+            <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button>
           </div>
         </div>
 

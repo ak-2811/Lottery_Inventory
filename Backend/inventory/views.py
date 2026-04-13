@@ -5,6 +5,18 @@ from rest_framework.views import APIView
 from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail
 from .serializers import InventoryBookSerializer, ActivatedPackSerializer, DailyReportSerializer, DailyReportBoxDetailSerializer
 from django.utils import timezone
+from io import BytesIO
+from django.http import FileResponse
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from django.contrib.auth.models import User
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import permission_classes
+from django.contrib.auth import authenticate
 
 
 def finalize_sold_pack(inventory_book, activated_pack):
@@ -26,6 +38,7 @@ def calculate_box_total(start_num, current_num, ticket_value, closing_status):
 
     return Decimal(sold_count) * Decimal(ticket_value)
 
+
 def create_active_box_detail(activated_pack, report_date=None):
     if report_date is None:
         report_date = get_business_date()
@@ -39,36 +52,8 @@ def create_active_box_detail(activated_pack, report_date=None):
         'Active'
     )
 
-    # CHECK if already exists → SAME snapshot
-    existing = DailyReportBoxDetail.objects.filter(
-        report_date=report_date,
-        inventory_book=book,
-        box_num=activated_pack.box_num,
-        start_num=activated_pack.today_start,
-        current_num=activated_pack.current_count,
-        closing_status='Active'
-    ).first()
-
-    if existing:
-        return existing
-
-    # UPDATE latest instead of creating duplicate
-    latest = DailyReportBoxDetail.objects.filter(
-        report_date=report_date,
-        inventory_book=book,
-        closing_status='Active'
-    ).order_by('-id').first()
-
-    if latest:
-        latest.box_num = activated_pack.box_num
-        latest.start_num = activated_pack.today_start
-        latest.current_num = activated_pack.current_count
-        latest.total_amount = total_amount
-        latest.save()
-        return latest
-
-    # CREATE only if nothing exists
     return DailyReportBoxDetail.objects.create(
+        user=activated_pack.user,
         report_date=report_date,
         box_num=activated_pack.box_num,
         inventory_book=book,
@@ -95,8 +80,8 @@ def create_sold_box_detail(activated_pack, report_date=None):
         'Sold'
     )
 
-    # prevent duplicate SOLD rows
     existing = DailyReportBoxDetail.objects.filter(
+        user=activated_pack.user,
         report_date=report_date,
         inventory_book=book,
         box_num=activated_pack.box_num,
@@ -109,6 +94,7 @@ def create_sold_box_detail(activated_pack, report_date=None):
         return existing
 
     latest = DailyReportBoxDetail.objects.filter(
+        user=activated_pack.user,
         report_date=report_date,
         inventory_book=book,
         closing_status='Active'
@@ -122,6 +108,7 @@ def create_sold_box_detail(activated_pack, report_date=None):
         return latest
 
     return DailyReportBoxDetail.objects.create(
+        user=activated_pack.user,
         report_date=report_date,
         box_num=activated_pack.box_num,
         inventory_book=book,
@@ -135,10 +122,92 @@ def create_sold_box_detail(activated_pack, report_date=None):
         closing_status='Sold'
     )
 
+def roll_active_packs_to_next_day(user):
+    active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(user=user)
+
+    for pack in active_packs:
+        pack.today_start = pack.current_count
+        pack.tomorrow_start = pack.current_count
+        pack.save(update_fields=['today_start', 'tomorrow_start', 'updated_at'])
+
+class SignupView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        name = request.data.get('name', '').strip()
+        email = request.data.get('email', '').strip().lower()
+        password = request.data.get('password', '').strip()
+
+        if not name or not email or not password:
+            return Response({'error': 'All fields are required.'}, status=400)
+
+        if User.objects.filter(username=email).exists():
+            return Response({'error': 'User already exists.'}, status=400)
+
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=password,
+            first_name=name
+        )
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'message': 'Signup successful',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'name': user.first_name,
+                'email': user.email,
+            }
+        }, status=201)
+
+class LoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip().lower()
+        password = request.data.get('password', '').strip()
+
+        if not email or not password:
+            return Response({'error': 'Email and password are required'}, status=400)
+
+        try:
+            existing_user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response({'error': 'Invalid email or password'}, status=400)
+
+        user = authenticate(username=existing_user.username, password=password)
+
+        if user is None:
+            return Response({'error': 'Invalid email or password'}, status=400)
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            'message': 'Login successful',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': {
+                'id': user.id,
+                'name': user.first_name or user.username,
+                'email': user.email,
+            }
+        }, status=200)
+
 class InventoryBookListView(generics.ListAPIView):
     queryset = InventoryBook.objects.select_related('game').filter(is_sold=False).order_by('-created_at')
     serializer_class = InventoryBookSerializer
+    permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        return InventoryBook.objects.select_related('game').filter(
+            user=self.request.user,
+            is_sold=False
+        ).order_by('-created_at')
+    
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['request'] = self.request
@@ -146,11 +215,16 @@ class InventoryBookListView(generics.ListAPIView):
 
 
 class InventoryBookDeleteView(generics.DestroyAPIView):
-    queryset = InventoryBook.objects.all()
     serializer_class = InventoryBookSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return InventoryBook.objects.filter(user=self.request.user)
 
 
 class InventoryBookCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         raw_barcode = str(request.data.get('raw_barcode', '')).strip()
 
@@ -161,7 +235,7 @@ class InventoryBookCreateView(APIView):
             return Response({'error': 'Invalid barcode.'}, status=status.HTTP_400_BAD_REQUEST)
 
         game_id = raw_barcode[:4]
-        pack_id= raw_barcode[4:-4]
+        pack_id = raw_barcode[4:-4]
 
         if not pack_id:
             return Response({'error': 'Pack id is missing.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -174,13 +248,14 @@ class InventoryBookCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if InventoryBook.objects.filter(game=game, pack_id=pack_id).exists():
+        if InventoryBook.objects.filter(user=request.user, game=game, pack_id=pack_id).exists():
             return Response(
                 {'error': f'Pack {pack_id} for game {game_id} already exists.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         inventory_book = InventoryBook.objects.create(
+            user=request.user,
             game=game,
             pack_id=pack_id,
             raw_barcode=raw_barcode,
@@ -193,9 +268,12 @@ class InventoryBookCreateView(APIView):
 
 class ActivatedInventoryBookListView(generics.ListAPIView):
     serializer_class = ActivatedPackSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return ActivatedPack.objects.select_related('inventory_book__game').order_by('-updated_at')
+        return ActivatedPack.objects.select_related('inventory_book__game').filter(
+            user=self.request.user
+        ).order_by('-updated_at')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -203,6 +281,8 @@ class ActivatedInventoryBookListView(generics.ListAPIView):
         return context
 
 class ActivateInventoryBookView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         raw_barcode = str(request.data.get('raw_barcode', '')).strip()
         reverse_mode = bool(request.data.get('reverse_mode', False))
@@ -221,6 +301,7 @@ class ActivateInventoryBookView(APIView):
 
         try:
             inventory_book = InventoryBook.objects.select_related('game').get(
+                user=request.user,
                 game__game_id=game_id,
                 pack_id=pack_id
             )
@@ -236,17 +317,19 @@ class ActivateInventoryBookView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        inventory_book.is_activated = True
-        inventory_book.save()
         box_num = request.data.get('box_num')
 
         if box_num is None:
             return Response({'error': 'Box number is required.'}, status=400)
 
-        if ActivatedPack.objects.filter(box_num=box_num).exists():
+        if ActivatedPack.objects.filter(user=request.user, box_num=box_num).exists():
             return Response({'error': f'Box {box_num} already in use.'}, status=400)
 
+        inventory_book.is_activated = True
+        inventory_book.save(update_fields=['is_activated', 'updated_at'])
+
         activated_pack = ActivatedPack.objects.create(
+            user=request.user,
             inventory_book=inventory_book,
             box_num=box_num,
             reverse_mode=reverse_mode,
@@ -255,10 +338,13 @@ class ActivateInventoryBookView(APIView):
             today_start=0,
             tomorrow_start=0
         )
+
         serializer = ActivatedPackSerializer(activated_pack, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class ScanSoldTicketView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def parse_scanned_ticket(self, barcode: str):
         barcode = str(barcode).strip()
 
@@ -295,6 +381,7 @@ class ScanSoldTicketView(APIView):
 
         try:
             activated_pack = ActivatedPack.objects.select_related('inventory_book__game').get(
+                user=request.user,
                 inventory_book__game__game_id=game_id,
                 inventory_book__pack_id=pack_id,
                 inventory_book__is_activated=True
@@ -312,12 +399,14 @@ class ScanSoldTicketView(APIView):
 
         previous_ticket = activated_pack.current_count
         count = ticket_number - previous_ticket
-        if (count>0):
-            delta_count=count+1
-        elif (count<0):
-            delta_count=count-1
-        elif (count==0):
-            delta_count=0
+
+        if count > 0:
+            delta_count = count + 1
+        elif count < 0:
+            delta_count = count - 1
+        else:
+            delta_count = 0
+
         is_reversal = delta_count < 0
 
         if delta_count == 0:
@@ -327,6 +416,7 @@ class ScanSoldTicketView(APIView):
             )
 
         SoldTicket.objects.create(
+            user=request.user,
             inventory_book=book,
             ticket_number=ticket_number,
             scanned_code=raw_barcode,
@@ -336,9 +426,9 @@ class ScanSoldTicketView(APIView):
 
         activated_pack.last_ticket = previous_ticket
         activated_pack.current_count = ticket_number
-        activated_pack.save()
+        activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
 
-        create_active_box_detail(activated_pack,report_date=get_business_date())
+        create_active_box_detail(activated_pack, report_date=get_business_date())
 
         pack_sold = False
         if activated_pack.current_count == (book.total_tickets - 1):
@@ -349,39 +439,44 @@ class ScanSoldTicketView(APIView):
         return Response({
             'message': 'Ticket scanned successfully',
             'ticket_number': ticket_number,
-            'current_count': activated_pack.current_count,
-            'last_ticket': activated_pack.last_ticket,
+            'current_count': ticket_number,
+            'last_ticket': previous_ticket,
             'delta_count': delta_count,
             'is_reversal': is_reversal,
             'pack_sold': pack_sold,
         }, status=status.HTTP_200_OK)
 
 class MarkInventoryBookSoldView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, pk):
         try:
-            inventory_book = InventoryBook.objects.select_related('game').get(pk=pk)
+            inventory_book = InventoryBook.objects.select_related('game').get(
+                pk=pk,
+                user=request.user
+            )
         except InventoryBook.DoesNotExist:
             return Response({'error': 'Inventory book not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         if inventory_book.is_sold:
             return Response({'error': 'Pack is already sold.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Case 1: not activated -> directly mark sold
         if not inventory_book.is_activated:
             inventory_book.is_sold = True
             inventory_book.is_activated = False
             inventory_book.is_returned = True
-            inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned','updated_at'])
+            inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned', 'updated_at'])
 
             return Response({
                 'message': 'Pack marked as sold successfully.'
             }, status=status.HTTP_200_OK)
 
-        # Case 2: activated -> move to last ticket and mark sold
         try:
-            activated_pack = ActivatedPack.objects.get(inventory_book=inventory_book)
+            activated_pack = ActivatedPack.objects.get(
+                inventory_book=inventory_book,
+                user=request.user
+            )
         except ActivatedPack.DoesNotExist:
-            # even if activated flag is true but row is missing, still mark sold
             inventory_book.is_sold = True
             inventory_book.is_activated = False
             inventory_book.save(update_fields=['is_sold', 'is_activated', 'updated_at'])
@@ -393,7 +488,7 @@ class MarkInventoryBookSoldView(APIView):
         final_ticket_number = inventory_book.total_tickets - 1
         activated_pack.last_ticket = activated_pack.current_count
         activated_pack.current_count = final_ticket_number
-        activated_pack.save()
+        activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
 
         finalize_sold_pack(inventory_book, activated_pack)
 
@@ -403,27 +498,33 @@ class MarkInventoryBookSoldView(APIView):
         }, status=status.HTTP_200_OK)
     
 class DashboardStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         now = timezone.localtime()
         today = now.date()
 
-        active_boxes = ActivatedPack.objects.count()
+        active_boxes = ActivatedPack.objects.filter(user=request.user).count()
 
         activated_today = ActivatedPack.objects.filter(
+            user=request.user,
             created_at__date=today
         ).count()
 
         activated_this_week = ActivatedPack.objects.filter(
+            user=request.user,
             created_at__year=now.year,
             created_at__week=now.isocalendar()[1]
         ).count()
 
         activated_this_month = ActivatedPack.objects.filter(
+            user=request.user,
             created_at__year=now.year,
             created_at__month=now.month
         ).count()
 
         inactive_packs = InventoryBook.objects.filter(
+            user=request.user,
             is_activated=False,
             is_sold=False
         ).count()
@@ -431,6 +532,7 @@ class DashboardStatsView(APIView):
         instant_sales_today = Decimal('0.00')
 
         today_scans = SoldTicket.objects.filter(
+            user=request.user,
             sold_at__date=today
         ).select_related('inventory_book__game')
 
@@ -466,6 +568,8 @@ class TicketValuesView(APIView):
         return Response(ticket_values)
     
 class MoveActivatedPackView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request, pk):
         target_box = str(request.data.get('target_box', '')).strip()
 
@@ -473,7 +577,7 @@ class MoveActivatedPackView(APIView):
             return Response({'error': 'Target box is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            source_pack = ActivatedPack.objects.get(pk=pk)
+            source_pack = ActivatedPack.objects.get(pk=pk, user=request.user)
         except ActivatedPack.DoesNotExist:
             return Response({'error': 'Activated pack not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -482,10 +586,9 @@ class MoveActivatedPackView(APIView):
         if target_box == source_box:
             return Response({'error': 'Selected box is same as current box.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        target_pack = ActivatedPack.objects.filter(box_num=target_box).first()
+        target_pack = ActivatedPack.objects.filter(user=request.user, box_num=target_box).first()
 
         if target_pack:
-            # swap box numbers safely
             temp_box = f"temp-{source_pack.id}"
 
             source_pack.box_num = temp_box
@@ -510,15 +613,19 @@ class MoveActivatedPackView(APIView):
         }, status=status.HTTP_200_OK)
     
 class DailyReportListView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        reports = DailyReport.objects.all().order_by('-report_date')
+        reports = DailyReport.objects.filter(user=request.user).order_by('-report_date')
         serializer = DailyReportSerializer(reports, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 class DailyReportUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def put(self, request, pk):
         try:
-            report = DailyReport.objects.get(pk=pk)
+            report = DailyReport.objects.get(pk=pk, user=request.user)
         except DailyReport.DoesNotExist:
             return Response({'error': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -537,64 +644,114 @@ class DailyReportUpdateView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class EndShiftView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         today = get_business_date()
+
+        existing_report = DailyReport.objects.filter(
+            user=request.user,
+            report_date=today
+        ).first()
+
+        if existing_report:
+            serializer = DailyReportSerializer(existing_report)
+            return Response({
+                'error': 'End shift already completed for today.',
+                'report': serializer.data
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         instant_sales_today = Decimal('0.00')
 
         today_scans = SoldTicket.objects.filter(
+            user=request.user,
             sold_at__date=today
         ).select_related('inventory_book__game')
 
         for row in today_scans:
             instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
 
-        report, created = DailyReport.objects.get_or_create(
+        report = DailyReport.objects.create(
+            user=request.user,
             report_date=today,
-            defaults={
-                'instant_sales': instant_sales_today,
-                'instant_cashes': Decimal('0.00'),
-                'online_sales': Decimal('0.00'),
-                'online_cashes': Decimal('0.00'),
-                'online_cancels': Decimal('0.00'),
-            }
+            instant_sales=instant_sales_today,
+            instant_cashes=Decimal('0.00'),
+            online_sales=Decimal('0.00'),
+            online_cashes=Decimal('0.00'),
+            online_cancels=Decimal('0.00'),
         )
 
-        if not created:
-            report.instant_sales = instant_sales_today
-            report.save(update_fields=['instant_sales', 'updated_at'])
+        DailyReportBoxDetail.objects.filter(
+            user=request.user,
+            report_date=today
+        ).delete()
 
-        # make sure all currently active packs have their final active row snapshot
-        active_packs = ActivatedPack.objects.select_related('inventory_book__game').all()
+        active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(user=request.user)
         for pack in active_packs:
             create_active_box_detail(pack, report_date=today)
 
-        # attach today's box rows to this report
         DailyReportBoxDetail.objects.filter(
+            user=request.user,
             report_date=today
         ).update(report=report)
+
+        roll_active_packs_to_next_day(request.user)
+
+        serializer = DailyReportSerializer(report)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class TodayEndShiftStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = get_business_date()
+        report = DailyReport.objects.filter(
+            user=request.user,
+            report_date=today
+        ).first()
+
+        return Response({
+            'date': str(today),
+            'is_closed': report is not None,
+            'report_id': report.id if report else None,
+        }, status=status.HTTP_200_OK)
+
+class TodayReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = get_business_date()
+        report = DailyReport.objects.filter(
+            user=request.user,
+            report_date=today
+        ).first()
+
+        if not report:
+            return Response({'error': 'Today report not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = DailyReportSerializer(report)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class DailyReportBoxDetailListView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, pk):
         details = DailyReportBoxDetail.objects.filter(
-                report_id=pk
-            ).exclude(
-                inventory_book__is_returned=True
-            ).order_by('box_num', 'id')
+            user=request.user,
+            report_id=pk
+        ).exclude(
+            inventory_book__is_returned=True
+        ).order_by('box_num', 'id')
+
         serializer = DailyReportBoxDetailSerializer(details, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class DailySalesView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        """
-        Returns daily sales data with totals for:
-        instant_sales, instant_cashes, online_sales, online_cashes, online_cancels
-        """
-        reports = DailyReport.objects.all().order_by('report_date')
-        
+        reports = DailyReport.objects.filter(user=request.user).order_by('report_date')
+
         data = []
         for report in reports:
             total = (
@@ -604,7 +761,7 @@ class DailySalesView(APIView):
                 report.online_cashes +
                 report.online_cancels
             )
-            
+
             data.append({
                 'date': report.report_date.strftime('%b %d'),
                 'instant_sales': float(report.instant_sales),
@@ -614,5 +771,105 @@ class DailySalesView(APIView):
                 'online_cancels': float(report.online_cancels),
                 'total': float(total),
             })
-        
+
         return Response(data, status=status.HTTP_200_OK)
+
+class DailyReportDownloadPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            report = DailyReport.objects.get(pk=pk, user=request.user)
+        except DailyReport.DoesNotExist:
+            return Response({'error': 'Report not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        details = DailyReportBoxDetail.objects.filter(
+            user=request.user,
+            report=report
+        ).exclude(
+            inventory_book__is_returned=True
+        ).order_by('box_num', 'id')
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=30,
+            leftMargin=30,
+            topMargin=30,
+            bottomMargin=30
+        )
+
+        styles = getSampleStyleSheet()
+        elements = []
+
+        elements.append(Paragraph("Global Market #3", styles['Title']))
+        elements.append(Paragraph(f"Report Date: {report.report_date}", styles['Normal']))
+        elements.append(Paragraph(
+            f"Generated: {timezone.localtime().strftime('%Y-%m-%d %H:%M %Z')}",
+            styles['Normal']
+        ))
+        elements.append(Spacer(1, 12))
+
+        elements.append(Paragraph("End Shift Report", styles['Heading2']))
+        elements.append(Paragraph(f"Online Sales ${report.online_sales}", styles['Normal']))
+        elements.append(Paragraph(f"Online Cashes ${report.online_cashes}", styles['Normal']))
+        elements.append(Paragraph(f"Online Cancel ${report.online_cancels}", styles['Normal']))
+        elements.append(Paragraph(f"Instant Sales ${report.instant_sales}", styles['Normal']))
+        elements.append(Paragraph(f"Instant Cashes ${report.instant_cashes}", styles['Normal']))
+        elements.append(Paragraph(f"Activated Packs {details.filter(closing_status='Active').count()}", styles['Normal']))
+        elements.append(Spacer(1, 12))
+
+        elements.append(Paragraph("Lottery Slot Details", styles['Heading2']))
+        elements.append(Spacer(1, 6))
+
+        table_data = [[
+            'Slot #',
+            'Lottery Name',
+            'Start #',
+            'Current #',
+            'Value',
+            'Total',
+            'Closing Status'
+        ]]
+
+        for row in details:
+            table_data.append([
+                str(row.box_num),
+                f"{row.lottery_name} - {row.pack_num}",
+                str(row.start_num),
+                str(row.current_num),
+                f"${row.ticket_value:.0f}" if float(row.ticket_value).is_integer() else f"${row.ticket_value}",
+                f"${row.total_amount:.0f}" if float(row.total_amount).is_integer() else f"${row.total_amount}",
+                row.closing_status,
+            ])
+
+        table = Table(
+            table_data,
+            colWidths=[0.6*inch, 2.3*inch, 0.8*inch, 0.9*inch, 0.8*inch, 0.8*inch, 1.1*inch],
+            repeatRows=1
+        )
+
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4A90E2')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#CCCCCC')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F7F7F7')]),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+        ]))
+
+        elements.append(table)
+
+        doc.build(elements)
+        buffer.seek(0)
+
+        filename = f"reports_eod_{report.id}_{report.report_date}.pdf"
+        return FileResponse(buffer, as_attachment=True, filename=filename)

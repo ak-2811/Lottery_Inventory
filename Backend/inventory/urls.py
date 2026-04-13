@@ -15,6 +15,11 @@ from .views import (
     EndShiftView,
     DailyReportBoxDetailListView,
     DailySalesView,
+    TodayEndShiftStatusView,
+    TodayReportView,
+    DailyReportDownloadPDFView,
+    LoginView,
+    SignupView,
 )
 
 urlpatterns = [
@@ -36,5 +41,10 @@ urlpatterns = [
     path('reports/<int:pk>/', DailyReportUpdateView.as_view(), name='daily-report-update'),
     path('end-shift/', EndShiftView.as_view(), name='end-shift'),
     path('reports/<int:pk>/box-details/', DailyReportBoxDetailListView.as_view(), name='report-box-details'),
+    path('reports/today-status/', TodayEndShiftStatusView.as_view(), name='today-endshift-status'),
+    path('reports/today/', TodayReportView.as_view(), name='today-report'),
+    path('reports/<int:pk>/download/', DailyReportDownloadPDFView.as_view(), name='report-download-pdf'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('signup/', SignupView.as_view(), name='signup'),
 
 ]

@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './auth.css'
 
+const API_BASE_URL = 'http://127.0.0.1:8000/api'
+
 export default function Signup() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
@@ -28,7 +30,6 @@ export default function Signup() {
     setSuccess('')
     setLoading(true)
 
-    // Validation
     if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       setError('Please fill in all fields')
       setLoading(false)
@@ -47,18 +48,38 @@ export default function Signup() {
       return
     }
 
-    // For now, static - no API call
-    if (!formData.email.includes('@')) {
-      setError('Please enter a valid email address')
-      setLoading(false)
-      return
-    }
+    try {
+      const response = await fetch(`${API_BASE_URL}/signup/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+        }),
+      })
 
-    // Simulate successful signup
-    setSuccess('Account created successfully! Redirecting to login...')
-    setTimeout(() => {
-      navigate('/login')
-    }, 2000)
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Signup failed')
+        setLoading(false)
+        return
+      }
+
+      setSuccess('Account created successfully! Redirecting to login...')
+
+      setTimeout(() => {
+        navigate('/login')
+      }, 1500)
+    } catch (err) {
+      console.log(err)
+      setError('Server error. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleLoginRedirect = () => {
