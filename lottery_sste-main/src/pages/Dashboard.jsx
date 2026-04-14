@@ -108,6 +108,55 @@ export default function Dashboard() {
     { name: 'Ending Tickets', icon: '👥' },
   ]
 
+  const handleTicketClick = (ticketLabel) => {
+    // Store the clicked ticket in localStorage
+    localStorage.setItem('blinkingTicketPrice', ticketLabel)
+    console.log(`Ticket ${ticketLabel} clicked. Stored in localStorage.`)
+    
+    // Dispatch a custom event for other windows to listen
+    window.dispatchEvent(new CustomEvent('ticketBlinkRequested', { detail: { price: ticketLabel } }))
+  }
+
+  const handleTicketTypeClick = (typeName) => {
+    if (typeName === 'Lucky Tickets') {
+      // Store a special marker for lucky tickets
+      localStorage.setItem('luckyTicketsAnimation', 'true')
+      console.log('Lucky Tickets clicked - 5 random tickets will animate')
+      
+      // Dispatch a custom event
+      window.dispatchEvent(new CustomEvent('luckyTicketsRequested', { detail: { type: 'luckyTickets' } }))
+      
+      // Clear after 5 seconds
+      setTimeout(() => {
+        localStorage.removeItem('luckyTicketsAnimation')
+      }, 5000)
+    } else if (typeName === 'New Tickets') {
+      // Store a special marker for new tickets (current number 0-5)
+      localStorage.setItem('newTicketsAnimation', 'true')
+      console.log('New Tickets clicked - tickets with current number 0-5 will animate')
+      
+      // Dispatch a custom event
+      window.dispatchEvent(new CustomEvent('newTicketsRequested', { detail: { type: 'newTickets' } }))
+      
+      // Clear after 5 seconds
+      setTimeout(() => {
+        localStorage.removeItem('newTicketsAnimation')
+      }, 5000)
+    } else if (typeName === 'Ending Tickets') {
+      // Store a special marker for ending tickets (total - current is 0-5)
+      localStorage.setItem('endingTicketsAnimation', 'true')
+      console.log('Ending Tickets clicked - tickets with total-current 0-5 will animate')
+      
+      // Dispatch a custom event
+      window.dispatchEvent(new CustomEvent('endingTicketsRequested', { detail: { type: 'endingTickets' } }))
+      
+      // Clear after 5 seconds
+      setTimeout(() => {
+        localStorage.removeItem('endingTicketsAnimation')
+      }, 5000)
+    }
+  }
+
   const handleEndShift = async () => {
     try {
       await axios.post(`${API_BASE}/end-shift/`, {}, {
@@ -416,7 +465,7 @@ export default function Dashboard() {
             </h3>
             <div className="tickets-grid">
               {ticketOnScreen.map((ticket, index) => (
-                <button key={index} className="ticket-btn" title={`Display ${ticket.label}`}>
+                <button key={index} className="ticket-btn" title={`Display ${ticket.label}`} onClick={() => handleTicketClick(ticket.label)}>
                   <span className="ticket-icon">💵</span>
                   <span className="ticket-label">{ticket.label}</span>
                 </button>
@@ -431,7 +480,7 @@ export default function Dashboard() {
             </h3>
             <div className="ticket-types-grid">
               {ticketTypes.map((type, index) => (
-                <button key={index} className="ticket-type-btn" title={`Display ${type.name}`}>
+                <button key={index} className="ticket-type-btn" title={`Display ${type.name}`} onClick={() => handleTicketTypeClick(type.name)}>
                   <span className="ticket-type-icon">{type.icon}</span>
                   <span className="ticket-type-label">{type.name}</span>
                 </button>

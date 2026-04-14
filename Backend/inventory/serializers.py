@@ -70,6 +70,7 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
     reversed = serializers.BooleanField(source='reverse_mode', read_only=True)
     currentNum = serializers.IntegerField(source='current_count', read_only=True)
     lastTicket = serializers.IntegerField(source='last_ticket', read_only=True)
+    totalTickets = serializers.IntegerField(source='inventory_book.total_tickets', read_only=True)
     dateUpdated = serializers.SerializerMethodField()
 
     class Meta:
@@ -85,6 +86,7 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
             'image',
             'currentNum',
             'lastTicket',
+            'totalTickets',
             'dateUpdated',
             'created_at',
         ]
