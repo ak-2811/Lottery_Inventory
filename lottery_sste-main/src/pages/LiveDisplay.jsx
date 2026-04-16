@@ -289,13 +289,7 @@ export default function LiveDisplay() {
           <div className="ld-store-name">{currentUserName}</div>
         </div>
 
-        <div className="ld-banner-side ld-banner-right">
-          <span className="ld-lottery-logo ld-power">POWERBALL ⭐</span>
-          <div className="ld-jackpot-pill ld-jackpot-red">
-            <div className="ld-jackpot-label">Est. Annuitized Jackpot Now</div>
-            <div className="ld-jackpot-amount">$35 MILLION</div>
-          </div>
-        </div>
+      
       </div>
 
       {/* ══ TICKET GRID ═════════════════════════════════════════════════ */}
