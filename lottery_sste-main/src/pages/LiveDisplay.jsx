@@ -3,7 +3,7 @@ import '../App.css'
 import './liveDisplay.css'
 
 // ─── Ticket image ──────────────────────────────────────────────────────────
-import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
+// import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
 const API_BASE = 'http://127.0.0.1:8000/api'
@@ -47,6 +47,7 @@ async function fetchTicketsFromAPI() {
         footerBg:      PRICE_COLOR_MAP[String(item.value)] || '#16a34a',
         currentNumber: item.currentNum || 0,
         totalTickets:  item.totalTickets || 0,
+        imageUrl:      item.image || null,
       }))
     
     return tickets
@@ -332,9 +333,13 @@ export default function LiveDisplay() {
 
                   {/* Lottery ticket image — same image for every card */}
                   <img
-                    src={MILLIONAIRE_BONUS}
+                    src={ticket.imageUrl || '/placeholder-ticket.png'}
                     alt={ticket.name}
                     className="ld-img"
+                    onError={(e) => {
+                      e.target.onerror = null
+                      e.target.src = '/placeholder-ticket.png'
+                    }}
                   />
 
                   {/* BOX badge with GLOBAL sequential number */}
