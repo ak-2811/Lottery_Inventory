@@ -197,6 +197,19 @@ class LoginView(APIView):
             }
         }, status=200)
 
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'id': user.id,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            'username': user.username,
+        }, status=200)
+
 class InventoryBookListView(generics.ListAPIView):
     queryset = InventoryBook.objects.select_related('game').filter(is_sold=False).order_by('-created_at')
     serializer_class = InventoryBookSerializer

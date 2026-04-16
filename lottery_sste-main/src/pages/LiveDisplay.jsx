@@ -26,6 +26,23 @@ const PRICE_COLOR_MAP = {
   '1':  '#dc2626',  // red
 }
 
+// ─── Fetch current user from API ───────────────────────────────────────────
+async function fetchCurrentUser() {
+  try {
+    const response = await fetch(`${API_BASE}/current-user/`, {
+      headers: getAuthHeaders(),
+    })
+    if (!response.ok) {
+      throw new Error('Failed to fetch current user')
+    }
+    const data = await response.json()
+    return data.first_name || data.username || 'User'
+  } catch (error) {
+    console.error('Error fetching current user:', error)
+    return 'User'
+  }
+}
+
 // ─── Fetch activated packs from API and build ticket list ──────────────────
 async function fetchTicketsFromAPI() {
   try {
@@ -92,6 +109,7 @@ function computeOptimalCols(N, W, H) {
 export default function LiveDisplay() {
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
+  const [currentUserName, setCurrentUserName] = useState('Loading...')
   const [blinkingPrice, setBlinkingPrice] = useState(null)
   const [luckyTicketIds, setLuckyTicketIds] = useState(new Set())
   const [newTicketIds, setNewTicketIds] = useState(new Set())
@@ -109,7 +127,15 @@ export default function LiveDisplay() {
       console.log('Loaded tickets:', fetchedTickets.map(t => ({ id: t.id, price: t.price, boxNumber: t.boxNumber })))
       setLoading(false)
     }
+    
+    // Load user name from API
+    const loadUserName = async () => {
+      const userName = await fetchCurrentUser()
+      setCurrentUserName(userName)
+    }
+    
     loadTickets()
+    loadUserName()
   }, [])
 
   // Listen for blinking ticket requests from Dashboard (via localStorage)
@@ -260,7 +286,7 @@ export default function LiveDisplay() {
       <div className="ld-banner">
         <div className="ld-banner-center">
           <div className="ld-welcome">Welcome To</div>
-          <div className="ld-store-name">Global Market #3</div>
+          <div className="ld-store-name">{currentUserName}</div>
         </div>
 
         <div className="ld-banner-side ld-banner-right">

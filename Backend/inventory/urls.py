@@ -20,6 +20,7 @@ from .views import (
     DailyReportDownloadPDFView,
     LoginView,
     SignupView,
+    CurrentUserView,
 )
 
 urlpatterns = [
@@ -46,5 +47,6 @@ urlpatterns = [
     path('reports/<int:pk>/download/', DailyReportDownloadPDFView.as_view(), name='report-download-pdf'),
     path('login/', LoginView.as_view(), name='login'),
     path('signup/', SignupView.as_view(), name='signup'),
+    path('current-user/', CurrentUserView.as_view(), name='current-user'),
 
 ]
