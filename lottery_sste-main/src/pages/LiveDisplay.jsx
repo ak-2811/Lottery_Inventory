@@ -6,7 +6,8 @@ import './liveDisplay.css'
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -58,10 +59,10 @@ async function fetchTicketsFromAPI() {
 }
 
 // ─── Grid calculation ─────────────────────────────────────────────────────
-const FOOTER_H  = 16
-const STUB_H    = 4
-const IMG_RATIO = 0.65
-const GAP       = 8
+const FOOTER_H  = 14
+const STUB_H    = 3
+const IMG_RATIO = 0.95
+const GAP       = 6
 
 function computeOptimalCols(N, W, H) {
   if (!W || !H || N === 0) return 12
@@ -257,14 +258,6 @@ export default function LiveDisplay() {
 
       {/* ══ TOP BANNER ══════════════════════════════════════════════════ */}
       <div className="ld-banner">
-        <div className="ld-banner-side ld-banner-left">
-          <span className="ld-lottery-logo ld-mega">⭐ MEGA MILLIONS</span>
-          <div className="ld-jackpot-pill ld-jackpot-yellow">
-            <div className="ld-jackpot-label">Est. Annuitized Jackpot Now</div>
-            <div className="ld-jackpot-amount">$120 MILLION</div>
-          </div>
-        </div>
-
         <div className="ld-banner-center">
           <div className="ld-welcome">Welcome To</div>
           <div className="ld-store-name">Global Market #3</div>

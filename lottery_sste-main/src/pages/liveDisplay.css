@@ -298,7 +298,7 @@ html, body, #root {
 /* ── Card footer ─────────────────────────────────────────── */
 .ld-card-footer {
   flex-shrink: 0;
-  height: 16px;          /* must match JS FOOTER_H constant */
+  height: 14px;          /* must match JS FOOTER_H constant */
   display: flex;
   align-items: center;
   justify-content: space-between;
