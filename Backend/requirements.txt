@@ -1,5 +1,9 @@
-Django>=4.2,<7.0
-djangorestframework
-djangorestframework-simplejwt
-django-cors-headers
-gunicorn
+Django>=4.2,<5.0
+djangorestframework>=3.14
+django-cors-headers>=4.0
+gunicorn>=21.2
+psycopg2-binary>=2.9
+python-dotenv>=1.0
+whitenoise>=6.6
+Pillow>=10.0
+reportlab>=4.0
