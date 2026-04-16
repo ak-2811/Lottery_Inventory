@@ -401,9 +401,9 @@ class ScanSoldTicketView(APIView):
         count = ticket_number - previous_ticket
 
         if count > 0:
-            delta_count = count + 1
+            delta_count = count
         elif count < 0:
-            delta_count = count - 1
+            delta_count = count
         else:
             delta_count = 0
 
