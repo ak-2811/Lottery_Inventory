@@ -418,15 +418,15 @@ class ScanSoldTicketView(APIView):
         elif count < 0:
             delta_count = count
         else:
-            delta_count = 0
+            delta_count = 1
 
         is_reversal = delta_count < 0
 
-        if delta_count == 0:
-            return Response(
-                {'error': 'Same ticket scanned again'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # if delta_count == 0:
+        #     return Response(
+        #         {'error': 'Same ticket scanned again'},
+        #         status=status.HTTP_400_BAD_REQUEST
+        #     )
 
         SoldTicket.objects.create(
             user=request.user,
@@ -438,7 +438,10 @@ class ScanSoldTicketView(APIView):
         )
 
         activated_pack.last_ticket = previous_ticket
-        activated_pack.current_count = ticket_number
+        if ticket_number>=activated_pack.current_count:
+            activated_pack.current_count = ticket_number+1
+        elif ticket_number<activated_pack.current_count:
+            activated_pack.current_count= ticket_number
         activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
 
         create_active_box_detail(activated_pack, report_date=get_business_date())
@@ -452,7 +455,7 @@ class ScanSoldTicketView(APIView):
         return Response({
             'message': 'Ticket scanned successfully',
             'ticket_number': ticket_number,
-            'current_count': ticket_number,
+            'current_count': ticket_number+1,
             'last_ticket': previous_ticket,
             'delta_count': delta_count,
             'is_reversal': is_reversal,

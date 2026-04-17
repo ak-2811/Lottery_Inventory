@@ -6,8 +6,8 @@ import './liveDisplay.css'
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
-// const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -116,6 +116,49 @@ export default function LiveDisplay() {
   const [endingTicketIds, setEndingTicketIds] = useState(new Set())
   const wrapperRef = useRef(null)
   const [gridStyle, setGridStyle] = useState({})
+  const [scannerBuffer, setScannerBuffer] = useState('')
+  const [scanMessage, setScanMessage] = useState('')
+
+  const loadTickets = useCallback(async () => {
+    setLoading(true)
+    const fetchedTickets = await fetchTicketsFromAPI()
+    setTickets(fetchedTickets)
+    setLoading(false)
+  }, [])
+
+  const handleTicketScan = async (rawBarcode) => {
+    try {
+      const response = await fetch(`${API_BASE}/tickets/scan/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ raw_barcode: rawBarcode }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid input')
+      }
+
+      setScanMessage(
+        data.pack_sold
+          ? 'Pack sold successfully'
+          : `Ticket ${data.ticket_number} scanned successfully`
+      )
+
+      await loadTickets()
+
+      setTimeout(() => {
+        setScanMessage('')
+      }, 2000)
+    } catch (error) {
+      setScanMessage(error.message || 'Invalid input')
+
+      setTimeout(() => {
+        setScanMessage('')
+      }, 2000)
+    }
+  }
 
   // Fetch tickets on component mount
   useEffect(() => {
@@ -137,6 +180,53 @@ export default function LiveDisplay() {
     loadTickets()
     loadUserName()
   }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadTickets()
+    }, 8000) // every 8 sec
+
+    return () => clearInterval(interval)
+  }, [loadTickets])
+
+  useEffect(() => {
+    let timeoutId = null
+
+    const handleGlobalKeyDown = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      const isTypingInInput =
+        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+      if (isTypingInInput) return
+
+      if (e.key === 'Enter') {
+        const scannedValue = scannerBuffer.trim()
+
+        if (/^\d{10,20}$/.test(scannedValue)) {
+          handleTicketScan(scannedValue)
+        }
+
+        setScannerBuffer('')
+        return
+      }
+
+      if (/^\d$/.test(e.key)) {
+        setScannerBuffer((prev) => prev + e.key)
+
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          setScannerBuffer('')
+        }, 300)
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+      clearTimeout(timeoutId)
+    }
+  }, [scannerBuffer, loadTickets])
 
   // Listen for blinking ticket requests from Dashboard (via localStorage)
   useEffect(() => {
@@ -291,7 +381,26 @@ export default function LiveDisplay() {
 
       
       </div>
-
+      {scanMessage && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '85px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 999,
+            background: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {scanMessage}
+        </div>
+      )}
       {/* ══ TICKET GRID ═════════════════════════════════════════════════ */}
       <div className="ld-grid-wrapper" ref={wrapperRef}>
         {loading ? (
