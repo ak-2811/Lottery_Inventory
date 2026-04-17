@@ -189,6 +189,21 @@ export default function LiveDisplay() {
   //   return () => clearInterval(interval)
   // }, [loadTickets])
 
+  // Add this alongside your existing loadTickets function:
+const silentRefreshTickets = useCallback(async () => {
+  const fetchedTickets = await fetchTicketsFromAPI()
+  setTickets(fetchedTickets) // updates data without touching loading state
+}, [])
+
+// Then uncomment and update the interval useEffect:
+useEffect(() => {
+  const interval = setInterval(() => {
+    silentRefreshTickets() // no loading spinner, no flash
+  }, 30000)
+
+  return () => clearInterval(interval)
+}, [silentRefreshTickets])
+
   useEffect(() => {
     let timeoutId = null
 
