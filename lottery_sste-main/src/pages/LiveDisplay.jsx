@@ -181,13 +181,13 @@ export default function LiveDisplay() {
     loadUserName()
   }, [])
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadTickets()
-    }, 30000) // every 30 sec
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     loadTickets()
+  //   }, 30000) // every 30 sec
 
-    return () => clearInterval(interval)
-  }, [loadTickets])
+  //   return () => clearInterval(interval)
+  // }, [loadTickets])
 
   useEffect(() => {
     let timeoutId = null
