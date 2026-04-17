@@ -184,7 +184,7 @@ export default function LiveDisplay() {
   useEffect(() => {
     const interval = setInterval(() => {
       loadTickets()
-    }, 8000) // every 8 sec
+    }, 30000) // every 30 sec
 
     return () => clearInterval(interval)
   }, [loadTickets])
