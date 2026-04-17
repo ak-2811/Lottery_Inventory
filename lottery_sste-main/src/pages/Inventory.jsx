@@ -429,17 +429,19 @@ export default function Inventory() {
 
         <div className="table-container">
          <table className="inventory-table">
-          <colgroup>
-            <col style={{ width: '55px' }} />   {/* # */}
-            <col style={{ width: '75px' }} />   {/* PREVIEW */}
-            <col style={{ width: '180px' }} />  {/* ITEM NAME */}
-            <col style={{ width: '100px' }} />  {/* GAME # */}
-            <col style={{ width: '110px' }} />  {/* PACK # */}
-            <col style={{ width: '100px' }} />  {/* VALUE */}
-            <col style={{ width: '100px' }} />  {/* PACK SIZE */}
-            <col style={{ width: '140px' }} />  {/* DATE ADDED */}
-            <col style={{ width: '150px' }} />  {/* ACTIONS */}
-          </colgroup>
+          <colgroup>{[
+            '55px',
+            '75px',
+            '180px',
+            '100px',
+            '110px',
+            '100px',
+            '100px',
+            '140px',
+            '150px',
+          ].map((width, idx) => (
+            <col key={`inventory-col-${idx}`} style={{ width }} />
+          ))}</colgroup>
           <thead>
             <tr>
               <th>#</th>
@@ -478,12 +480,6 @@ export default function Inventory() {
                       <button
                         className="mark-sold-text"
                         onClick={() => handleMarkSold(r.id)}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: 0
-                        }}
                       >
                         Mark Sold
                       </button>
@@ -499,14 +495,14 @@ export default function Inventory() {
             </tbody>
           </table>
 
-          <div className="pagination">
+        </div>
+          {/* <div className="pagination">
             <span>Showing 1-{filteredRows.length} of {inventoryRows.length} inventory items</span>
             <div className="pagination-controls">
               <button className="page-num active">1</button>
               <button className="page-next">›</button>
             </div>
-          </div>
-        </div>
+          </div> */}
       </div>
 
       {showModal && (
