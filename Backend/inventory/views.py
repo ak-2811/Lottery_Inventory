@@ -440,14 +440,16 @@ class ScanSoldTicketView(APIView):
         activated_pack.last_ticket = previous_ticket
         if ticket_number>=activated_pack.current_count:
             activated_pack.current_count = ticket_number+1
+            cc=ticket_number+1
         elif ticket_number<activated_pack.current_count:
             activated_pack.current_count= ticket_number
+            cc=ticket_number
         activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
 
         create_active_box_detail(activated_pack, report_date=get_business_date())
 
         pack_sold = False
-        if activated_pack.current_count == (book.total_tickets - 1):
+        if activated_pack.current_count >= (book.total_tickets):
             create_sold_box_detail(activated_pack)
             finalize_sold_pack(book, activated_pack)
             pack_sold = True
@@ -455,7 +457,7 @@ class ScanSoldTicketView(APIView):
         return Response({
             'message': 'Ticket scanned successfully',
             'ticket_number': ticket_number,
-            'current_count': ticket_number+1,
+            'current_count': cc,
             'last_ticket': previous_ticket,
             'delta_count': delta_count,
             'is_reversal': is_reversal,
