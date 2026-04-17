@@ -477,12 +477,12 @@ export default function LiveDisplay() {
                   {isNewTicketType ? (
                     <>
                       <span className="ld-footer-label">NEW TICKET</span>
-                      {/* <span className="ld-footer-num">{ticket.currentNumber}</span> */}
+                      <span className="ld-footer-num">{ticket.currentNumber}</span>
                     </>
                   ) : isEndingTicketType ? (
                     <>
                       <span className="ld-footer-label">ENDING TICKET</span>
-                      {/* <span className="ld-footer-num">{ticket.totalTickets - ticket.currentNumber}</span> */}
+                      <span className="ld-footer-num">{ticket.totalTickets - ticket.currentNumber}</span>
                     </>
                   ) : (
                     <>
