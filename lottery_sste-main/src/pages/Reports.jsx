@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import '../App.css'
 import './reports.css'
 
-const API_BASE = 'http://127.0.0.1:8000/api'
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE = 'http://127.0.0.1:8000/api'
+const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
