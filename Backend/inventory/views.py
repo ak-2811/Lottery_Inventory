@@ -118,34 +118,58 @@ def build_report_pdf_bytes(report, user):
     buffer.seek(0)
     return buffer.getvalue()
 
+# def send_report_email(report, user):
+#     if not user.email:
+#         return
+
+#     pdf_bytes = build_report_pdf_bytes(report, user)
+
+#     subject = f"End Shift Report - {report.report_date}"
+#     body = (
+#         f"Hello {user.first_name or user.username},\n\n"
+#         f"Please find attached your end shift report for {report.report_date}.\n\n"
+#         f"Regards,\n"
+#         f"Bright Core Solutions"
+#     )
+
+#     email = EmailMessage(
+#         subject=subject,
+#         body=body,
+#         from_email=settings.DEFAULT_FROM_EMAIL,
+#         to=[user.email],
+#     )
+
+#     email.attach(
+#         f"reports_eod_{report.id}_{report.report_date}.pdf",
+#         pdf_bytes,
+#         "application/pdf"
+#     )
+
+#     email.send(fail_silently=False)
 def send_report_email(report, user):
     if not user.email:
         return
 
+    import resend
+    resend.api_key = settings.RESEND_API_KEY
+
     pdf_bytes = build_report_pdf_bytes(report, user)
+    import base64
 
-    subject = f"End Shift Report - {report.report_date}"
-    body = (
-        f"Hello {user.first_name or user.username},\n\n"
-        f"Please find attached your end shift report for {report.report_date}.\n\n"
-        f"Regards,\n"
-        f"Bright Core Solutions"
-    )
-
-    email = EmailMessage(
-        subject=subject,
-        body=body,
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[user.email],
-    )
-
-    email.attach(
-        f"reports_eod_{report.id}_{report.report_date}.pdf",
-        pdf_bytes,
-        "application/pdf"
-    )
-
-    email.send(fail_silently=False)
+    resend.Emails.send({
+        "from": "admin@bright-core-solutions.com",
+        "to": [user.email],
+        "subject": f"End Shift Report - {report.report_date}",
+        "text": (
+            f"Hello {user.first_name or user.username},\n\n"
+            f"Please find attached your end shift report for {report.report_date}.\n\n"
+            f"Regards,\nBright Core Solutions"
+        ),
+        "attachments": [{
+            "filename": f"reports_eod_{report.id}_{report.report_date}.pdf",
+            "content": base64.b64encode(pdf_bytes).decode("utf-8"),
+        }],
+    })
 
 def get_business_date():
     return timezone.localtime().date()

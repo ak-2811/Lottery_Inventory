@@ -90,6 +90,8 @@ EMAIL_HOST_USER = 'admin@bright-core-solutions.com'
 EMAIL_HOST_PASSWORD = 'wUwqDHR4TBJ6'
 DEFAULT_FROM_EMAIL = 'admin@bright-core-solutions.com'
 
+RESEND_API_KEY = 're_Zrvrzs8N_8HW2bZFCtn2G2uAraGhgCnyJ'
+
 # ── DATABASE (SQLite) ─────────────────────────────────────────────────────────
 DATABASES = {
     "default": {
