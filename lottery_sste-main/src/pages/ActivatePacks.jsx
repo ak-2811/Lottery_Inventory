@@ -4,8 +4,8 @@ import '../App.css'
 import './inventory.css'
 import './activatePacks.css'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -44,6 +44,21 @@ export default function ActivatePacks() {
 
     navigate('/login')
   }
+
+  const playBeep = (type) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+
+    if (type === "success") {
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime); // higher tone
+    } else {
+      oscillator.frequency.setValueAtTime(300, ctx.currentTime); // lower tone
+    }
+
+    oscillator.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.1);
+  };
 
   const fetchActivatedPacks = async () => {
     try {
@@ -123,7 +138,7 @@ export default function ActivatePacks() {
       if (contentType.includes('application/json')) {
         data = JSON.parse(rawText)
       } else {
-        throw new Error(`Server error (${response.status}). Check Django console.`)
+        throw new Error(`Server error (${response.status}).`)
       }
 
       if (!response.ok) {
@@ -155,10 +170,15 @@ export default function ActivatePacks() {
       if (contentType.includes('application/json')) {
         data = JSON.parse(rawText)
       } else {
-        throw new Error(`Server error (${response.status}). Check Django console.`)
+        playBeep("error")
+        throw new Error(`Server error (${response.status}).`)
+      }
+      if (response.ok){
+        playBeep("Success")
       }
 
       if (!response.ok) {
+        playBeep("error")
         throw new Error(data.error || 'Invalid input')
       }
 
@@ -238,70 +258,68 @@ export default function ActivatePacks() {
   }
 
   const handleActivatePack = async () => {
-  const barcodeValue = String(scanBarcode || '').trim()
+    const barcodeValue = String(scanBarcode || '').trim()
+    const boxValue = String(selectedBox || '').trim()
 
-  if (!barcodeValue) {
-    setErrorMessage('Barcode is required.')
-    return
-  }
-  if (!selectedBox) {
-  setErrorMessage('Box number is required.')
-  return
-}
-
-  try {
-    setLoading(true)
-    setErrorMessage('')
-
-    const response = await fetch(`${API_BASE}/activated-books/activate/`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({
-        raw_barcode: barcodeValue,
-        reverse_mode: reverseMode,
-        box_num: selectedBox
-      }),
-    })
-
-    const contentType = response.headers.get('content-type') || ''
-    const rawText = await response.text()
-
-    let data = {}
-    if (contentType.includes('application/json')) {
-      data = JSON.parse(rawText)
-    } else {
-      throw new Error(`Server error (${response.status}).`)
+    if (!barcodeValue) {
+      playBeep("error")
+      setErrorMessage('Barcode is required.')
+      return
     }
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to activate pack')
+    if (!boxValue) {
+      playBeep("error")
+      setErrorMessage('Box number is required.')
+      return
     }
 
-    // const formattedItem = {
-    //   id: data.id,
-    //   image: data.image,
-    //   name: data.name,
-    //   currentNum: data.currentNum || 0,
-    //   lastTicket: data.lastTicket || 0,
-    //   gameNum: data.gameNum,
-    //   packNum: data.packNum,
-    //   dateUpdated: data.dateUpdated,
-    //   value: data.value,
-    //   reversed: data.reversed,
-    //   boxNum: data.boxNum,
-    // }
+    try {
+      setLoading(true)
+      setErrorMessage('')
 
-    setScanBarcode('')
-    setReverseMode(false)
-    setShowActivateModal(false)
-    setSelectedBox('')
-    await fetchActivatedPacks()
-  } catch (error) {
-    setErrorMessage(error.message)
-  } finally {
-    setLoading(false)
+      const response = await fetch(`${API_BASE}/activated-books/activate/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          raw_barcode: barcodeValue,
+          reverse_mode: reverseMode,
+          box_num: boxValue,
+        }),
+      })
+
+      const contentType = response.headers.get('content-type') || ''
+      const rawText = await response.text()
+
+      let data = {}
+      if (contentType.includes('application/json')) {
+        data = JSON.parse(rawText)
+      } else {
+        playBeep("error")
+        throw new Error(`Server error (${response.status}).`)
+      }
+
+      if (response.ok){
+        playBeep("success")
+      }
+      if (!response.ok) {
+        playBeep("error")
+        throw new Error(data.error || 'Failed to activate pack')
+      }
+
+      setScanBarcode('')
+      setReverseMode(false)
+      setSelectedBox('')
+      setShowActivateModal(false)
+      setScanMessage(reverseMode ? 'Sold pack restored successfully' : 'Pack activated successfully')
+      localStorage.setItem('inventoryNeedsRefresh', '1')
+      await fetchActivatedPacks()
+    } catch (error) {
+      playBeep("error")
+      setErrorMessage(error.message || 'Failed to activate pack')
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   const filteredPacks = useMemo(() => {
     return packs.filter(pack =>
@@ -648,7 +666,7 @@ export default function ActivatePacks() {
                             <td>{item.boxNum}</td>
                             <td>{item.name}</td>
                             <td>{item.packNum}</td>
-                            <td>{reverseMode ? 'Yes' : 'No'}</td>
+                            <td>{item.reversed ? 'Yes' : 'No'}</td>
                             <td>{item.value}</td>
                             <td>
                               <button className="activate-delete-btn">✕</button>

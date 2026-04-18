@@ -17,6 +17,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import permission_classes
 from django.contrib.auth import authenticate
+from django.conf import settings
+from django.core.mail import EmailMessage
 
 
 def finalize_sold_pack(inventory_book, activated_pack):
@@ -26,6 +28,124 @@ def finalize_sold_pack(inventory_book, activated_pack):
 
     activated_pack.delete()
 
+def build_report_pdf_bytes(report, user):
+    details = DailyReportBoxDetail.objects.filter(
+        user=user,
+        report=report
+    ).exclude(
+        inventory_book__is_returned=True
+    ).order_by('box_num', 'id')
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=30,
+        bottomMargin=30
+    )
+
+    styles = getSampleStyleSheet()
+    elements = []
+
+    elements.append(Paragraph("Global Market #3", styles['Title']))
+    elements.append(Paragraph(f"Report Date: {report.report_date}", styles['Normal']))
+    elements.append(Paragraph(
+        f"Generated: {timezone.localtime().strftime('%Y-%m-%d %H:%M %Z')}",
+        styles['Normal']
+    ))
+    elements.append(Spacer(1, 12))
+
+    elements.append(Paragraph("End Shift Report", styles['Heading2']))
+    elements.append(Paragraph(f"Online Sales ${report.online_sales}", styles['Normal']))
+    elements.append(Paragraph(f"Online Cashes ${report.online_cashes}", styles['Normal']))
+    elements.append(Paragraph(f"Online Cancel ${report.online_cancels}", styles['Normal']))
+    elements.append(Paragraph(f"Instant Sales ${report.instant_sales}", styles['Normal']))
+    elements.append(Paragraph(f"Instant Cashes ${report.instant_cashes}", styles['Normal']))
+    elements.append(Paragraph(f"Activated Packs {details.filter(closing_status='Active').count()}", styles['Normal']))
+    elements.append(Spacer(1, 12))
+
+    elements.append(Paragraph("Lottery Slot Details", styles['Heading2']))
+    elements.append(Spacer(1, 6))
+
+    table_data = [[
+        'Slot #',
+        'Lottery Name',
+        'Start #',
+        'Current #',
+        'Value',
+        'Total',
+        'Closing Status'
+    ]]
+
+    for row in details:
+        table_data.append([
+            str(row.box_num),
+            f"{row.lottery_name} - {row.pack_num}",
+            str(row.start_num),
+            str(row.current_num),
+            f"${row.ticket_value:.0f}" if float(row.ticket_value).is_integer() else f"${row.ticket_value}",
+            f"${row.total_amount:.0f}" if float(row.total_amount).is_integer() else f"${row.total_amount}",
+            row.closing_status,
+        ])
+
+    table = Table(
+        table_data,
+        colWidths=[0.6*inch, 2.3*inch, 0.8*inch, 0.9*inch, 0.8*inch, 0.8*inch, 1.1*inch],
+        repeatRows=1
+    )
+
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4A90E2')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.3, colors.HexColor('#CCCCCC')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F7F7F7')]),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+        ('TOPPADDING', (0, 1), (-1, -1), 6),
+    ]))
+
+    elements.append(table)
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+def send_report_email(report, user):
+    if not user.email:
+        return
+
+    pdf_bytes = build_report_pdf_bytes(report, user)
+
+    subject = f"End Shift Report - {report.report_date}"
+    body = (
+        f"Hello {user.first_name or user.username},\n\n"
+        f"Please find attached your end shift report for {report.report_date}.\n\n"
+        f"Regards,\n"
+        f"Bright Core Solutions"
+    )
+
+    email = EmailMessage(
+        subject=subject,
+        body=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        to=[user.email],
+    )
+
+    email.attach(
+        f"reports_eod_{report.id}_{report.report_date}.pdf",
+        pdf_bytes,
+        "application/pdf"
+    )
+
+    email.send(fail_silently=False)
+
 def get_business_date():
     return timezone.localtime().date()
 
@@ -33,9 +153,8 @@ def calculate_box_total(start_num, current_num, ticket_value, closing_status):
     sold_count = max(current_num - start_num, 0)
 
     # sold pack includes the final ticket
-    if closing_status == 'Sold':
-        sold_count += 1
-
+    # if closing_status == 'Sold':
+    #     sold_count += 1
     return Decimal(sold_count) * Decimal(ticket_value)
 
 
@@ -293,12 +412,79 @@ class ActivatedInventoryBookListView(generics.ListAPIView):
         context['request'] = self.request
         return context
 
+# class ActivateInventoryBookView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         raw_barcode = str(request.data.get('raw_barcode', '')).strip()
+#         reverse_mode = bool(request.data.get('reverse_mode', False))
+
+#         if not raw_barcode:
+#             return Response({'error': 'Barcode is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         if len(raw_barcode) < 5:
+#             return Response({'error': 'Invalid barcode.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         game_id = raw_barcode[:4]
+#         pack_id = raw_barcode[4:-4]
+
+#         if not pack_id:
+#             return Response({'error': 'Pack id is missing.'}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             inventory_book = InventoryBook.objects.select_related('game').get(
+#                 user=request.user,
+#                 game__game_id=game_id,
+#                 pack_id=pack_id
+#             )
+#         except InventoryBook.DoesNotExist:
+#             return Response(
+#                 {'error': 'Not found in inventory.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         if inventory_book.is_activated:
+#             return Response(
+#                 {'error': 'Already activated.'},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         box_num = request.data.get('box_num')
+
+#         if box_num is None:
+#             return Response({'error': 'Box number is required.'}, status=400)
+
+#         if ActivatedPack.objects.filter(user=request.user, box_num=box_num).exists():
+#             return Response({'error': f'Box {box_num} already in use.'}, status=400)
+
+#         inventory_book.is_activated = True
+#         inventory_book.save(update_fields=['is_activated', 'updated_at'])
+
+#         activated_pack = ActivatedPack.objects.create(
+#             user=request.user,
+#             inventory_book=inventory_book,
+#             box_num=box_num,
+#             reverse_mode=reverse_mode,
+#             current_count=0,
+#             last_ticket=0,
+#             today_start=0,
+#             tomorrow_start=0
+#         )
+
+#         serializer = ActivatedPackSerializer(activated_pack, context={'request': request})
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+
 class ActivateInventoryBookView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         raw_barcode = str(request.data.get('raw_barcode', '')).strip()
-        reverse_mode = bool(request.data.get('reverse_mode', False))
+        reverse_mode = request.data.get('reverse_mode', False)
+
+        if isinstance(reverse_mode, str):
+            reverse_mode = reverse_mode.lower() in ['true', '1', 'yes', 'on']
+        else:
+            reverse_mode = bool(reverse_mode)
 
         if not raw_barcode:
             return Response({'error': 'Barcode is required.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -324,19 +510,111 @@ class ActivateInventoryBookView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if inventory_book.is_activated:
-            return Response(
-                {'error': 'Already activated.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        box_num = request.data.get('box_num')
-
-        if box_num is None:
-            return Response({'error': 'Box number is required.'}, status=400)
+        box_num = str(request.data.get('box_num', '')).strip()
+        if not box_num:
+            return Response({'error': 'Box number is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if ActivatedPack.objects.filter(user=request.user, box_num=box_num).exists():
-            return Response({'error': f'Box {box_num} already in use.'}, status=400)
+            return Response({'error': f'Box {box_num} already in use.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # -----------------------------
+        # REVERSE MODE: bring sold pack back
+        # -----------------------------
+        # -----------------------------
+        # REVERSE MODE: bring sold pack back
+        # -----------------------------
+        if reverse_mode:
+            if inventory_book.is_activated:
+                return Response({'error': 'Pack is already activated.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not inventory_book.is_sold:
+                return Response(
+                    {'error': 'Only sold packs can be restored in reverse mode.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            latest_sold_detail = DailyReportBoxDetail.objects.filter(
+                user=request.user,
+                report_date=get_business_date(),
+                inventory_book=inventory_book,
+                closing_status='Sold'
+            ).order_by('-id').first()
+
+            restored_today_start = latest_sold_detail.start_num if latest_sold_detail else 0
+            restored_current = max(inventory_book.total_tickets - 1, 0)
+
+            inventory_book.is_sold = False
+            inventory_book.is_activated = True
+            inventory_book.is_returned = False
+            inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned', 'updated_at'])
+
+            activated_pack = ActivatedPack.objects.create(
+                user=request.user,
+                inventory_book=inventory_book,
+                box_num=box_num,
+                reverse_mode=True,
+                current_count=restored_current,
+                last_ticket=restored_current,
+                today_start=restored_today_start,
+                tomorrow_start=restored_today_start
+            )
+
+            # instead of creating a new reverse SoldTicket row,
+            # update the latest positive sold row for this pack today
+            latest_sale_row = SoldTicket.objects.filter(
+                user=request.user,
+                inventory_book=inventory_book,
+                sold_at__date=get_business_date(),
+                delta_count__gt=0
+            ).order_by('-sold_at').first()
+
+            if latest_sale_row:
+                latest_sale_row.delta_count -= 1
+                latest_sale_row.is_reversal = latest_sale_row.delta_count < 0
+                latest_sale_row.scanned_code = 'REVERSE_RESTORE'
+
+                if latest_sale_row.delta_count == 0:
+                    latest_sale_row.delete()
+                else:
+                    latest_sale_row.save(update_fields=['delta_count', 'is_reversal', 'scanned_code'])
+            else:
+                SoldTicket.objects.create(
+                    user=request.user,
+                    inventory_book=inventory_book,
+                    ticket_number=restored_current,
+                    scanned_code='REVERSE_RESTORE',
+                    delta_count=-1,
+                    is_reversal=True
+                )
+
+            if latest_sold_detail:
+                latest_sold_detail.box_num = box_num
+                latest_sold_detail.current_num = restored_current
+                latest_sold_detail.total_amount = calculate_box_total(
+                    latest_sold_detail.start_num,
+                    restored_current,
+                    inventory_book.ticket_value,
+                    'Active'
+                )
+                latest_sold_detail.closing_status = 'Active'
+                latest_sold_detail.save()
+            else:
+                create_active_box_detail(activated_pack, report_date=get_business_date())
+
+            serializer = ActivatedPackSerializer(activated_pack, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        # -----------------------------
+        # NORMAL ACTIVATE
+        # -----------------------------
+        if inventory_book.is_activated:
+            return Response({'error': 'Already activated.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if inventory_book.is_sold:
+            return Response(
+                {'error': 'Sold pack can only be restored using reverse mode.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         inventory_book.is_activated = True
         inventory_book.save(update_fields=['is_activated', 'updated_at'])
@@ -345,7 +623,7 @@ class ActivateInventoryBookView(APIView):
             user=request.user,
             inventory_book=inventory_book,
             box_num=box_num,
-            reverse_mode=reverse_mode,
+            reverse_mode=False,
             current_count=0,
             last_ticket=0,
             today_start=0,
@@ -676,8 +954,21 @@ class DailyReportUpdateView(APIView):
         report.online_cancels = parse_decimal(request.data.get('onlineCancels'))
         report.save()
 
+        try:
+            send_report_email(report, request.user)
+        except Exception as e:
+            serializer = DailyReportSerializer(report)
+            return Response({
+                'message': 'Report saved, but email failed to send.',
+                'email_error': str(e),
+                'report': serializer.data
+            }, status=status.HTTP_200_OK)
+
         serializer = DailyReportSerializer(report)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'Report saved and emailed successfully.',
+            'report': serializer.data
+        }, status=status.HTTP_200_OK)
 
 class EndShiftView(APIView):
     permission_classes = [IsAuthenticated]

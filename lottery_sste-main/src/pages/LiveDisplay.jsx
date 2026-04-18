@@ -6,8 +6,8 @@ import './liveDisplay.css'
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
-// const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {

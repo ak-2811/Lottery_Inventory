@@ -4,8 +4,8 @@ import '../App.css'
 import './inventory.css'
 // import heroImg from '../assets/hero.png'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
 
@@ -128,12 +128,28 @@ export default function Inventory() {
     navigate('/login')
   }
 
+  const playBeep = (type) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+
+    if (type === "success") {
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime); // higher tone
+    } else {
+      oscillator.frequency.setValueAtTime(300, ctx.currentTime); // lower tone
+    }
+
+    oscillator.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.1);
+  };
+
   const fetchInventoryRows = async () => {
     try {
       const response = await fetch(`${API_BASE}/books/`, {
         headers: getAuthHeaders(),
       })
       if (!response.ok) {
+        playBeep("error")
         throw new Error('Failed to fetch inventory books')
       }
 
@@ -151,8 +167,21 @@ export default function Inventory() {
 
   useEffect(() => {
     fetchInventoryRows()
-  }, [])
 
+    const handleFocus = async () => {
+      if (localStorage.getItem('inventoryNeedsRefresh') === '1') {
+        await fetchInventoryRows()
+        localStorage.removeItem('inventoryNeedsRefresh')
+      }
+    }
+
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
+  
   const handleAddClick = async () => {
     setShowModal(true)
     setTicketInput('')
@@ -170,7 +199,11 @@ export default function Inventory() {
 
       const data = await response.json()
 
+      if(response.ok){
+        playBeep("Success")
+      }
       if (!response.ok) {
+        playBeep("error")
         throw new Error(data.error || 'Failed to mark pack as sold')
       }
 
@@ -180,6 +213,7 @@ export default function Inventory() {
       setInventoryRows((prev) => prev.filter((item) => item.id !== id))
       setModalItems((prev) => prev.filter((item) => item.id !== id))
     } catch (error) {
+      playBeep("error")
       setActionMessage(error.message || 'Failed to mark pack as sold')
       alert(error.message || 'Failed to mark pack as sold')
     }
@@ -213,7 +247,11 @@ export default function Inventory() {
 
       const data = await response.json()
 
+      if(response.ok){
+        playBeep("success")
+      }
       if (!response.ok) {
+        playBeep("error")
         throw new Error(data.error || 'Failed to add inventory item')
       }
 
@@ -234,7 +272,11 @@ export default function Inventory() {
         headers: getAuthHeaders(),
       })
 
+      if(response.ok){
+        playBeep("success")
+      }
       if (!response.ok) {
+        playBeep("error")
         throw new Error('Failed to delete item')
       }
 
@@ -252,7 +294,11 @@ export default function Inventory() {
         headers: getAuthHeaders(),
       })
 
+      if (response.ok){
+        playBeep("success")
+      }
       if (!response.ok) {
+        playBeep("error")
         throw new Error('Failed to delete item')
       }
 
@@ -272,7 +318,11 @@ export default function Inventory() {
 
       const data = await response.json()
 
+      if(response.ok){
+        playBeep("success")
+      }
       if (!response.ok) {
+        playBeep("error")
         throw new Error(data.error || 'Direct sale failed')
       }
 
@@ -282,6 +332,7 @@ export default function Inventory() {
       setInventoryRows((prev) => prev.filter((item) => item.id !== id))
       setModalItems((prev) => prev.filter((item) => item.id !== id))
     } catch (error) {
+      playBeep("error")
       setActionMessage(error.message || 'Direct sale failed')
       alert(error.message || 'Direct sale failed')
     }

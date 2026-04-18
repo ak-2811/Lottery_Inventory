@@ -69,8 +69,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=12),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=30),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=60),
 }
 
 ROOT_URLCONF = "config.urls"
@@ -92,6 +92,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtppro.zoho.in'
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True
+EMAIL_HOST_USER = 'admin@bright-core-solutions.com'
+EMAIL_HOST_PASSWORD = 'wUwqDHR4TBJ6'
+DEFAULT_FROM_EMAIL = 'admin@bright-core-solutions.com'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases

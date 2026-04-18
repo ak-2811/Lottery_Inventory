@@ -4,8 +4,8 @@ import axios from 'axios'
 import '../App.css'
 import './endShift.css'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -108,17 +108,29 @@ export default function EndShift() {
       setSaveLoading(true)
       setMessage('')
 
-      const response = await axios.put(`${API_BASE}/reports/${report.id}/`, {
-        instantCashes: formData.instantCashes,
-        onlineSales: formData.onlineSales,
-        onlineCashes: formData.onlineCashes,
-        onlineCancels: formData.onlineCancels,
-        }, {
-        headers: getAuthHeaders(),
-      })
+      const response = await axios.put(
+        `${API_BASE}/reports/${report.id}/`,
+        {
+          instantCashes: formData.instantCashes,
+          onlineSales: formData.onlineSales,
+          onlineCashes: formData.onlineCashes,
+          onlineCancels: formData.onlineCancels,
+        },
+        {
+          headers: getAuthHeaders(),
+        }
+      )
 
-      setReport(response.data)
-      setMessage('Report saved successfully! Logging out...')
+      const data = response.data
+
+      setReport(data.report || data)
+
+      if (data.email_error) {
+        setMessage(data.message || 'Report saved, but email failed to send.')
+        return
+      }
+
+      setMessage(data.message || 'Report saved successfully! Logging out...')
 
       setIsLoggedOut(true)
 
@@ -134,7 +146,11 @@ export default function EndShift() {
       }, 1500)
     } catch (error) {
       console.error('Error saving report:', error)
-      setMessage(error.response?.data?.error || 'Failed to save report')
+      setMessage(
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        'Failed to save report'
+      )
     } finally {
       setSaveLoading(false)
     }

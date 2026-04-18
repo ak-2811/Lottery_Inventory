@@ -27,8 +27,8 @@ ChartJS.register(
   Legend
 )
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -54,6 +54,21 @@ export default function Dashboard() {
     activated_this_month: 0,
     inactive_packs: 0,
   })
+
+  const playBeep = (type) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+
+    if (type === "success") {
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime); // higher tone
+    } else {
+      oscillator.frequency.setValueAtTime(300, ctx.currentTime); // lower tone
+    }
+
+    oscillator.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.1);
+  };
 
   const fetchTicketValues = async () => {
     try {
@@ -228,10 +243,15 @@ export default function Dashboard() {
       if (contentType.includes('application/json')) {
         data = JSON.parse(rawText)
       } else {
-        throw new Error(`Server error (${response.status}). Check Django console.`)
+        playBeep("error")
+        throw new Error(`Server error (${response.status}).`)
       }
 
+      if(response.ok){
+        playBeep("success")
+      }
       if (!response.ok) {
+        playBeep("error")
         throw new Error(data.error || 'Invalid input')
       }
 
@@ -243,6 +263,7 @@ export default function Dashboard() {
 
       await fetchDashboardStats()
     } catch (error) {
+      playBeep("error")
       setScanMessage(error.message || 'Invalid input')
     }
   }
@@ -372,7 +393,7 @@ export default function Dashboard() {
               Reload Screen
             </button>
             <button className="header-btn manage-btn">Manage Current Shift</button>
-            {/* <button className="header-btn end-btn">End Shift</button> */}
+            {/* <button className="header-btn end-btn onClick={handleEndShift}">End Shift</button> */}
             <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button>
           </div>
         </div>
