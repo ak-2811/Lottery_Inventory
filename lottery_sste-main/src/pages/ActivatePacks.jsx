@@ -231,6 +231,12 @@ export default function ActivatePacks() {
     setSelectedBox('')
   }
 
+  const handleReverseModeChange = (e) => {
+    const isEnabled = e.target.checked
+    setReverseMode(isEnabled)
+    console.log(isEnabled ? 1 : 0)
+  }
+
   const handleActivatePack = async () => {
   const barcodeValue = String(scanBarcode || '').trim()
 
@@ -393,7 +399,7 @@ export default function ActivatePacks() {
               onChange={(e) => setSearchText(e.target.value)}
             />
           </div>
-
+{/* 
           <div className="header-right">
             <button className="header-icon">🔔</button>
             <button className="header-icon">⚙️</button>
@@ -402,7 +408,7 @@ export default function ActivatePacks() {
               <span className="user-role">ADM/ADMINISTRATOR</span>
               <div className="user-avatar">A</div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         <div className="activate-header">
@@ -585,7 +591,7 @@ export default function ActivatePacks() {
                       <input
                         type="checkbox"
                         checked={reverseMode}
-                        onChange={(e) => setReverseMode(e.target.checked)}
+                        onChange={handleReverseModeChange}
                         className="toggle-input"
                       />
                       <span className="toggle-slider"></span>
