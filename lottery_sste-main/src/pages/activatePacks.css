@@ -73,7 +73,7 @@
   margin: 0;
 }
 
-/* .toggle-switch input {
+.toggle-switch input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -82,7 +82,7 @@
   opacity: 0;
   cursor: pointer;
   z-index: 2;
-} */
+}
 
 .toggle-switch input:checked + .toggle-slider {
   left: 26px;
