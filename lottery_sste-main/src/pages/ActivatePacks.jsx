@@ -251,7 +251,7 @@ export default function ActivatePacks() {
     if (contentType.includes('application/json')) {
       data = JSON.parse(rawText)
     } else {
-      throw new Error(`Server error (${response.status}). Check Django console.`)
+      throw new Error(`Server error (${response.status}).`)
     }
 
     if (!response.ok) {

@@ -4,8 +4,8 @@ import '../App.css'
 import './inventory.css'
 // import heroImg from '../assets/hero.png'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
 
@@ -251,6 +251,29 @@ export default function Inventory() {
     }
   }
 
+  const handleDirectSale = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE}/inventory/${id}/direct-sale/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Direct sale failed')
+      }
+
+      setActionMessage(data.message || 'Pack direct sold successfully.')
+
+      // remove sold pack from inventory list
+      setInventoryRows((prev) => prev.filter((item) => item.id !== id))
+      setModalItems((prev) => prev.filter((item) => item.id !== id))
+    } catch (error) {
+      setActionMessage(error.message || 'Direct sale failed')
+      alert(error.message || 'Direct sale failed')
+    }
+  }
   const handleClear = () => {
     setModalItems([])
   }
@@ -478,6 +501,9 @@ export default function Inventory() {
                     <td>{r.packSize}</td>
                     <td>{r.date}</td>
                     <td className="actions">
+                      <button onClick={() => handleDirectSale(r.id)}>
+                        Direct Sale
+                      </button>
                       <button
                         className="mark-sold-text"
                         onClick={() => handleMarkSold(r.id)}

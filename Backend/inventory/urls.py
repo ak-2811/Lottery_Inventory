@@ -21,6 +21,7 @@ from .views import (
     LoginView,
     SignupView,
     CurrentUserView,
+    DirectSaleInventoryBookView,
 )
 
 urlpatterns = [
@@ -48,5 +49,6 @@ urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('signup/', SignupView.as_view(), name='signup'),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
+    path('inventory/<int:pk>/direct-sale/', DirectSaleInventoryBookView.as_view(), name='inventory-direct-sale'),
 
 ]

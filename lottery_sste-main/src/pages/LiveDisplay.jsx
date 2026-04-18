@@ -6,8 +6,8 @@ import './liveDisplay.css'
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
-// const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -126,6 +126,21 @@ export default function LiveDisplay() {
     setLoading(false)
   }, [])
 
+  const playBeep = (type) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+
+    if (type === "success") {
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime); // higher tone
+    } else {
+      oscillator.frequency.setValueAtTime(300, ctx.currentTime); // lower tone
+    }
+
+    oscillator.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.1);
+  };
+
   const handleTicketScan = async (rawBarcode) => {
     try {
       const response = await fetch(`${API_BASE}/tickets/scan/`, {
@@ -135,8 +150,13 @@ export default function LiveDisplay() {
       })
 
       const data = await response.json()
+      
+      if (response.ok) {
+        playBeep("success");
+      }
 
       if (!response.ok) {
+        playBeep("error");
         throw new Error(data.error || 'Invalid input')
       }
 
@@ -152,6 +172,7 @@ export default function LiveDisplay() {
         setScanMessage('')
       }, 2000)
     } catch (error) {
+      playBeep("error");
       setScanMessage(error.message || 'Invalid input')
 
       setTimeout(() => {

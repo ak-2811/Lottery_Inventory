@@ -479,6 +479,7 @@ class MarkInventoryBookSoldView(APIView):
         if inventory_book.is_sold:
             return Response({'error': 'Pack is already sold.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # CASE 1: not activated -> treat like returned / do not count in sales
         if not inventory_book.is_activated:
             inventory_book.is_sold = True
             inventory_book.is_activated = False
@@ -489,6 +490,7 @@ class MarkInventoryBookSoldView(APIView):
                 'message': 'Pack marked as sold successfully.'
             }, status=status.HTTP_200_OK)
 
+        # CASE 2: activated -> count remaining tickets in sales and show in report
         try:
             activated_pack = ActivatedPack.objects.get(
                 inventory_book=inventory_book,
@@ -503,16 +505,32 @@ class MarkInventoryBookSoldView(APIView):
                 'message': 'Pack marked as sold successfully.'
             }, status=status.HTTP_200_OK)
 
-        final_ticket_number = inventory_book.total_tickets - 1
-        activated_pack.last_ticket = activated_pack.current_count
+        previous_count = activated_pack.current_count
+        final_ticket_number = inventory_book.total_tickets
+
+        remaining_count = inventory_book.total_tickets - previous_count
+
+        if remaining_count > 0:
+            SoldTicket.objects.create(
+                user=request.user,
+                inventory_book=inventory_book,
+                ticket_number=final_ticket_number,
+                delta_count=remaining_count,
+                is_reversal=False,
+                scanned_code='MARK_SOLD'
+            )
+
+        activated_pack.last_ticket = previous_count
         activated_pack.current_count = final_ticket_number
         activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
 
+        create_sold_box_detail(activated_pack, report_date=get_business_date())
         finalize_sold_pack(inventory_book, activated_pack)
 
         return Response({
             'message': 'Pack marked as sold successfully.',
             'final_ticket_number': final_ticket_number,
+            'counted_tickets': remaining_count,
         }, status=status.HTTP_200_OK)
     
 class DashboardStatsView(APIView):
@@ -701,7 +719,8 @@ class EndShiftView(APIView):
 
         DailyReportBoxDetail.objects.filter(
             user=request.user,
-            report_date=today
+            report_date=today,
+            closing_status='Active'
         ).delete()
 
         active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(user=request.user)
@@ -891,3 +910,59 @@ class DailyReportDownloadPDFView(APIView):
 
         filename = f"reports_eod_{report.id}_{report.report_date}.pdf"
         return FileResponse(buffer, as_attachment=True, filename=filename)
+    
+class DirectSaleInventoryBookView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            inventory_book = InventoryBook.objects.select_related('game').get(
+                pk=pk,
+                user=request.user
+            )
+        except InventoryBook.DoesNotExist:
+            return Response({'error': 'Inventory book not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if inventory_book.is_sold:
+            return Response({'error': 'Pack is already sold.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if inventory_book.is_activated:
+            return Response({'error': 'Activated pack cannot be direct sold.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # count full pack sale
+        SoldTicket.objects.create(
+            user=request.user,
+            inventory_book=inventory_book,
+            ticket_number=inventory_book.total_tickets - 1,
+            delta_count=inventory_book.total_tickets,
+            is_reversal=False,
+            scanned_code='DIRECT_SALE'
+        )
+
+        # mark inventory sold
+        inventory_book.is_sold = True
+        inventory_book.is_activated = False
+        inventory_book.is_returned = False
+        inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned', 'updated_at'])
+
+        # create report row so it shows in end shift
+        DailyReportBoxDetail.objects.create(
+            user=request.user,
+            report_date=get_business_date(),
+            box_num='Direct Sale',
+            inventory_book=inventory_book,
+            lottery_name=inventory_book.game.name or inventory_book.game.game_id,
+            game_num=inventory_book.game.game_id,
+            pack_num=inventory_book.pack_id,
+            start_num=0,
+            current_num=inventory_book.total_tickets,
+            ticket_value=inventory_book.ticket_value,
+            total_amount=Decimal(inventory_book.total_tickets) * Decimal(inventory_book.ticket_value),
+            closing_status='Sold'
+        )
+
+        return Response({
+            'message': 'Pack direct sold successfully.',
+            'pack_id': inventory_book.pack_id,
+            'total_tickets': inventory_book.total_tickets,
+        }, status=status.HTTP_200_OK)
