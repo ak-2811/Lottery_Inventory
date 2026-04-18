@@ -6,8 +6,8 @@ import './liveDisplay.css'
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
-const API_BASE = 'http://127.0.0.1:8000/api'
+const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE = 'http://127.0.0.1:8000/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -161,12 +161,12 @@ export default function LiveDisplay() {
       }
 
       setScanMessage(
-        data.pack_sold
+        (data.is_sold || data.pack_sold)
           ? 'Pack sold successfully'
           : `Ticket ${data.ticket_number} scanned successfully`
       )
 
-      await loadTickets()
+      await silentRefreshTickets()
 
       setTimeout(() => {
         setScanMessage('')
@@ -268,6 +268,14 @@ useEffect(() => {
   useEffect(() => {
     // Poll localStorage for changes every 500ms
     const interval = setInterval(() => {
+      // Check for explicit hard reload request from Dashboard
+      const reloadLiveDisplay = localStorage.getItem('reloadLiveDisplay')
+      if (reloadLiveDisplay) {
+        localStorage.removeItem('reloadLiveDisplay')
+        window.location.reload()
+        return
+      }
+
       // Check for lucky tickets animation
       const luckyTicketsFlag = localStorage.getItem('luckyTicketsAnimation')
       if (luckyTicketsFlag && luckyTicketIds.size === 0 && tickets.length > 0) {
@@ -466,6 +474,13 @@ useEffect(() => {
               
               // Check if ticket is ENDING based on actual data (remaining 0-5)
               const isEndingTicketType = ticket.totalTickets > 0 && (ticket.totalTickets - ticket.currentNumber) >= 0 && (ticket.totalTickets - ticket.currentNumber) <= 5
+
+              // Footer color by ticket status
+              const statusFooterColor = isNewTicketType
+                ? '#2563eb' // blue for NEW TICKET
+                : isEndingTicketType
+                  ? '#dc2626' // red for ENDING TICKET
+                  : '#16a34a' // green for CURRENT NUMBER
               
               if (blinkingPrice) {
                 console.log(`Comparing: ticket.price="${ticket.price}" extracted="${ticketPriceNumber}" vs blinkingPrice="${blinkingPrice}" => Match: ${isBlinking}`)
@@ -507,7 +522,7 @@ useEffect(() => {
                 <div
                   className="ld-card-footer"
                   style={{
-                    background: `linear-gradient(180deg, ${ticket.footerBg} 0%, ${ticket.footerBg}bb 100%)`,
+                    background: `linear-gradient(180deg, ${statusFooterColor} 0%, ${statusFooterColor}bb 100%)`,
                   }}
                 >
                   {isNewTicketType ? (

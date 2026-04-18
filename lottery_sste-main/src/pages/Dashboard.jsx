@@ -168,6 +168,39 @@ export default function Dashboard() {
       setScanMessage('Failed to end shift')
     }
   }
+
+  const handleReloadLiveDisplay = () => {
+    // Signal LiveDisplay tab/window to perform a one-time hard reload
+    localStorage.setItem('reloadLiveDisplay', String(Date.now()))
+
+    // Keep Dashboard stats fresh as well
+    fetchDashboardStats()
+  }
+
+  const handleLogout = () => {
+    // Logout should only clear auth/session state and redirect
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('blinkingTicketPrice')
+    localStorage.removeItem('luckyTicketsAnimation')
+    localStorage.removeItem('newTicketsAnimation')
+    localStorage.removeItem('endingTicketsAnimation')
+    localStorage.removeItem('reloadLiveDisplay')
+
+    navigate('/login')
+  }
+
+  const handleRefreshDashboard = async () => {
+    console.log('Dashboard refresh clicked')
+    await Promise.all([
+      fetchDashboardStats(),
+      fetchTicketValues(),
+      fetchDailySalesData(),
+      fetchTodayEndShiftStatus(),
+    ])
+    console.log('Dashboard refreshed')
+  }
+
   const fetchDashboardStats = async () => {
     try {
       const res = await axios.get(`${API_BASE}/dashboard-stats/`, {
@@ -307,7 +340,13 @@ export default function Dashboard() {
         </nav>
         <div className="sidebar-footer">
           <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>
-          <a href="#" className="sidebar-link">🚪 <span className="link-label">Logout</span></a>
+          <button
+            className="sidebar-link"
+            onClick={handleLogout}
+            style={{ background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer' }}
+          >
+            🚪 <span className="link-label">Logout</span>
+          </button>
         </div>
       </div>
 
@@ -321,13 +360,13 @@ export default function Dashboard() {
             <button
               className="header-btn refresh-btn"
               title="Reload Screen"
-              onClick={fetchDashboardStats}
+              onClick={handleRefreshDashboard}
             >
               ↻
             </button>
             <button
               className="header-btn reload-btn"
-              onClick={fetchDashboardStats}
+              onClick={handleReloadLiveDisplay}
             >
               Reload Screen
             </button>

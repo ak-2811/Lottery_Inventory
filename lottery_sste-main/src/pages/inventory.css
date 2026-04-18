@@ -232,7 +232,7 @@ body {
   min-height: auto;
   overflow: visible;
   background: var(--white);
-  padding: 16px 0 0 0;
+  padding: 16px 24px 0;
 }
 
 /* Scrollbar styling */
@@ -244,11 +244,11 @@ body {
 
 /* ── Table ── */
 .inventory-table {
-  width: calc(100% - 48px);
+  width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
-  margin: 0 24px;
+  margin: 0;
 }
 
 .inventory-table thead tr th {
@@ -282,7 +282,8 @@ body {
   transition: background 0.12s;
 }
 .inventory-table tbody tr:last-child td { border-bottom: none; }
-.inventory-table tbody tr td { background: var(--teal-light); }
+.inventory-table tbody tr { background: var(--teal-light); }
+.inventory-table tbody td { background: var(--teal-light); }
 
 .inventory-table .num { color: var(--text-muted); font-weight: 600; font-size: 12px; width: 44px; font-family: 'DM Mono', monospace; }
 .inventory-table .preview { width: 60px; }
@@ -290,8 +291,62 @@ body {
 .inventory-table .item-title { font-weight: 600; color: var(--text-primary); font-size: 13.5px; }
 .inventory-table .item-subtitle { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; font-weight: 500; }
 .inventory-table .value { font-weight: 700; color: var(--teal); font-family: 'DM Mono', monospace; }
-.inventory-table td.actions { white-space: nowrap; width: 150px; }
-.inventory-table .actions { display: flex; gap: 8px; align-items: center; }
+.inventory-table td.actions {
+  white-space: nowrap;
+  width: 270px;
+  min-width: 270px;
+}
+
+.inventory-table .actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.inventory-table .actions > * {
+  flex-shrink: 0;
+}
+
+/* Direct Sale button (keeps existing functionality untouched) */
+.inventory-table .actions > button:not(.mark-sold-text):not(.delete-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #fbbf24;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.15s ease;
+}
+
+.inventory-table .actions > button:not(.mark-sold-text):not(.delete-btn):hover {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #78350f;
+}
+
+.inventory-table .actions > button:not(.mark-sold-text):not(.delete-btn):active {
+  transform: translateY(0.5px);
+  background: #fde68a;
+}
+
+.inventory-table .actions > button:not(.mark-sold-text):not(.delete-btn):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+}
+
+.inventory-table .actions > button:not(.mark-sold-text):not(.delete-btn):disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 
 .mark-sold-text {
   display: inline-flex; align-items: center; gap: 4px;

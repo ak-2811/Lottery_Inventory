@@ -4,8 +4,8 @@ import '../App.css'
 import './inventory.css'
 // import heroImg from '../assets/hero.png'
 
-const API_BASE = 'http://127.0.0.1:8000/api'
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE = 'http://127.0.0.1:8000/api'
+const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
 
@@ -385,13 +385,13 @@ export default function Inventory() {
           </div>
 
           <div className="header-right">
-            <button className="header-icon">🔔</button>
-            <button className="header-icon">⚙️</button>
-            <div className="user-profile">
+            {/* <button className="header-icon">🔔</button>
+            <button className="header-icon">⚙️</button> */}
+            {/* <div className="user-profile">
               <span className="user-name">Alex Curator</span>
               <span className="user-role">ADM/ADMINISTRATOR</span>
               <div className="user-avatar">A</div>
-            </div>
+            </div> */}
           </div>
         </div>
 
