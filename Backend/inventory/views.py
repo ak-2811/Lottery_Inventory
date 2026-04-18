@@ -50,7 +50,7 @@ def build_report_pdf_bytes(report, user):
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph("Global Market #3", styles['Title']))
+    # elements.append(Paragraph("Global Market #3", styles['Title']))
     elements.append(Paragraph(f"Report Date: {report.report_date}", styles['Normal']))
     elements.append(Paragraph(
         f"Generated: {timezone.localtime().strftime('%Y-%m-%d %H:%M %Z')}",
