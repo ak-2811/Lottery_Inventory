@@ -220,7 +220,7 @@ const silentRefreshTickets = useCallback(async () => {
 useEffect(() => {
   const interval = setInterval(() => {
     silentRefreshTickets() // no loading spinner, no flash
-  }, 30000)
+  }, 2000)
 
   return () => clearInterval(interval)
 }, [silentRefreshTickets])
