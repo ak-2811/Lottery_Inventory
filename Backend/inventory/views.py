@@ -19,6 +19,7 @@ from rest_framework.decorators import permission_classes
 from django.contrib.auth import authenticate
 from django.conf import settings
 from django.core.mail import EmailMessage
+import threading
 
 
 def finalize_sold_pack(inventory_book, activated_pack):
@@ -953,22 +954,29 @@ class DailyReportUpdateView(APIView):
         report.online_cashes = parse_decimal(request.data.get('onlineCashes'))
         report.online_cancels = parse_decimal(request.data.get('onlineCancels'))
         report.save()
-
-        try:
-            send_report_email(report, request.user)
-        except Exception as e:
-            serializer = DailyReportSerializer(report)
-            return Response({
-                'message': 'Report saved, but email failed to send.',
-                'email_error': str(e),
-                'report': serializer.data
-            }, status=status.HTTP_200_OK)
+        threading.Thread(target=send_report_email, args=(report, request.user), daemon=True).start()
 
         serializer = DailyReportSerializer(report)
         return Response({
-            'message': 'Report saved and emailed successfully.',
+            'message': 'Report saved successfully.',
             'report': serializer.data
         }, status=status.HTTP_200_OK)
+
+        # try:
+        #     send_report_email(report, request.user)
+        # except Exception as e:
+        #     serializer = DailyReportSerializer(report)
+        #     return Response({
+        #         'message': 'Report saved, but email failed to send.',
+        #         'email_error': str(e),
+        #         'report': serializer.data
+        #     }, status=status.HTTP_200_OK)
+
+        # serializer = DailyReportSerializer(report)
+        # return Response({
+        #     'message': 'Report saved and emailed successfully.',
+        #     'report': serializer.data
+        # }, status=status.HTTP_200_OK)
 
 class EndShiftView(APIView):
     permission_classes = [IsAuthenticated]
