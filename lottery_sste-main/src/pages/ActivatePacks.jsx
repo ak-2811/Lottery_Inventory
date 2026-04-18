@@ -33,6 +33,18 @@ export default function ActivatePacks() {
   const [moveError, setMoveError] = useState('')
   const [moveLoading, setMoveLoading] = useState(false)
 
+  const handleLogout = () => {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('blinkingTicketPrice')
+    localStorage.removeItem('luckyTicketsAnimation')
+    localStorage.removeItem('newTicketsAnimation')
+    localStorage.removeItem('endingTicketsAnimation')
+    localStorage.removeItem('reloadLiveDisplay')
+
+    navigate('/login')
+  }
+
   const fetchActivatedPacks = async () => {
     try {
       const response = await fetch(`${API_BASE}/activated-books/`, {
@@ -360,7 +372,13 @@ export default function ActivatePacks() {
         </nav>
         <div className="sidebar-footer">
           <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>
-          <a href="#" className="sidebar-link">🚪 <span className="link-label">Logout</span></a>
+          <button
+            className="sidebar-link"
+            onClick={handleLogout}
+            style={{ background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer' }}
+          >
+            🚪 <span className="link-label">Logout</span>
+          </button>
         </div>
       </div>
 
