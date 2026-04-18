@@ -591,7 +591,7 @@ export default function ActivatePacks() {
                       <input
                         type="checkbox"
                         checked={reverseMode}
-                        onChange={handleReverseModeChange}
+                        // onChange={handleReverseModeChange}
                         className="toggle-input"
                       />
                       <span className="toggle-slider"></span>
