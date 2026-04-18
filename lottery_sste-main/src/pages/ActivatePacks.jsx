@@ -231,11 +231,11 @@ export default function ActivatePacks() {
     setSelectedBox('')
   }
 
-  const handleReverseModeChange = (e) => {
-    const isEnabled = e.target.checked
-    setReverseMode(isEnabled)
-    console.log(isEnabled ? 1 : 0)
-  }
+  // const handleReverseModeChange = (e) => {
+  //   const isEnabled = e.target.checked
+  //   setReverseMode(isEnabled)
+  //   console.log(isEnabled ? 1 : 0)
+  // }
 
   const handleActivatePack = async () => {
   const barcodeValue = String(scanBarcode || '').trim()
