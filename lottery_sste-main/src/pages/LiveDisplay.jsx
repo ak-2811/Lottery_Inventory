@@ -554,7 +554,7 @@ useEffect(() => {
       <div className="ld-ticker">
         <span>⚠ ATTENTION: Must be 18 years of age or older to play.</span>
         <span className="ld-ticker-url">www.digitallotterysystem.com v3.20.0</span>
-        <span>ATTENTION: Lottery purchases are CASH only.</span>
+        <span>ATTENTION: Lottery purchases are CASH/DEBIT CARDS only.</span>
       </div>
 
     </div>
