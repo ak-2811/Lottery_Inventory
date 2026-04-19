@@ -27,8 +27,8 @@ ChartJS.register(
   Legend
 )
 
-const API_BASE = 'http://127.0.0.1:8000/api'
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE = 'http://127.0.0.1:8000/api'
+const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -393,7 +393,7 @@ export default function Dashboard() {
               Reload Screen
             </button>
             {/* <button className="header-btn manage-btn">Manage Current Shift</button> */}
-            <button className="header-btn manage-btn" onClick={() => navigate('/manual-shift')}>Manual End Shift</button>
+            {/* <button className="header-btn manage-btn" onClick={() => navigate('/manual-shift')}>Manual End Shift</button> */}
             {/* <button className="header-btn end-btn onClick={handleEndShift}">End Shift</button> */}
             <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button>
           </div>
