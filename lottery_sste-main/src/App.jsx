@@ -7,6 +7,7 @@ import ActivatePacks from './pages/ActivatePacks.jsx'
 import Reports from './pages/Reports.jsx'
 import EndShift from './pages/EndShift.jsx'
 import LiveDisplay from './pages/LiveDisplay.jsx'
+import ManualShift from './pages/ManualEndShift.jsx'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/end-shift" element={<EndShift />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/live-display" element={<LiveDisplay />} />
+        <Route path="/manual-shift" element={<ManualShift />} />
       </Routes>
     </Router>
   )
