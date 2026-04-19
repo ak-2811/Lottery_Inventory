@@ -30,6 +30,23 @@ export default function EndShift() {
   const [saveLoading, setSaveLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [isLoggedOut, setIsLoggedOut] = useState(false)
+  const [scannerBuffer, setScannerBuffer] = useState('')
+  const [scanMessage, setScanMessage] = useState('')
+
+  const playBeep = (type) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = ctx.createOscillator();
+
+    if (type === "success") {
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime); // higher tone
+    } else {
+      oscillator.frequency.setValueAtTime(300, ctx.currentTime); // lower tone
+    }
+
+    oscillator.connect(ctx.destination);
+    oscillator.start();
+    oscillator.stop(ctx.currentTime + 0.1);
+  };
 
   const [formData, setFormData] = useState({
     instantCashes: '',
@@ -59,40 +76,118 @@ export default function EndShift() {
     try {
       setLoading(true)
       setMessage('')
+      setScanMessage('')
 
-      const response = await axios.get(`${API_BASE}/reports/today/`, {
+      const response = await axios.get(`${API_BASE}/end-shift/`, {
         headers: getAuthHeaders(),
       })
-      const todayReport = response.data
 
-      setReport(todayReport)
+      const preview = response.data
+
+      setReport(preview)
       setFormData({
-        instantCashes: todayReport.instantCashes ?? '',
-        onlineSales: todayReport.onlineSales ?? '',
-        onlineCashes: todayReport.onlineCashes ?? '',
-        onlineCancels: todayReport.onlineCancels ?? '',
+        instantCashes: preview.instantCashes ?? '',
+        onlineSales: preview.onlineSales ?? '',
+        onlineCashes: preview.onlineCashes ?? '',
+        onlineCancels: preview.onlineCancels ?? '',
       })
-
-      await fetchBoxDetails(todayReport.id)
+      setBoxDetails(preview.boxDetails || [])
     } catch (error) {
-      console.error('Error fetching today report:', error)
+      console.error('Error fetching end shift preview:', error)
       setMessage(error.response?.data?.error || 'Failed to load end shift data')
     } finally {
       setLoading(false)
     }
   }
 
-  const fetchBoxDetails = async (reportId) => {
+  // const fetchBoxDetails = async (reportId) => {
+  //   try {
+  //     const response = await axios.get(`${API_BASE}/reports/${reportId}/box-details/`, {
+  //       headers: getAuthHeaders(),
+  //     })
+  //     setBoxDetails(response.data)
+  //   } catch (error) {
+  //     console.error('Error fetching box details:', error)
+  //     setBoxDetails([])
+  //   }
+  // }
+
+  const handleManualEndShiftScan = async (rawBarcode) => {
     try {
-      const response = await axios.get(`${API_BASE}/reports/${reportId}/box-details/`, {
+      setScanMessage('')
+
+      const response = await fetch(`${API_BASE}/end-shift/scan/`, {
+        method: 'POST',
         headers: getAuthHeaders(),
+        body: JSON.stringify({ raw_barcode: rawBarcode }),
       })
-      setBoxDetails(response.data)
+
+      const data = await response.json()
+
+      if (response.ok) {
+        playBeep('success')
+      }
+      if (!response.ok) {
+        playBeep('error')
+        throw new Error(data.error || 'Invalid input')
+      }
+
+      setScanMessage(
+        data.delta_count === 0
+          ? 'No change. Current already matched.'
+          : `Updated current to ${data.current_count}.`
+      )
+
+      setReport((prev) => ({
+        ...(prev || {}),
+        instantSales: data.instantSales || prev?.instantSales || '0.00',
+      }))
+
+      setBoxDetails(data.boxDetails || [])
     } catch (error) {
-      console.error('Error fetching box details:', error)
-      setBoxDetails([])
+      playBeep("error")
+      console.error('Error scanning on end shift page:', error)
+      setScanMessage(error.message || 'Invalid input')
     }
   }
+
+  useEffect(() => {
+    let timeoutId = null
+
+    const handleGlobalKeyDown = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      const isTypingInInput =
+        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+      if (isTypingInInput) return
+
+      if (e.key === 'Enter') {
+        const scannedValue = scannerBuffer.trim()
+
+        if (/^\d{12,16}$/.test(scannedValue)) {
+          handleManualEndShiftScan(scannedValue)
+        }
+
+        setScannerBuffer('')
+        return
+      }
+
+      if (/^\d$/.test(e.key)) {
+        setScannerBuffer((prev) => prev + e.key)
+
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          setScannerBuffer('')
+        }, 300)
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+      clearTimeout(timeoutId)
+    }
+  }, [scannerBuffer])
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({
@@ -101,15 +196,67 @@ export default function EndShift() {
     }))
   }
 
-  const handleSave = async () => {
-    if (!report) return
+  // const handleSave = async () => {
+  //   if (!report) return
 
+  //   try {
+  //     setSaveLoading(true)
+  //     setMessage('')
+
+  //     const response = await axios.put(
+  //       `${API_BASE}/reports/${report.id}/`,
+  //       {
+  //         instantCashes: formData.instantCashes,
+  //         onlineSales: formData.onlineSales,
+  //         onlineCashes: formData.onlineCashes,
+  //         onlineCancels: formData.onlineCancels,
+  //       },
+  //       {
+  //         headers: getAuthHeaders(),
+  //       }
+  //     )
+
+  //     const data = response.data
+
+  //     setReport(data.report || data)
+
+  //     if (data.email_error) {
+  //       setMessage(data.message || 'Report saved, but email failed to send.')
+  //       return
+  //     }
+
+  //     setMessage(data.message || 'Report saved successfully! Logging out...')
+
+  //     setIsLoggedOut(true)
+
+  //     localStorage.removeItem('access_token')
+  //     localStorage.removeItem('refresh_token')
+  //     localStorage.removeItem('user')
+  //     localStorage.removeItem('authData')
+  //     sessionStorage.clear()
+
+  //     setTimeout(() => {
+  //       window.history.pushState(null, null, '/login')
+  //       navigate('/login', { replace: true })
+  //     }, 1500)
+  //   } catch (error) {
+  //     console.error('Error saving report:', error)
+  //     setMessage(
+  //       error.response?.data?.error ||
+  //       error.response?.data?.message ||
+  //       'Failed to save report'
+  //     )
+  //   } finally {
+  //     setSaveLoading(false)
+  //   }
+  // }
+  const handleSave = async () => {
     try {
       setSaveLoading(true)
       setMessage('')
 
-      const response = await axios.put(
-        `${API_BASE}/reports/${report.id}/`,
+      const response = await axios.post(
+        `${API_BASE}/end-shift/save/`,
         {
           instantCashes: formData.instantCashes,
           onlineSales: formData.onlineSales,
@@ -122,10 +269,10 @@ export default function EndShift() {
       )
 
       const data = response.data
-
-      setReport(data.report || data)
+      setReport(data.report || null)
 
       if (data.email_error) {
+        playBeep("error")
         setMessage(data.message || 'Report saved, but email failed to send.')
         return
       }
@@ -145,6 +292,7 @@ export default function EndShift() {
         navigate('/login', { replace: true })
       }, 1500)
     } catch (error) {
+      playBeep("error")
       console.error('Error saving report:', error)
       setMessage(
         error.response?.data?.error ||
@@ -296,6 +444,22 @@ export default function EndShift() {
             {message}
           </div>
         )}
+        {scanMessage && (
+          <div
+            style={{
+              color:
+                scanMessage.toLowerCase().includes('invalid') ||
+                scanMessage.toLowerCase().includes('not found') ||
+                scanMessage.toLowerCase().includes('failed')
+                  ? 'red'
+                  : 'green',
+              padding: '10px 28px',
+              fontWeight: 'bold'
+          }}
+          >
+            {scanMessage}
+          </div>
+       )}
 
         <div className="end-shift-content">
           <div className="sales-summary">

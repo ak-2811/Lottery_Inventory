@@ -22,6 +22,8 @@ from .views import (
     SignupView,
     CurrentUserView,
     DirectSaleInventoryBookView,
+    EndShiftSaveView,
+    EndShiftManualScanView,
 )
 
 urlpatterns = [
@@ -43,12 +45,17 @@ urlpatterns = [
     path('reports/<int:pk>/', DailyReportUpdateView.as_view(), name='daily-report-update'),
     path('end-shift/', EndShiftView.as_view(), name='end-shift'),
     path('reports/<int:pk>/box-details/', DailyReportBoxDetailListView.as_view(), name='report-box-details'),
-    path('reports/today-status/', TodayEndShiftStatusView.as_view(), name='today-endshift-status'),
+    path('reports/today-status/', TodayEndShiftStatusView.as_view(), name='today-report-status'),
     path('reports/today/', TodayReportView.as_view(), name='today-report'),
     path('reports/<int:pk>/download/', DailyReportDownloadPDFView.as_view(), name='report-download-pdf'),
     path('login/', LoginView.as_view(), name='login'),
     path('signup/', SignupView.as_view(), name='signup'),
     path('current-user/', CurrentUserView.as_view(), name='current-user'),
     path('inventory/<int:pk>/direct-sale/', DirectSaleInventoryBookView.as_view(), name='inventory-direct-sale'),
+    # path('end-shift/', EndShiftView.as_view(), name='end-shift'),
+    path('end-shift/save/', EndShiftSaveView.as_view(), name='end-shift-save'),
+    path('end-shift/scan/', EndShiftManualScanView.as_view(), name='end-shift-scan'),
+    # path('reports/today/', TodayReportView.as_view(), name='today-report'),
+    # path('reports/today-status/', TodayEndShiftStatusView.as_view(), name='today-report-status'),
 
 ]

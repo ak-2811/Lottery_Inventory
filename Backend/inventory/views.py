@@ -29,6 +29,162 @@ def finalize_sold_pack(inventory_book, activated_pack):
 
     activated_pack.delete()
 
+def get_today_instant_sales(user):
+    today = get_business_date()
+    instant_sales_today = Decimal('0.00')
+
+    today_scans = SoldTicket.objects.filter(
+        user=user,
+        sold_at__date=today
+    ).select_related('inventory_book__game')
+
+    for row in today_scans:
+        instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+
+    return instant_sales_today
+
+def create_report_snapshot(user, extra_data):
+    today = get_business_date()
+    instant_sales_today = get_today_instant_sales(user)
+
+    def parse_decimal(value):
+        if value in [None, '', 'null']:
+            return Decimal('0.00')
+        return Decimal(str(value))
+
+    report = DailyReport.objects.create(
+        user=user,
+        report_date=today,
+        instant_sales=instant_sales_today,
+        instant_cashes=parse_decimal(extra_data.get('instantCashes')),
+        online_sales=parse_decimal(extra_data.get('onlineSales')),
+        online_cashes=parse_decimal(extra_data.get('onlineCashes')),
+        online_cancels=parse_decimal(extra_data.get('onlineCancels')),
+    )
+
+    # clone sold rows tracked during the day
+    sold_rows = DailyReportBoxDetail.objects.filter(
+        user=user,
+        report_date=today,
+        report__isnull=True,
+        closing_status='Sold'
+    ).exclude(
+        inventory_book__is_returned=True
+    ).order_by('box_num', 'id')
+
+    for row in sold_rows:
+        DailyReportBoxDetail.objects.create(
+            user=user,
+            report=report,
+            report_date=today,
+            box_num=row.box_num,
+            inventory_book=row.inventory_book,
+            lottery_name=row.lottery_name,
+            game_num=row.game_num,
+            pack_num=row.pack_num,
+            start_num=row.start_num,
+            current_num=row.current_num,
+            ticket_value=row.ticket_value,
+            total_amount=row.total_amount,
+            closing_status=row.closing_status
+        )
+
+    # snapshot current active packs
+    active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(user=user)
+
+    for pack in active_packs:
+        book = pack.inventory_book
+        total_amount = calculate_box_total(
+            pack.today_start,
+            pack.current_count,
+            book.ticket_value,
+            'Active'
+        )
+
+        DailyReportBoxDetail.objects.create(
+            user=user,
+            report=report,
+            report_date=today,
+            box_num=pack.box_num,
+            inventory_book=book,
+            lottery_name=book.game.name or book.game.game_id,
+            game_num=book.game.game_id,
+            pack_num=book.pack_id,
+            start_num=pack.today_start,
+            current_num=pack.current_count,
+            ticket_value=book.ticket_value,
+            total_amount=total_amount,
+            closing_status='Active'
+        )
+
+    roll_active_packs_to_next_day(user)
+
+    return report
+
+def build_end_shift_preview(user):
+    today = get_business_date()
+    instant_sales_today = get_today_instant_sales(user)
+
+    preview_rows = []
+
+    # sold / direct sold / mark sold rows already tracked during day
+    sold_rows = DailyReportBoxDetail.objects.filter(
+        user=user,
+        report_date=today,
+        report__isnull=True,
+        closing_status='Sold'
+    ).exclude(
+        inventory_book__is_returned=True
+    ).order_by('box_num', 'id')
+
+    for row in sold_rows:
+        preview_rows.append({
+            'id': f"sold-{row.id}",
+            'boxNum': row.box_num,
+            'game': f"{row.lottery_name} - {row.pack_num}",
+            'startNum': row.start_num,
+            'endNum': row.current_num,
+            'value': f"${row.ticket_value:.0f}" if float(row.ticket_value).is_integer() else f"${row.ticket_value}",
+            'total': f"${row.total_amount:.2f}",
+            'status': row.closing_status,
+        })
+
+    # current active packs snapshot at time of opening/saving end shift
+    active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(
+        user=user
+    ).order_by('box_num', 'id')
+
+    for pack in active_packs:
+        book = pack.inventory_book
+        total_amount = calculate_box_total(
+            pack.today_start,
+            pack.current_count,
+            book.ticket_value,
+            'Active'
+        )
+
+        preview_rows.append({
+            'id': f"active-{pack.id}",
+            'boxNum': pack.box_num,
+            'game': f"{book.game.name or book.game.game_id} - {book.pack_id}",
+            'startNum': pack.today_start,
+            'endNum': pack.current_count,
+            'value': f"${book.ticket_value:.0f}" if float(book.ticket_value).is_integer() else f"${book.ticket_value}",
+            'total': f"${total_amount:.2f}",
+            'status': 'Active',
+        })
+
+    return {
+        'id': None,
+        'report_date': str(today),
+        'instantSales': f"{instant_sales_today:.2f}",
+        'instantCashes': '0.00',
+        'onlineSales': '0.00',
+        'onlineCashes': '0.00',
+        'onlineCancels': '0.00',
+        'boxDetails': preview_rows,
+    }
+
 def build_report_pdf_bytes(report, user):
     details = DailyReportBoxDetail.objects.filter(
         user=user,
@@ -1002,63 +1158,187 @@ class DailyReportUpdateView(APIView):
         #     'report': serializer.data
         # }, status=status.HTTP_200_OK)
 
+# class EndShiftView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         today = get_business_date()
+
+#         existing_report = DailyReport.objects.filter(
+#             user=request.user,
+#             report_date=today
+#         ).first()
+
+#         if existing_report:
+#             serializer = DailyReportSerializer(existing_report)
+#             return Response({
+#                 'error': 'End shift already completed for today.',
+#                 'report': serializer.data
+#             }, status=status.HTTP_400_BAD_REQUEST)
+
+#         instant_sales_today = Decimal('0.00')
+
+#         today_scans = SoldTicket.objects.filter(
+#             user=request.user,
+#             sold_at__date=today
+#         ).select_related('inventory_book__game')
+
+#         for row in today_scans:
+#             instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+
+#         report = DailyReport.objects.create(
+#             user=request.user,
+#             report_date=today,
+#             instant_sales=instant_sales_today,
+#             instant_cashes=Decimal('0.00'),
+#             online_sales=Decimal('0.00'),
+#             online_cashes=Decimal('0.00'),
+#             online_cancels=Decimal('0.00'),
+#         )
+
+#         DailyReportBoxDetail.objects.filter(
+#             user=request.user,
+#             report_date=today,
+#             closing_status='Active'
+#         ).delete()
+
+#         active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(user=request.user)
+#         for pack in active_packs:
+#             create_active_box_detail(pack, report_date=today)
+
+#         DailyReportBoxDetail.objects.filter(
+#             user=request.user,
+#             report_date=today
+#         ).update(report=report)
+
+#         roll_active_packs_to_next_day(request.user)
+
+#         serializer = DailyReportSerializer(report)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+
 class EndShiftView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        preview = build_end_shift_preview(request.user)
+        return Response(preview, status=status.HTTP_200_OK)
+
     def post(self, request):
-        today = get_business_date()
+        # keep POST also working in case frontend still calls post somewhere
+        preview = build_end_shift_preview(request.user)
+        return Response(preview, status=status.HTTP_200_OK)
 
-        existing_report = DailyReport.objects.filter(
-            user=request.user,
-            report_date=today
-        ).first()
+class EndShiftSaveView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        if existing_report:
-            serializer = DailyReportSerializer(existing_report)
-            return Response({
-                'error': 'End shift already completed for today.',
-                'report': serializer.data
-            }, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request):
+        report = create_report_snapshot(request.user, request.data)
 
-        instant_sales_today = Decimal('0.00')
-
-        today_scans = SoldTicket.objects.filter(
-            user=request.user,
-            sold_at__date=today
-        ).select_related('inventory_book__game')
-
-        for row in today_scans:
-            instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
-
-        report = DailyReport.objects.create(
-            user=request.user,
-            report_date=today,
-            instant_sales=instant_sales_today,
-            instant_cashes=Decimal('0.00'),
-            online_sales=Decimal('0.00'),
-            online_cashes=Decimal('0.00'),
-            online_cancels=Decimal('0.00'),
-        )
-
-        DailyReportBoxDetail.objects.filter(
-            user=request.user,
-            report_date=today,
-            closing_status='Active'
-        ).delete()
-
-        active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(user=request.user)
-        for pack in active_packs:
-            create_active_box_detail(pack, report_date=today)
-
-        DailyReportBoxDetail.objects.filter(
-            user=request.user,
-            report_date=today
-        ).update(report=report)
-
-        roll_active_packs_to_next_day(request.user)
+        threading.Thread(
+            target=send_report_email,
+            args=(report, request.user),
+            daemon=True
+        ).start()
 
         serializer = DailyReportSerializer(report)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'Report saved successfully.',
+            'report': serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+class EndShiftManualScanView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def parse_scanned_ticket(self, barcode: str):
+        barcode = str(barcode).strip()
+
+        if len(barcode) < 11:
+            raise ValueError("Invalid input")
+
+        game_id = barcode[:4]
+        pack_id = barcode[4:-4]
+        ticket_number = barcode[-4:-1]
+
+        if not pack_id or len(ticket_number) != 3:
+            raise ValueError("Invalid input")
+
+        return {
+            "game_id": game_id,
+            "pack_id": pack_id,
+            "ticket_number": int(ticket_number),
+        }
+
+    def post(self, request):
+        raw_barcode = str(request.data.get('raw_barcode', '')).strip()
+
+        if not raw_barcode:
+            return Response({'error': 'Invalid input'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            parsed = self.parse_scanned_ticket(raw_barcode)
+        except ValueError:
+            return Response({'error': 'Invalid input'}, status=status.HTTP_400_BAD_REQUEST)
+
+        game_id = parsed['game_id']
+        pack_id = parsed['pack_id']
+        ticket_number = parsed['ticket_number']
+
+        try:
+            activated_pack = ActivatedPack.objects.select_related('inventory_book__game').get(
+                user=request.user,
+                inventory_book__game__game_id=game_id,
+                inventory_book__pack_id=pack_id,
+                inventory_book__is_activated=True
+            )
+        except ActivatedPack.DoesNotExist:
+            return Response(
+                {'error': 'Pack not activated or not found'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        book = activated_pack.inventory_book
+
+        if ticket_number >= book.total_tickets:
+            return Response({'error': 'Invalid ticket number'}, status=status.HTTP_400_BAD_REQUEST)
+
+        previous_current = activated_pack.current_count
+        delta_count = ticket_number - previous_current
+
+        if delta_count == 0:
+            preview = build_end_shift_preview(request.user)
+            return Response({
+                'message': 'No change. Current number already matches scanned ticket.',
+                'ticket_number': ticket_number,
+                'current_count': activated_pack.current_count,
+                'delta_count': 0,
+                'instantSales': preview['instantSales'],
+                'boxDetails': preview['boxDetails'],
+            }, status=status.HTTP_200_OK)
+
+        SoldTicket.objects.create(
+            user=request.user,
+            inventory_book=book,
+            ticket_number=ticket_number,
+            scanned_code=raw_barcode,
+            delta_count=delta_count,
+            is_reversal=delta_count < 0
+        )
+
+        activated_pack.last_ticket = previous_current
+        activated_pack.current_count = ticket_number
+        activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
+
+        preview = build_end_shift_preview(request.user)
+
+        return Response({
+            'message': 'End shift scan updated successfully.',
+            'ticket_number': ticket_number,
+            'current_count': activated_pack.current_count,
+            'last_ticket': previous_current,
+            'delta_count': delta_count,
+            'instantSales': preview['instantSales'],
+            'boxDetails': preview['boxDetails'],
+        }, status=status.HTTP_200_OK)
 
 class TodayEndShiftStatusView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1068,29 +1348,36 @@ class TodayEndShiftStatusView(APIView):
         report = DailyReport.objects.filter(
             user=request.user,
             report_date=today
-        ).first()
+        ).count()
 
         return Response({
             'date': str(today),
-            'is_closed': report is not None,
-            'report_id': report.id if report else None,
+            'is_closed': False,
+            'report_id': None,
+            'reports_count_today': report,
         }, status=status.HTTP_200_OK)
 
+# class TodayReportView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         today = get_business_date()
+#         report = DailyReport.objects.filter(
+#             user=request.user,
+#             report_date=today
+#         ).first()
+
+#         if not report:
+#             return Response({'error': 'Today report not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+#         serializer = DailyReportSerializer(report)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
 class TodayReportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        today = get_business_date()
-        report = DailyReport.objects.filter(
-            user=request.user,
-            report_date=today
-        ).first()
-
-        if not report:
-            return Response({'error': 'Today report not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        serializer = DailyReportSerializer(report)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        preview = build_end_shift_preview(request.user)
+        return Response(preview, status=status.HTTP_200_OK)
 
 class DailyReportBoxDetailListView(APIView):
     permission_classes = [IsAuthenticated]

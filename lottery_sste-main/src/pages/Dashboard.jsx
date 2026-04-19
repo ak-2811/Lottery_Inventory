@@ -44,7 +44,7 @@ export default function Dashboard() {
   const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
   const [dailySalesData, setDailySalesData] = useState([])
-  const [isEndShiftClosed, setIsEndShiftClosed] = useState(false)
+  // const [isEndShiftClosed, setIsEndShiftClosed] = useState(false)
 
   const [stats, setStats] = useState({
     instant_sales_today: '0.00',
@@ -81,19 +81,19 @@ export default function Dashboard() {
     }
   }
 
-  const fetchTodayEndShiftStatus = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/reports/today-status/`, {
-        headers: getAuthHeaders(),
-      })
-      const data = await response.json()
-      if (response.ok) {
-        setIsEndShiftClosed(data.is_closed)
-      }
-    } catch (error) {
-      console.error('Failed to fetch end shift status', error)
-    }
-  }
+  // const fetchTodayEndShiftStatus = async () => {
+  //   try {
+  //     const response = await fetch(`${API_BASE}/reports/today-status/`, {
+  //       headers: getAuthHeaders(),
+  //     })
+  //     const data = await response.json()
+  //     if (response.ok) {
+  //       setIsEndShiftClosed(data.is_closed)
+  //     }
+  //   } catch (error) {
+  //     console.error('Failed to fetch end shift status', error)
+  //   }
+  // }
 
   const fetchDailySalesData = async () => {
     try {
@@ -174,15 +174,15 @@ export default function Dashboard() {
   }
 
   const handleEndShift = async () => {
-    try {
-      await axios.post(`${API_BASE}/end-shift/`, {}, {
-      headers: getAuthHeaders(),
-    })
-      navigate('/end-shift')
-    } catch (error) {
-      console.error('Error ending shift:', error)
-      setScanMessage('Failed to end shift')
-    }
+    // try {
+    //   await axios.post(`${API_BASE}/end-shift/`, {}, {
+    //   headers: getAuthHeaders(),
+    // })
+    navigate('/end-shift')
+    // } catch (error) {
+    //   console.error('Error ending shift:', error)
+    //   setScanMessage('Failed to end shift')
+    // }
   }
 
   const handleReloadLiveDisplay = () => {
@@ -212,7 +212,7 @@ export default function Dashboard() {
       fetchDashboardStats(),
       fetchTicketValues(),
       fetchDailySalesData(),
-      fetchTodayEndShiftStatus(),
+      // fetchTodayEndShiftStatus(),
     ])
     console.log('Dashboard refreshed')
   }
@@ -310,7 +310,7 @@ export default function Dashboard() {
     fetchDashboardStats()
     fetchTicketValues()
     fetchDailySalesData()
-    fetchTodayEndShiftStatus()
+    // fetchTodayEndShiftStatus()
   }, [])
 
   return (
@@ -394,8 +394,8 @@ export default function Dashboard() {
             </button>
             {/* <button className="header-btn manage-btn">Manage Current Shift</button> */}
             {/* <button className="header-btn manage-btn" onClick={() => navigate('/manual-shift')}>Manual End Shift</button> */}
-            {/* <button className="header-btn end-btn onClick={handleEndShift}">End Shift</button> */}
-            <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button>
+            <button className="header-btn end-btn" onClick={handleEndShift}>End Shift</button>
+            {/* <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button> */}
           </div>
         </div>
 
