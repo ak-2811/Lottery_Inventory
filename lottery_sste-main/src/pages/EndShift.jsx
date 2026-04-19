@@ -427,9 +427,9 @@ export default function EndShift() {
             <h2>End Shift</h2>
           </div>
           <div className="header-right">
-            <button className="header-btn get-report-btn" onClick={handleDownloadReport}>
+            {/* <button className="header-btn get-report-btn" onClick={handleDownloadReport}>
               Get Report
-            </button>
+            </button> */}
           </div>
         </div>
 
