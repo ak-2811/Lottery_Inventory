@@ -225,6 +225,33 @@ html, body, #root {
   z-index: 10 !important;
 }
 
+/* ── Scan flip animation (single box) ───────────────────── */
+@keyframes cardScanFlip {
+  0% {
+    transform: perspective(900px) rotateY(0deg) scale(1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.28);
+  }
+  35% {
+    transform: perspective(900px) rotateY(90deg) scale(1.04);
+    box-shadow: 0 0 18px rgba(59, 130, 246, 0.95);
+  }
+  65% {
+    transform: perspective(900px) rotateY(-18deg) scale(1.03);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.85);
+  }
+  100% {
+    transform: perspective(900px) rotateY(0deg) scale(1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.28);
+  }
+}
+
+.ld-card-scan-flip {
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  animation: cardScanFlip 0.9s ease-in-out 1 !important;
+  z-index: 12 !important;
+}
+
 /* ── Card image zone ─────────────────────────────────────── */
 .ld-card-img {
   flex: 1;

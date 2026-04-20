@@ -114,10 +114,16 @@ export default function LiveDisplay() {
   const [luckyTicketIds, setLuckyTicketIds] = useState(new Set())
   const [newTicketIds, setNewTicketIds] = useState(new Set())
   const [endingTicketIds, setEndingTicketIds] = useState(new Set())
+  const [scanFlipTicketIds, setScanFlipTicketIds] = useState(new Set())
   const wrapperRef = useRef(null)
+  const ticketsRef = useRef([])
   const [gridStyle, setGridStyle] = useState({})
   const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
+
+  useEffect(() => {
+    ticketsRef.current = tickets
+  }, [tickets])
 
   const loadTickets = useCallback(async () => {
     setLoading(true)
@@ -140,6 +146,61 @@ export default function LiveDisplay() {
     oscillator.start();
     oscillator.stop(ctx.currentTime + 0.1);
   };
+
+  const triggerScanFlip = useCallback((ticketId) => {
+    if (!ticketId) return
+
+    setScanFlipTicketIds((prev) => {
+      const next = new Set(prev)
+      next.add(ticketId)
+      return next
+    })
+
+    setTimeout(() => {
+      setScanFlipTicketIds((prev) => {
+        const next = new Set(prev)
+        next.delete(ticketId)
+        return next
+      })
+    }, 900)
+  }, [])
+
+  const findScannedTicketId = useCallback((previousTickets, nextTickets, scanData) => {
+    if (!previousTickets.length || !nextTickets.length) return null
+
+    const nextMap = new Map(nextTickets.map((ticket) => [ticket.id, ticket]))
+    const changedTickets = previousTickets
+      .map((prevTicket) => {
+        const nextTicket = nextMap.get(prevTicket.id)
+        if (!nextTicket) return null
+
+        if (nextTicket.currentNumber !== prevTicket.currentNumber) {
+          return nextTicket
+        }
+
+        return null
+      })
+      .filter(Boolean)
+
+    if (changedTickets.length === 1) return changedTickets[0].id
+
+    if (changedTickets.length > 1 && typeof scanData?.current_count === 'number') {
+      const exactMatch = changedTickets.find(
+        (ticket) => ticket.currentNumber === scanData.current_count
+      )
+      if (exactMatch) return exactMatch.id
+      return changedTickets[0].id
+    }
+
+    if (typeof scanData?.current_count === 'number') {
+      const fallbackMatch = nextTickets.find(
+        (ticket) => ticket.currentNumber === scanData.current_count
+      )
+      if (fallbackMatch) return fallbackMatch.id
+    }
+
+    return null
+  }, [])
 
   const handleTicketScan = async (rawBarcode) => {
     try {
@@ -166,7 +227,12 @@ export default function LiveDisplay() {
           : `Ticket ${data.ticket_number} scanned successfully`
       )
 
-      await silentRefreshTickets()
+      const previousTickets = ticketsRef.current
+      const refreshedTickets = await silentRefreshTickets()
+      const scannedTicketId = findScannedTicketId(previousTickets, refreshedTickets || [], data)
+      if (scannedTicketId) {
+        triggerScanFlip(scannedTicketId)
+      }
 
       setTimeout(() => {
         setScanMessage('')
@@ -214,6 +280,7 @@ export default function LiveDisplay() {
 const silentRefreshTickets = useCallback(async () => {
   const fetchedTickets = await fetchTicketsFromAPI()
   setTickets(fetchedTickets) // updates data without touching loading state
+  return fetchedTickets
 }, [])
 
 // Then uncomment and update the interval useEffect:
@@ -468,6 +535,9 @@ useEffect(() => {
               
               // Check if this ticket should vibrate (ending tickets - remaining 0-5)
               const isEnding = endingTicketIds.has(ticket.id)
+
+              // Scan highlight animation for the exact box that changed
+              const isScanFlipping = scanFlipTicketIds.has(ticket.id)
               
               // Check if ticket is NEW based on actual data (current number 0-5)
               const isNewTicketType = ticket.currentNumber >= 0 && ticket.currentNumber <= 5
@@ -498,7 +568,7 @@ useEffect(() => {
                 console.log(`⏳ APPLYING ENDING TICKET ANIMATION to ticket ID: ${ticket.id}, remaining: ${ticket.totalTickets - ticket.currentNumber}`)
               }
               return (
-              <div key={ticket.id} className={`ld-card ${(isBlinking || isLucky || isNew || isEnding) ? 'ld-card-blinking' : ''}`}>
+              <div key={ticket.id} className={`ld-card ${(isBlinking || isLucky || isNew || isEnding) ? 'ld-card-blinking' : ''} ${isScanFlipping ? 'ld-card-scan-flip' : ''}`}>
 
                 <div className="ld-card-img">
                   {/* Price tag */}
