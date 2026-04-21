@@ -364,7 +364,7 @@ export default function Dashboard() {
             onClick={() => window.open('/hor-live-display', '_blank')}
             style={{ background: 'transparent', color: '#666', border: 'none' }}
           >
-            <span className="nav-icon">🖥️</span> <span className="nav-label">Hor Live Display</span>
+            <span className="nav-icon">🖥️</span> <span className="nav-label">Horizontal Live Display</span>
           </button>
         </nav>
         <div className="sidebar-footer">
