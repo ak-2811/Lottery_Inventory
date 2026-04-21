@@ -7,11 +7,11 @@
 }
 
 .hor-live-shell .ld-root {
-  --ld-badge-size: clamp(36px, 2.6vw, 104px);
-  --ld-badge-font-size: clamp(10px, 0.95vw, 24px);
+  --ld-badge-size: clamp(44px, 3vw, 118px);
+  --ld-badge-font-size: clamp(12px, 1.12vw, 28px);
   --ld-footer-height: clamp(30px, 2.1vw, 60px);
-  --ld-footer-label-size: clamp(8px, 0.65vw, 14px);
-  --ld-footer-num-size: clamp(11px, 1.05vw, 24px);
+  --ld-footer-label-size: clamp(9px, 0.8vw, 17px);
+  --ld-footer-num-size: clamp(13px, 1.25vw, 30px);
 }
 
 .hor-live-shell .ld-banner {
@@ -39,50 +39,99 @@
 .hor-live-shell .ld-box-badge {
   letter-spacing: 0.02em;
   font-weight: 800;
+  width: clamp(56px, 5vw, 132px);
+  height: clamp(56px, 5vw, 132px);
+  font-size: clamp(12px, 1.2vw, 28px);
+  line-height: 1.05;
+  padding: clamp(3px, 0.35vw, 8px);
 }
 
 .hor-live-shell .ld-price-tag {
-  font-size: clamp(8px, 0.62vw, 14px);
-  padding: 1px clamp(3px, 0.35vw, 7px);
+  font-size: clamp(10px, 0.82vw, 18px);
+  padding: 2px clamp(5px, 0.5vw, 10px);
 }
 
 .hor-live-shell .ld-card-footer {
-  padding: 0 clamp(4px, 0.5vw, 12px);
+  height: clamp(22px, 2.1vw, 44px);
+  padding: 0 clamp(7px, 0.75vw, 16px);
 }
 
 .hor-live-shell .ld-footer-label {
   letter-spacing: 0.02em;
+  font-size: clamp(10px, 0.96vw, 22px);
+  line-height: 1;
+}
+
+.hor-live-shell .ld-footer-num {
+  font-size: clamp(16px, 1.55vw, 36px);
+  line-height: 1;
 }
 
 .hor-live-shell .ld-ticker {
-  min-height: clamp(26px, 3vh, 42px);
-  padding: clamp(4px, 0.7vh, 10px) clamp(10px, 1.4vw, 22px);
-  font-size: clamp(9px, 0.74vw, 14px);
+  min-height: clamp(34px, 4vh, 62px);
+  padding: clamp(6px, 1vh, 14px) clamp(14px, 1.8vw, 30px);
+  font-size: clamp(12px, 0.98vw, 22px);
 }
 
 .hor-live-shell .ld-ticker-url {
-  font-size: clamp(8px, 0.62vw, 12px);
+  font-size: clamp(11px, 0.9vw, 19px);
 }
 
 /* 4K / very wide TVs */
 @media (min-width: 2560px) {
   .hor-live-shell .ld-root {
-    --ld-badge-size: clamp(44px, 2.3vw, 128px);
-    --ld-badge-font-size: clamp(11px, 0.9vw, 30px);
+    --ld-badge-size: clamp(52px, 2.7vw, 144px);
+    --ld-badge-font-size: clamp(13px, 1.02vw, 34px);
     --ld-footer-height: clamp(34px, 1.9vw, 72px);
-    --ld-footer-label-size: clamp(9px, 0.55vw, 16px);
-    --ld-footer-num-size: clamp(12px, 0.95vw, 28px);
+    --ld-footer-label-size: clamp(10px, 0.64vw, 19px);
+    --ld-footer-num-size: clamp(14px, 1.08vw, 32px);
+  }
+
+  .hor-live-shell .ld-box-badge {
+    width: clamp(70px, 4.8vw, 156px);
+    height: clamp(70px, 4.8vw, 156px);
+    font-size: clamp(15px, 1.25vw, 34px);
+  }
+
+  .hor-live-shell .ld-footer-label {
+    font-size: clamp(12px, 0.84vw, 26px);
+  }
+
+  .hor-live-shell .ld-footer-num {
+    font-size: clamp(18px, 1.42vw, 40px);
+  }
+
+  .hor-live-shell .ld-ticker {
+    font-size: clamp(14px, 1vw, 24px);
   }
 }
 
 /* Smaller landscape TVs */
 @media (max-width: 1366px) and (orientation: landscape) {
   .hor-live-shell .ld-root {
-    --ld-badge-size: clamp(30px, 2.8vw, 72px);
-    --ld-badge-font-size: clamp(9px, 0.95vw, 17px);
+    --ld-badge-size: clamp(36px, 3.2vw, 82px);
+    --ld-badge-font-size: clamp(10px, 1.08vw, 20px);
     --ld-footer-height: clamp(24px, 2.2vw, 42px);
-    --ld-footer-label-size: clamp(7px, 0.7vw, 11px);
-    --ld-footer-num-size: clamp(10px, 1vw, 18px);
+    --ld-footer-label-size: clamp(8px, 0.82vw, 13px);
+    --ld-footer-num-size: clamp(11px, 1.16vw, 21px);
+  }
+
+  .hor-live-shell .ld-box-badge {
+    width: clamp(46px, 4.7vw, 92px);
+    height: clamp(46px, 4.7vw, 92px);
+    font-size: clamp(10px, 1.05vw, 18px);
+  }
+
+  .hor-live-shell .ld-card-footer {
+    height: clamp(20px, 2.2vw, 34px);
+  }
+
+  .hor-live-shell .ld-footer-label {
+    font-size: clamp(8px, 0.82vw, 14px);
+  }
+
+  .hor-live-shell .ld-footer-num {
+    font-size: clamp(12px, 1.18vw, 24px);
   }
 
   .hor-live-shell .ld-store-name {
@@ -90,6 +139,6 @@
   }
 
   .hor-live-shell .ld-ticker {
-    font-size: clamp(8px, 0.7vw, 11px);
+    font-size: clamp(10px, 0.88vw, 14px);
   }
 }
