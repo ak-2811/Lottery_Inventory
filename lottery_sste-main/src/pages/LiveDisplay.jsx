@@ -292,44 +292,91 @@ useEffect(() => {
   return () => clearInterval(interval)
 }, [silentRefreshTickets])
 
+  // useEffect(() => {
+  //   let timeoutId = null
+
+  //   const handleGlobalKeyDown = (e) => {
+  //     const tag = document.activeElement?.tagName?.toLowerCase()
+  //     const isTypingInInput =
+  //       tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+  //     if (isTypingInInput) return
+
+  //     if (e.key === 'Enter') {
+  //       const scannedValue = scannerBuffer.trim()
+
+  //       if (/^\d{10,20}$/.test(scannedValue)) {
+  //         handleTicketScan(scannedValue)
+  //       }
+
+  //       setScannerBuffer('')
+  //       return
+  //     }
+
+  //     if (/^\d$/.test(e.key)) {
+  //       setScannerBuffer((prev) => prev + e.key)
+
+  //       clearTimeout(timeoutId)
+  //       timeoutId = setTimeout(() => {
+  //         setScannerBuffer('')
+  //       }, 300)
+  //     }
+  //   }
+
+  //   window.addEventListener('keydown', handleGlobalKeyDown)
+
+  //   return () => {
+  //     window.removeEventListener('keydown', handleGlobalKeyDown)
+  //     clearTimeout(timeoutId)
+  //   }
+  // }, [scannerBuffer, loadTickets])
+
   useEffect(() => {
-    let timeoutId = null
+  let buffer = ''
+  let timeoutId = null
 
-    const handleGlobalKeyDown = (e) => {
-      const tag = document.activeElement?.tagName?.toLowerCase()
-      const isTypingInInput =
-        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+  const handleGlobalKeyDown = (e) => {
+    const tag = document.activeElement?.tagName?.toLowerCase()
+    const isTypingInInput =
+      tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
 
-      if (isTypingInInput) return
+    if (isTypingInInput) return
 
-      if (e.key === 'Enter') {
-        const scannedValue = scannerBuffer.trim()
+    // Still support Enter if scanner sends it
+    if (e.key === 'Enter') {
+      clearTimeout(timeoutId)
+      const scannedValue = buffer.trim()
+      console.log('Enter triggered, buffer:', scannedValue)
+      if (/^\d{10,20}$/.test(scannedValue)) {
+        handleTicketScan(scannedValue)
+      }
+      buffer = ''
+      return
+    }
 
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault()
+      buffer += e.key
+      console.log('Buffer so far:', buffer)
+
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        const scannedValue = buffer.trim()
+        console.log('Timeout triggered, buffer:', scannedValue)
         if (/^\d{10,20}$/.test(scannedValue)) {
           handleTicketScan(scannedValue)
         }
-
-        setScannerBuffer('')
-        return
-      }
-
-      if (/^\d$/.test(e.key)) {
-        setScannerBuffer((prev) => prev + e.key)
-
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          setScannerBuffer('')
-        }, 300)
-      }
+        buffer = ''
+      }, 100)
     }
+  }
 
-    window.addEventListener('keydown', handleGlobalKeyDown)
-
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown)
-      clearTimeout(timeoutId)
-    }
-  }, [scannerBuffer, loadTickets])
+  window.addEventListener('keydown', handleGlobalKeyDown)
+  return () => {
+    window.removeEventListener('keydown', handleGlobalKeyDown)
+    clearTimeout(timeoutId)
+  }
+}, []) // ✅ empty deps — buffer is plain let, no stale closure
 
   // Listen for blinking ticket requests from Dashboard (via localStorage)
   useEffect(() => {
