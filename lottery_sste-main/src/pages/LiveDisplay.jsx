@@ -459,7 +459,7 @@ useEffect(() => {
 
     setGridStyle({
       display:             'grid',
-      gridTemplateColumns: `repeat(${cols}, 1fr)`,
+      gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
       gridTemplateRows:    `repeat(${rows}, ${finalCardH.toFixed(2)}px)`,
       gap:                 `${GAP}px`,
       padding:             `${GAP}px`,

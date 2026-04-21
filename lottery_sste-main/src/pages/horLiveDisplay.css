@@ -31,6 +31,12 @@
   padding: 0;
 }
 
+/* Force slightly denser grid spacing in horizontal mode */
+.hor-live-shell .ld-grid-wrapper > div {
+  gap: 4px !important;
+  padding: 4px !important;
+}
+
 .hor-live-shell .ld-card {
   border-radius: 4px;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.34);
@@ -39,9 +45,9 @@
 .hor-live-shell .ld-box-badge {
   letter-spacing: 0.02em;
   font-weight: 800;
-  width: clamp(40px, 3.85vw, 86px);
-  height: clamp(40px, 3.85vw, 86px);
-  font-size: clamp(10px, 0.9vw, 20px);
+  width: clamp(34px, 3.35vw, 74px);
+  height: clamp(34px, 3.35vw, 74px);
+  font-size: clamp(9px, 0.8vw, 17px);
   line-height: 1.05;
   padding: clamp(2px, 0.24vw, 5px);
 }
@@ -52,18 +58,18 @@
 }
 
 .hor-live-shell .ld-card-footer {
-  height: clamp(18px, 1.55vw, 30px);
+  height: clamp(16px, 1.35vw, 26px);
   padding: 0 clamp(5px, 0.52vw, 11px);
 }
 
 .hor-live-shell .ld-footer-label {
   letter-spacing: 0.02em;
-  font-size: clamp(8px, 0.74vw, 16px);
+  font-size: clamp(7px, 0.64vw, 13px);
   line-height: 1;
 }
 
 .hor-live-shell .ld-footer-num {
-  font-size: clamp(12px, 1.2vw, 26px);
+  font-size: clamp(11px, 1.02vw, 22px);
   line-height: 1;
 }
 
@@ -88,9 +94,9 @@
   }
 
   .hor-live-shell .ld-box-badge {
-    width: clamp(54px, 3.8vw, 118px);
-    height: clamp(54px, 3.8vw, 118px);
-    font-size: clamp(12px, 0.96vw, 24px);
+    width: clamp(48px, 3.25vw, 96px);
+    height: clamp(48px, 3.25vw, 96px);
+    font-size: clamp(10px, 0.82vw, 20px);
   }
 
   .hor-live-shell .ld-footer-label {
@@ -98,7 +104,7 @@
   }
 
   .hor-live-shell .ld-footer-num {
-    font-size: clamp(13px, 1vw, 30px);
+    font-size: clamp(12px, 0.86vw, 24px);
   }
 
   .hor-live-shell .ld-ticker {
@@ -117,9 +123,9 @@
   }
 
   .hor-live-shell .ld-box-badge {
-    width: clamp(34px, 3.7vw, 72px);
-    height: clamp(34px, 3.7vw, 72px);
-    font-size: clamp(8px, 0.82vw, 14px);
+    width: clamp(30px, 3.2vw, 60px);
+    height: clamp(30px, 3.2vw, 60px);
+    font-size: clamp(7px, 0.72vw, 12px);
   }
 
   .hor-live-shell .ld-card-footer {
@@ -131,7 +137,7 @@
   }
 
   .hor-live-shell .ld-footer-num {
-    font-size: clamp(10px, 0.96vw, 17px);
+    font-size: clamp(9px, 0.84vw, 14px);
   }
 
   .hor-live-shell .ld-store-name {
