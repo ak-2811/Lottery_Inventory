@@ -1,0 +1,95 @@
+/* Horizontal TV optimized skin for 55"-65" landscape displays */
+.hor-live-shell {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #0b1020;
+}
+
+.hor-live-shell .ld-root {
+  --ld-badge-size: clamp(36px, 2.6vw, 104px);
+  --ld-badge-font-size: clamp(10px, 0.95vw, 24px);
+  --ld-footer-height: clamp(30px, 2.1vw, 60px);
+  --ld-footer-label-size: clamp(8px, 0.65vw, 14px);
+  --ld-footer-num-size: clamp(11px, 1.05vw, 24px);
+}
+
+.hor-live-shell .ld-banner {
+  min-height: clamp(64px, 7.2vh, 110px);
+  padding: clamp(6px, 1vh, 12px) clamp(14px, 1.6vw, 28px);
+}
+
+.hor-live-shell .ld-welcome {
+  font-size: clamp(16px, 1.2vw, 28px);
+}
+
+.hor-live-shell .ld-store-name {
+  font-size: clamp(28px, 2.4vw, 56px);
+}
+
+.hor-live-shell .ld-grid-wrapper {
+  padding: 0;
+}
+
+.hor-live-shell .ld-card {
+  border-radius: 4px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.34);
+}
+
+.hor-live-shell .ld-box-badge {
+  letter-spacing: 0.02em;
+  font-weight: 800;
+}
+
+.hor-live-shell .ld-price-tag {
+  font-size: clamp(8px, 0.62vw, 14px);
+  padding: 1px clamp(3px, 0.35vw, 7px);
+}
+
+.hor-live-shell .ld-card-footer {
+  padding: 0 clamp(4px, 0.5vw, 12px);
+}
+
+.hor-live-shell .ld-footer-label {
+  letter-spacing: 0.02em;
+}
+
+.hor-live-shell .ld-ticker {
+  min-height: clamp(26px, 3vh, 42px);
+  padding: clamp(4px, 0.7vh, 10px) clamp(10px, 1.4vw, 22px);
+  font-size: clamp(9px, 0.74vw, 14px);
+}
+
+.hor-live-shell .ld-ticker-url {
+  font-size: clamp(8px, 0.62vw, 12px);
+}
+
+/* 4K / very wide TVs */
+@media (min-width: 2560px) {
+  .hor-live-shell .ld-root {
+    --ld-badge-size: clamp(44px, 2.3vw, 128px);
+    --ld-badge-font-size: clamp(11px, 0.9vw, 30px);
+    --ld-footer-height: clamp(34px, 1.9vw, 72px);
+    --ld-footer-label-size: clamp(9px, 0.55vw, 16px);
+    --ld-footer-num-size: clamp(12px, 0.95vw, 28px);
+  }
+}
+
+/* Smaller landscape TVs */
+@media (max-width: 1366px) and (orientation: landscape) {
+  .hor-live-shell .ld-root {
+    --ld-badge-size: clamp(30px, 2.8vw, 72px);
+    --ld-badge-font-size: clamp(9px, 0.95vw, 17px);
+    --ld-footer-height: clamp(24px, 2.2vw, 42px);
+    --ld-footer-label-size: clamp(7px, 0.7vw, 11px);
+    --ld-footer-num-size: clamp(10px, 1vw, 18px);
+  }
+
+  .hor-live-shell .ld-store-name {
+    font-size: clamp(22px, 2vw, 36px);
+  }
+
+  .hor-live-shell .ld-ticker {
+    font-size: clamp(8px, 0.7vw, 11px);
+  }
+}
