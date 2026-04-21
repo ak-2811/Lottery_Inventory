@@ -151,43 +151,90 @@ export default function EndShift() {
     }
   }
 
+  // useEffect(() => {
+  //   let timeoutId = null
+
+  //   const handleGlobalKeyDown = (e) => {
+  //     const tag = document.activeElement?.tagName?.toLowerCase()
+  //     const isTypingInInput =
+  //       tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+  //     if (isTypingInInput) return
+
+  //     if (e.key === 'Enter') {
+  //       const scannedValue = scannerBuffer.trim()
+
+  //       if (/^\d{12,16}$/.test(scannedValue)) {
+  //         handleManualEndShiftScan(scannedValue)
+  //       }
+
+  //       setScannerBuffer('')
+  //       return
+  //     }
+
+  //     if (/^\d$/.test(e.key)) {
+  //       setScannerBuffer((prev) => prev + e.key)
+
+  //       clearTimeout(timeoutId)
+  //       timeoutId = setTimeout(() => {
+  //         setScannerBuffer('')
+  //       }, 300)
+  //     }
+  //   }
+
+  //   window.addEventListener('keydown', handleGlobalKeyDown)
+  //   return () => {
+  //     window.removeEventListener('keydown', handleGlobalKeyDown)
+  //     clearTimeout(timeoutId)
+  //   }
+  // }, [scannerBuffer])
   useEffect(() => {
-    let timeoutId = null
+  let buffer = ''
+  let timeoutId = null
 
-    const handleGlobalKeyDown = (e) => {
-      const tag = document.activeElement?.tagName?.toLowerCase()
-      const isTypingInInput =
-        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+  const handleGlobalKeyDown = (e) => {
+    const tag = document.activeElement?.tagName?.toLowerCase()
+    const isTypingInInput =
+      tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
 
-      if (isTypingInInput) return
+    if (isTypingInInput) return
 
-      if (e.key === 'Enter') {
-        const scannedValue = scannerBuffer.trim()
+    if (e.key === 'Enter') {
+      clearTimeout(timeoutId)
+      const scannedValue = buffer.trim()
+      console.log('Enter triggered, buffer:', scannedValue)
+      if (/^\d{12,16}$/.test(scannedValue)) {
+        handleManualEndShiftScan(scannedValue)
+      }
+      buffer = ''
+      return
+    }
 
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault()
+      buffer += e.key
+      console.log('Buffer so far:', buffer)
+
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        const scannedValue = buffer.trim()
+        console.log('Timeout triggered, buffer:', scannedValue)
         if (/^\d{12,16}$/.test(scannedValue)) {
           handleManualEndShiftScan(scannedValue)
+        } else if (scannedValue.length > 0) {
+          setScanMessage(`Unrecognized format: "${scannedValue}" (${scannedValue.length} chars)`)
         }
-
-        setScannerBuffer('')
-        return
-      }
-
-      if (/^\d$/.test(e.key)) {
-        setScannerBuffer((prev) => prev + e.key)
-
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          setScannerBuffer('')
-        }, 300)
-      }
+        buffer = ''
+      }, 100)
     }
+  }
 
-    window.addEventListener('keydown', handleGlobalKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown)
-      clearTimeout(timeoutId)
-    }
-  }, [scannerBuffer])
+  window.addEventListener('keydown', handleGlobalKeyDown)
+  return () => {
+    window.removeEventListener('keydown', handleGlobalKeyDown)
+    clearTimeout(timeoutId)
+  }
+}, []) // ✅ empty deps — buffer is plain let, no stale closure
 
   const handleInputChange = (field, value) => {
     setFormData((prev) => ({

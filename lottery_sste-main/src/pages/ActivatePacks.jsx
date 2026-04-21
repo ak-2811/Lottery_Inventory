@@ -194,7 +194,45 @@ export default function ActivatePacks() {
     }
   }
 
-  useEffect(() => {
+//   useEffect(() => {
+//   let timeoutId = null
+
+//   const handleGlobalKeyDown = (e) => {
+//     const tag = document.activeElement?.tagName?.toLowerCase()
+//     const isTypingInInput =
+//       tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+//     if (showActivateModal || isTypingInInput) return
+
+//     if (e.key === 'Enter') {
+//       const scannedValue = scannerBuffer.trim()
+
+//       if (/^\d{12,16}$/.test(scannedValue)) {
+//         handleTicketScan(scannedValue)
+//       }
+
+//       setScannerBuffer('')
+//       return
+//     }
+
+//     if (/^\d$/.test(e.key)) {
+//       setScannerBuffer((prev) => prev + e.key)
+
+//       clearTimeout(timeoutId)
+//       timeoutId = setTimeout(() => {
+//         setScannerBuffer('')
+//       }, 300)
+//     }
+//   }
+
+//   window.addEventListener('keydown', handleGlobalKeyDown)
+//   return () => {
+//     window.removeEventListener('keydown', handleGlobalKeyDown)
+//     clearTimeout(timeoutId)
+//   }
+// }, [scannerBuffer, showActivateModal, packs])
+useEffect(() => {
+  let buffer = ''
   let timeoutId = null
 
   const handleGlobalKeyDown = (e) => {
@@ -202,26 +240,37 @@ export default function ActivatePacks() {
     const isTypingInInput =
       tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
 
+    // Skip if modal is open or user is typing in an input
     if (showActivateModal || isTypingInInput) return
 
+    // Still support Enter if scanner sends it
     if (e.key === 'Enter') {
-      const scannedValue = scannerBuffer.trim()
-
+      clearTimeout(timeoutId)
+      const scannedValue = buffer.trim()
+      console.log('Enter triggered, buffer:', scannedValue)
       if (/^\d{12,16}$/.test(scannedValue)) {
         handleTicketScan(scannedValue)
       }
-
-      setScannerBuffer('')
+      buffer = ''
       return
     }
 
     if (/^\d$/.test(e.key)) {
-      setScannerBuffer((prev) => prev + e.key)
+      e.preventDefault()
+      buffer += e.key
+      console.log('Buffer so far:', buffer)
 
       clearTimeout(timeoutId)
       timeoutId = setTimeout(() => {
-        setScannerBuffer('')
-      }, 300)
+        const scannedValue = buffer.trim()
+        console.log('Timeout triggered, buffer:', scannedValue)
+        if (/^\d{12,16}$/.test(scannedValue)) {
+          handleTicketScan(scannedValue)
+        } else if (scannedValue.length > 0) {
+          setScanMessage(`Unrecognized format: "${scannedValue}" (${scannedValue.length} chars)`)
+        }
+        buffer = ''
+      }, 100)
     }
   }
 
@@ -230,7 +279,7 @@ export default function ActivatePacks() {
     window.removeEventListener('keydown', handleGlobalKeyDown)
     clearTimeout(timeoutId)
   }
-}, [scannerBuffer, showActivateModal, packs])
+}, [showActivateModal]) // ✅ only showActivateModal needed — buffer is plain let
   useEffect(() => {
     fetchActivatedPacks()
   }, [])
