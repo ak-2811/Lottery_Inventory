@@ -7,16 +7,16 @@
 }
 
 .hor-live-shell .ld-root {
-  --ld-badge-size: clamp(44px, 3vw, 118px);
-  --ld-badge-font-size: clamp(12px, 1.12vw, 28px);
-  --ld-footer-height: clamp(30px, 2.1vw, 60px);
-  --ld-footer-label-size: clamp(9px, 0.8vw, 17px);
-  --ld-footer-num-size: clamp(13px, 1.25vw, 30px);
+  --ld-badge-size: clamp(36px, 2.5vw, 92px);
+  --ld-badge-font-size: clamp(10px, 0.95vw, 22px);
+  --ld-footer-height: clamp(20px, 1.55vw, 36px);
+  --ld-footer-label-size: clamp(8px, 0.66vw, 14px);
+  --ld-footer-num-size: clamp(12px, 1.04vw, 24px);
 }
 
 .hor-live-shell .ld-banner {
-  min-height: clamp(64px, 7.2vh, 110px);
-  padding: clamp(6px, 1vh, 12px) clamp(14px, 1.6vw, 28px);
+  min-height: clamp(50px, 5.6vh, 82px);
+  padding: clamp(4px, 0.7vh, 9px) clamp(10px, 1.2vw, 20px);
 }
 
 .hor-live-shell .ld-welcome {
@@ -24,7 +24,7 @@
 }
 
 .hor-live-shell .ld-store-name {
-  font-size: clamp(28px, 2.4vw, 56px);
+  font-size: clamp(24px, 1.95vw, 44px);
 }
 
 .hor-live-shell .ld-grid-wrapper {
@@ -39,11 +39,11 @@
 .hor-live-shell .ld-box-badge {
   letter-spacing: 0.02em;
   font-weight: 800;
-  width: clamp(56px, 5vw, 132px);
-  height: clamp(56px, 5vw, 132px);
-  font-size: clamp(12px, 1.2vw, 28px);
+  width: clamp(40px, 3.85vw, 86px);
+  height: clamp(40px, 3.85vw, 86px);
+  font-size: clamp(10px, 0.9vw, 20px);
   line-height: 1.05;
-  padding: clamp(3px, 0.35vw, 8px);
+  padding: clamp(2px, 0.24vw, 5px);
 }
 
 .hor-live-shell .ld-price-tag {
@@ -52,93 +52,93 @@
 }
 
 .hor-live-shell .ld-card-footer {
-  height: clamp(22px, 2.1vw, 44px);
-  padding: 0 clamp(7px, 0.75vw, 16px);
+  height: clamp(18px, 1.55vw, 30px);
+  padding: 0 clamp(5px, 0.52vw, 11px);
 }
 
 .hor-live-shell .ld-footer-label {
   letter-spacing: 0.02em;
-  font-size: clamp(10px, 0.96vw, 22px);
+  font-size: clamp(8px, 0.74vw, 16px);
   line-height: 1;
 }
 
 .hor-live-shell .ld-footer-num {
-  font-size: clamp(16px, 1.55vw, 36px);
+  font-size: clamp(12px, 1.2vw, 26px);
   line-height: 1;
 }
 
 .hor-live-shell .ld-ticker {
-  min-height: clamp(34px, 4vh, 62px);
-  padding: clamp(6px, 1vh, 14px) clamp(14px, 1.8vw, 30px);
-  font-size: clamp(12px, 0.98vw, 22px);
+  min-height: clamp(26px, 2.8vh, 44px);
+  padding: clamp(4px, 0.62vh, 8px) clamp(10px, 1.2vw, 20px);
+  font-size: clamp(10px, 0.8vw, 16px);
 }
 
 .hor-live-shell .ld-ticker-url {
-  font-size: clamp(11px, 0.9vw, 19px);
+  font-size: clamp(9px, 0.72vw, 14px);
 }
 
 /* 4K / very wide TVs */
 @media (min-width: 2560px) {
   .hor-live-shell .ld-root {
-    --ld-badge-size: clamp(52px, 2.7vw, 144px);
-    --ld-badge-font-size: clamp(13px, 1.02vw, 34px);
-    --ld-footer-height: clamp(34px, 1.9vw, 72px);
-    --ld-footer-label-size: clamp(10px, 0.64vw, 19px);
-    --ld-footer-num-size: clamp(14px, 1.08vw, 32px);
+    --ld-badge-size: clamp(44px, 2.2vw, 108px);
+    --ld-badge-font-size: clamp(11px, 0.84vw, 24px);
+    --ld-footer-height: clamp(22px, 1.38vw, 44px);
+    --ld-footer-label-size: clamp(8px, 0.52vw, 15px);
+    --ld-footer-num-size: clamp(12px, 0.9vw, 26px);
   }
 
   .hor-live-shell .ld-box-badge {
-    width: clamp(70px, 4.8vw, 156px);
-    height: clamp(70px, 4.8vw, 156px);
-    font-size: clamp(15px, 1.25vw, 34px);
+    width: clamp(54px, 3.8vw, 118px);
+    height: clamp(54px, 3.8vw, 118px);
+    font-size: clamp(12px, 0.96vw, 24px);
   }
 
   .hor-live-shell .ld-footer-label {
-    font-size: clamp(12px, 0.84vw, 26px);
+    font-size: clamp(9px, 0.62vw, 18px);
   }
 
   .hor-live-shell .ld-footer-num {
-    font-size: clamp(18px, 1.42vw, 40px);
+    font-size: clamp(13px, 1vw, 30px);
   }
 
   .hor-live-shell .ld-ticker {
-    font-size: clamp(14px, 1vw, 24px);
+    font-size: clamp(11px, 0.76vw, 18px);
   }
 }
 
 /* Smaller landscape TVs */
 @media (max-width: 1366px) and (orientation: landscape) {
   .hor-live-shell .ld-root {
-    --ld-badge-size: clamp(36px, 3.2vw, 82px);
-    --ld-badge-font-size: clamp(10px, 1.08vw, 20px);
-    --ld-footer-height: clamp(24px, 2.2vw, 42px);
-    --ld-footer-label-size: clamp(8px, 0.82vw, 13px);
-    --ld-footer-num-size: clamp(11px, 1.16vw, 21px);
+    --ld-badge-size: clamp(30px, 2.7vw, 66px);
+    --ld-badge-font-size: clamp(9px, 0.88vw, 16px);
+    --ld-footer-height: clamp(17px, 1.8vw, 28px);
+    --ld-footer-label-size: clamp(7px, 0.66vw, 11px);
+    --ld-footer-num-size: clamp(10px, 0.96vw, 16px);
   }
 
   .hor-live-shell .ld-box-badge {
-    width: clamp(46px, 4.7vw, 92px);
-    height: clamp(46px, 4.7vw, 92px);
-    font-size: clamp(10px, 1.05vw, 18px);
-  }
-
-  .hor-live-shell .ld-card-footer {
-    height: clamp(20px, 2.2vw, 34px);
-  }
-
-  .hor-live-shell .ld-footer-label {
+    width: clamp(34px, 3.7vw, 72px);
+    height: clamp(34px, 3.7vw, 72px);
     font-size: clamp(8px, 0.82vw, 14px);
   }
 
+  .hor-live-shell .ld-card-footer {
+    height: clamp(16px, 1.8vw, 26px);
+  }
+
+  .hor-live-shell .ld-footer-label {
+    font-size: clamp(7px, 0.66vw, 11px);
+  }
+
   .hor-live-shell .ld-footer-num {
-    font-size: clamp(12px, 1.18vw, 24px);
+    font-size: clamp(10px, 0.96vw, 17px);
   }
 
   .hor-live-shell .ld-store-name {
-    font-size: clamp(22px, 2vw, 36px);
+    font-size: clamp(20px, 1.7vw, 30px);
   }
 
   .hor-live-shell .ld-ticker {
-    font-size: clamp(10px, 0.88vw, 14px);
+    font-size: clamp(9px, 0.74vw, 12px);
   }
 }
