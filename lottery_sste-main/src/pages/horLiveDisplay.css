@@ -60,17 +60,27 @@
 .hor-live-shell .ld-card-footer {
   height: clamp(16px, 1.35vw, 26px);
   padding: 0 clamp(5px, 0.52vw, 11px);
+  gap: clamp(3px, 0.35vw, 8px);
+  overflow: hidden;
 }
 
 .hor-live-shell .ld-footer-label {
   letter-spacing: 0.02em;
   font-size: clamp(7px, 0.64vw, 13px);
   line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hor-live-shell .ld-footer-num {
   font-size: clamp(11px, 1.02vw, 22px);
   line-height: 1;
+  flex-shrink: 0;
+  min-width: 3ch;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .hor-live-shell .ld-ticker {
@@ -105,6 +115,7 @@
 
   .hor-live-shell .ld-footer-num {
     font-size: clamp(12px, 0.86vw, 24px);
+    min-width: 3ch;
   }
 
   .hor-live-shell .ld-ticker {
@@ -138,6 +149,7 @@
 
   .hor-live-shell .ld-footer-num {
     font-size: clamp(9px, 0.84vw, 14px);
+    min-width: 3ch;
   }
 
   .hor-live-shell .ld-store-name {
