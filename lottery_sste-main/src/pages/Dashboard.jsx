@@ -124,10 +124,24 @@ export default function Dashboard() {
     { name: 'Ending Tickets', icon: '👥' },
   ]
 
+  const publishLiveDisplayEvent = async (type, payload = {}) => {
+    try {
+      await fetch(`${API_BASE}/live-display/events/`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ type, payload }),
+      })
+    } catch (error) {
+      console.error('Failed to publish live display event:', error)
+    }
+  }
+
   const handleTicketClick = (ticketLabel) => {
     // Store the clicked ticket in localStorage
     localStorage.setItem('blinkingTicketPrice', ticketLabel)
     console.log(`Ticket ${ticketLabel} clicked. Stored in localStorage.`)
+
+    publishLiveDisplayEvent('blink_price', { price: ticketLabel })
     
     // Dispatch a custom event for other windows to listen
     window.dispatchEvent(new CustomEvent('ticketBlinkRequested', { detail: { price: ticketLabel } }))
@@ -138,6 +152,7 @@ export default function Dashboard() {
       // Store a special marker for lucky tickets
       localStorage.setItem('luckyTicketsAnimation', 'true')
       console.log('Lucky Tickets clicked - 5 random tickets will animate')
+      publishLiveDisplayEvent('lucky_tickets')
       
       // Dispatch a custom event
       window.dispatchEvent(new CustomEvent('luckyTicketsRequested', { detail: { type: 'luckyTickets' } }))
@@ -150,6 +165,7 @@ export default function Dashboard() {
       // Store a special marker for new tickets (current number 0-5)
       localStorage.setItem('newTicketsAnimation', 'true')
       console.log('New Tickets clicked - tickets with current number 0-5 will animate')
+      publishLiveDisplayEvent('new_tickets')
       
       // Dispatch a custom event
       window.dispatchEvent(new CustomEvent('newTicketsRequested', { detail: { type: 'newTickets' } }))
@@ -162,6 +178,7 @@ export default function Dashboard() {
       // Store a special marker for ending tickets (total - current is 0-5)
       localStorage.setItem('endingTicketsAnimation', 'true')
       console.log('Ending Tickets clicked - tickets with total-current 0-5 will animate')
+      publishLiveDisplayEvent('ending_tickets')
       
       // Dispatch a custom event
       window.dispatchEvent(new CustomEvent('endingTicketsRequested', { detail: { type: 'endingTickets' } }))
@@ -188,6 +205,7 @@ export default function Dashboard() {
   const handleReloadLiveDisplay = () => {
     // Signal LiveDisplay tab/window to perform a one-time hard reload
     localStorage.setItem('reloadLiveDisplay', String(Date.now()))
+    publishLiveDisplayEvent('reload_live_display')
 
     // Keep Dashboard stats fresh as well
     fetchDashboardStats()

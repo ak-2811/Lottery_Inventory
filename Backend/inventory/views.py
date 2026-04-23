@@ -19,7 +19,22 @@ from rest_framework.decorators import permission_classes
 from django.contrib.auth import authenticate
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.core.cache import cache
 import threading
+import time
+
+
+LIVE_DISPLAY_EVENT_TYPES = {
+    'blink_price',
+    'lucky_tickets',
+    'new_tickets',
+    'ending_tickets',
+    'reload_live_display',
+}
+
+
+def get_live_display_cache_key(user_id):
+    return f"live_display_events:{user_id}"
 
 
 def finalize_sold_pack(inventory_book, activated_pack):
@@ -1061,6 +1076,65 @@ class TicketValuesView(APIView):
         ]
 
         return Response(ticket_values)
+
+
+class LiveDisplayEventView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        event_type = str(request.data.get('type', '')).strip()
+        payload = request.data.get('payload') or {}
+
+        if event_type not in LIVE_DISPLAY_EVENT_TYPES:
+            return Response(
+                {'error': 'Invalid event type.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not isinstance(payload, dict):
+            return Response(
+                {'error': 'Payload must be an object.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cache_key = get_live_display_cache_key(request.user.id)
+        events = cache.get(cache_key, [])
+
+        created_at = time.time()
+        event = {
+            'id': int(created_at * 1000),
+            'type': event_type,
+            'payload': payload,
+            'created_at': created_at,
+        }
+
+        events.append(event)
+        events = events[-100:]
+        cache.set(cache_key, events, timeout=60 * 60)
+
+        return Response(event, status=status.HTTP_201_CREATED)
+
+    def get(self, request):
+        since_param = request.query_params.get('since')
+
+        since = 0.0
+        if since_param is not None:
+            try:
+                since = float(since_param)
+            except (TypeError, ValueError):
+                return Response(
+                    {'error': 'Invalid since value.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        cache_key = get_live_display_cache_key(request.user.id)
+        events = cache.get(cache_key, [])
+        filtered = [event for event in events if float(event.get('created_at', 0)) > since]
+
+        return Response({
+            'events': filtered,
+            'server_time': time.time(),
+        }, status=status.HTTP_200_OK)
     
 class MoveActivatedPackView(APIView):
     permission_classes = [IsAuthenticated]

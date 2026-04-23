@@ -118,19 +118,13 @@ export default function LiveDisplay() {
   const wrapperRef = useRef(null)
   const ticketsRef = useRef([])
   const [gridStyle, setGridStyle] = useState({})
-  const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
+  const lastLiveEventAtRef = useRef(Date.now() / 1000)
+  const liveEventPollBusyRef = useRef(false)
 
   useEffect(() => {
     ticketsRef.current = tickets
   }, [tickets])
-
-  const loadTickets = useCallback(async () => {
-    setLoading(true)
-    const fetchedTickets = await fetchTicketsFromAPI()
-    setTickets(fetchedTickets)
-    setLoading(false)
-  }, [])
 
   const playBeep = (type) => {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -202,6 +196,20 @@ export default function LiveDisplay() {
     return null
   }, [])
 
+  const findChangedTicketIds = useCallback((previousTickets, nextTickets) => {
+    if (!previousTickets.length || !nextTickets.length) return []
+
+    const previousMap = new Map(previousTickets.map((ticket) => [ticket.id, ticket]))
+
+    return nextTickets
+      .filter((nextTicket) => {
+        const prevTicket = previousMap.get(nextTicket.id)
+        if (!prevTicket) return false
+        return nextTicket.currentNumber !== prevTicket.currentNumber
+      })
+      .map((ticket) => ticket.id)
+  }, [])
+
   const handleTicketScan = async (rawBarcode) => {
     try {
       const response = await fetch(`${API_BASE}/tickets/scan/`, {
@@ -228,7 +236,7 @@ export default function LiveDisplay() {
       )
 
       const previousTickets = ticketsRef.current
-      const refreshedTickets = await silentRefreshTickets()
+      const refreshedTickets = await silentRefreshTickets({ animateChanges: false })
       const scannedTicketId = findScannedTicketId(previousTickets, refreshedTickets || [], data)
       if (scannedTicketId) {
         triggerScanFlip(scannedTicketId)
@@ -277,11 +285,18 @@ export default function LiveDisplay() {
   // }, [loadTickets])
 
   // Add this alongside your existing loadTickets function:
-const silentRefreshTickets = useCallback(async () => {
-  const fetchedTickets = await fetchTicketsFromAPI()
-  setTickets(fetchedTickets) // updates data without touching loading state
-  return fetchedTickets
-}, [])
+  const silentRefreshTickets = useCallback(async ({ animateChanges = true } = {}) => {
+    const previousTickets = ticketsRef.current
+    const fetchedTickets = await fetchTicketsFromAPI()
+
+    if (animateChanges && previousTickets.length > 0) {
+      const changedTicketIds = findChangedTicketIds(previousTickets, fetchedTickets)
+      changedTicketIds.forEach((ticketId) => triggerScanFlip(ticketId))
+    }
+
+    setTickets(fetchedTickets) // updates data without touching loading state
+    return fetchedTickets
+  }, [findChangedTicketIds, triggerScanFlip])
 
 // Then uncomment and update the interval useEffect:
 useEffect(() => {
@@ -291,6 +306,63 @@ useEffect(() => {
 
   return () => clearInterval(interval)
 }, [silentRefreshTickets])
+
+  useEffect(() => {
+    const pollLiveEvents = async () => {
+      if (liveEventPollBusyRef.current) return
+      liveEventPollBusyRef.current = true
+
+      try {
+        const response = await fetch(
+          `${API_BASE}/live-display/events/?since=${lastLiveEventAtRef.current}`,
+          {
+            headers: getAuthHeaders(),
+          }
+        )
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch live events')
+        }
+
+        const data = await response.json()
+        const events = Array.isArray(data?.events) ? data.events : []
+
+        events.forEach((event) => {
+          const eventType = event?.type
+          const payload = event?.payload || {}
+
+          if (eventType === 'blink_price' && payload?.price) {
+            localStorage.setItem('blinkingTicketPrice', payload.price)
+          } else if (eventType === 'lucky_tickets') {
+            localStorage.setItem('luckyTicketsAnimation', 'true')
+          } else if (eventType === 'new_tickets') {
+            localStorage.setItem('newTicketsAnimation', 'true')
+          } else if (eventType === 'ending_tickets') {
+            localStorage.setItem('endingTicketsAnimation', 'true')
+          } else if (eventType === 'reload_live_display') {
+            localStorage.setItem('reloadLiveDisplay', String(Date.now()))
+          }
+
+          if (typeof event?.created_at === 'number') {
+            lastLiveEventAtRef.current = Math.max(lastLiveEventAtRef.current, event.created_at)
+          }
+        })
+
+        if (typeof data?.server_time === 'number') {
+          lastLiveEventAtRef.current = Math.max(lastLiveEventAtRef.current, data.server_time)
+        }
+      } catch (error) {
+        console.error('Error polling live display events:', error)
+      } finally {
+        liveEventPollBusyRef.current = false
+      }
+    }
+
+    const interval = setInterval(pollLiveEvents, 700)
+    pollLiveEvents()
+
+    return () => clearInterval(interval)
+  }, [])
 
   // useEffect(() => {
   //   let timeoutId = null
