@@ -25,6 +25,7 @@ from .views import (
     DirectSaleInventoryBookView,
     EndShiftSaveView,
     EndShiftManualScanView,
+    jackpot_values
 )
 
 urlpatterns = [
@@ -59,5 +60,5 @@ urlpatterns = [
     path('end-shift/scan/', EndShiftManualScanView.as_view(), name='end-shift-scan'),
     # path('reports/today/', TodayReportView.as_view(), name='today-report'),
     # path('reports/today-status/', TodayEndShiftStatusView.as_view(), name='today-report-status'),
-
+    path("jackpot-values/", jackpot_values, name="jackpot-values"),
 ]

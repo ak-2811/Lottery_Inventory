@@ -140,3 +140,13 @@ class DailyReportBoxDetail(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.report_date} - Box {self.box_num}"
+
+class JackpotValue(models.Model):
+    game_name = models.CharField(max_length=50, unique=True)  # "Mega Millions", "Powerball"
+    amount_text = models.CharField(max_length=50)             # "$130 Million"
+    amount_number = models.BigIntegerField(null=True, blank=True)  # 130000000
+    source_url = models.URLField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.game_name} - {self.amount_text}"

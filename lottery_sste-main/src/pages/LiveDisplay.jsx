@@ -121,6 +121,8 @@ export default function LiveDisplay() {
   const [scanMessage, setScanMessage] = useState('')
   const lastLiveEventAtRef = useRef(Date.now() / 1000)
   const liveEventPollBusyRef = useRef(false)
+  const jackpotSpeechTimeoutRef = useRef(null)
+  const jackpotSpeechEnabledRef = useRef(false)
 
   useEffect(() => {
     ticketsRef.current = tickets
@@ -140,6 +142,75 @@ export default function LiveDisplay() {
     oscillator.start();
     oscillator.stop(ctx.currentTime + 0.1);
   };
+
+const cleanAmountForSpeech = (text) => {
+  if (!text) return 'not available'
+  return text
+    .replace(/\$/g, '')
+    .replace(/million/i, 'million dollars')
+    .replace(/billion/i, 'billion dollars')
+    .trim()
+}
+
+const speakJackpotMessage = useCallback((text) => {
+  if (!('speechSynthesis' in window)) return
+  if (!jackpotSpeechEnabledRef.current) return
+
+  window.speechSynthesis.cancel()
+
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.rate = 1
+  utterance.pitch = 1
+  utterance.volume = 1
+
+  window.speechSynthesis.speak(utterance)
+}, [])
+
+const fetchAndSpeakJackpots = useCallback(async () => {
+  try {
+    const response = await fetch(`${API_BASE}/jackpot-values/`, {
+      headers: getAuthHeaders(),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch jackpot values')
+    }
+
+    const data = await response.json()
+    const jackpots = Array.isArray(data?.jackpots) ? data.jackpots : []
+
+    const mega = jackpots.find((j) => j.game_name === 'Mega Millions')
+    const power = jackpots.find((j) => j.game_name === 'Powerball')
+
+    const megaText = cleanAmountForSpeech(mega?.amount_text)
+    const powerText = cleanAmountForSpeech(power?.amount_text)
+
+    const message = `Estimated jackpot for Mega Millions is ${megaText}, and Powerball is ${powerText}. Try your luck today.`
+
+    speakJackpotMessage(message)
+  } catch (error) {
+    console.error('Error fetching jackpot values:', error)
+  }
+}, [speakJackpotMessage])
+
+const scheduleNextJackpotAnnouncement = useCallback(() => {
+  if (jackpotSpeechTimeoutRef.current) {
+    clearTimeout(jackpotSpeechTimeoutRef.current)
+  }
+
+  jackpotSpeechTimeoutRef.current = setTimeout(async () => {
+    await fetchAndSpeakJackpots()
+    scheduleNextJackpotAnnouncement()
+  }, 3 * 60 * 1000)
+}, [fetchAndSpeakJackpots])
+
+const startJackpotVoice = useCallback(async () => {
+  if (jackpotSpeechEnabledRef.current) return
+
+  jackpotSpeechEnabledRef.current = true
+  await fetchAndSpeakJackpots()
+  scheduleNextJackpotAnnouncement()
+}, [fetchAndSpeakJackpots, scheduleNextJackpotAnnouncement])
 
   const triggerScanFlip = useCallback((ticketId) => {
     if (!ticketId) return
@@ -275,6 +346,37 @@ export default function LiveDisplay() {
     loadTickets()
     loadUserName()
   }, [])
+
+  useEffect(() => {
+    const unlockVoice = async () => {
+      await startJackpotVoice()
+      document.removeEventListener('click', unlockVoice)
+      document.removeEventListener('touchstart', unlockVoice)
+      document.removeEventListener('keydown', unlockVoice)
+    }
+
+    // try auto start
+    startJackpotVoice()
+
+    // fallback: if browser blocks auto speech, first interaction anywhere will start it
+    document.addEventListener('click', unlockVoice)
+    document.addEventListener('touchstart', unlockVoice)
+    document.addEventListener('keydown', unlockVoice)
+
+    return () => {
+      document.removeEventListener('click', unlockVoice)
+      document.removeEventListener('touchstart', unlockVoice)
+      document.removeEventListener('keydown', unlockVoice)
+
+      if (jackpotSpeechTimeoutRef.current) {
+        clearTimeout(jackpotSpeechTimeoutRef.current)
+      }
+
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
+    }
+  }, [startJackpotVoice])
 
   // useEffect(() => {
   //   const interval = setInterval(() => {
@@ -450,6 +552,53 @@ useEffect(() => {
   }
 }, []) // ✅ empty deps — buffer is plain let, no stale closure
 
+  useEffect(() => {
+    let buffer = ''
+    let timeoutId = null
+
+    const handleGlobalKeyDown = (e) => {
+      const tag = document.activeElement?.tagName?.toLowerCase()
+      const isTypingInInput =
+        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
+
+      if (isTypingInInput) return
+
+      // Still support Enter if scanner sends it
+      if (e.key === 'Enter') {
+        clearTimeout(timeoutId)
+        const scannedValue = buffer.trim()
+        console.log('Enter triggered, buffer:', scannedValue)
+        if (/^\d{10,20}$/.test(scannedValue)) {
+          handleTicketScan(scannedValue)
+        }
+        buffer = ''
+        return
+      }
+
+      if (/^\d$/.test(e.key)) {
+        e.preventDefault()
+        buffer += e.key
+        console.log('Buffer so far:', buffer)
+
+        clearTimeout(timeoutId)
+        timeoutId = setTimeout(() => {
+          const scannedValue = buffer.trim()
+          console.log('Timeout triggered, buffer:', scannedValue)
+          if (/^\d{10,20}$/.test(scannedValue)) {
+            handleTicketScan(scannedValue)
+          }
+          buffer = ''
+        }, 100)
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyDown)
+      clearTimeout(timeoutId)
+    }
+  }, [])
+
   // Listen for blinking ticket requests from Dashboard (via localStorage)
   useEffect(() => {
     // Poll localStorage for changes every 500ms
@@ -608,8 +757,6 @@ useEffect(() => {
           <div className="ld-welcome">Welcome To</div>
           <div className="ld-store-name">{currentUserName}</div>
         </div>
-
-      
       </div>
       {scanMessage && (
         <div
