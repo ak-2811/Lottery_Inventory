@@ -20,6 +20,8 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.core.cache import cache
+from django.http import JsonResponse
+from .models import JackpotValue
 import threading
 import time
 
@@ -43,6 +45,14 @@ def finalize_sold_pack(inventory_book, activated_pack):
     inventory_book.save(update_fields=['is_sold', 'is_activated', 'updated_at'])
 
     activated_pack.delete()
+
+def jackpot_values(request):
+    data = list(
+        JackpotValue.objects.values(
+            "game_name", "amount_text", "amount_number", "updated_at"
+        )
+    )
+    return JsonResponse({"jackpots": data})
 
 def get_today_instant_sales(user):
     today = get_business_date()
