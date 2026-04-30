@@ -166,6 +166,19 @@ const speakJackpotMessage = useCallback((text) => {
   window.speechSynthesis.speak(utterance)
 }, [])
 
+const speakShortMessage = useCallback((text) => {
+  if (!('speechSynthesis' in window)) return
+
+  window.speechSynthesis.cancel()
+
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.rate = 1
+  utterance.pitch = 1
+  utterance.volume = 1
+
+  window.speechSynthesis.speak(utterance)
+}, [])
+
 const fetchAndSpeakJackpots = useCallback(async () => {
   try {
     const response = await fetch(`${API_BASE}/jackpot-values/`, {
@@ -437,10 +450,13 @@ useEffect(() => {
             localStorage.setItem('blinkingTicketPrice', payload.price)
           } else if (eventType === 'lucky_tickets') {
             localStorage.setItem('luckyTicketsAnimation', 'true')
+            speakShortMessage('These Are Your Lucky Tickets')
           } else if (eventType === 'new_tickets') {
             localStorage.setItem('newTicketsAnimation', 'true')
+            speakShortMessage('These Are The New Tickets')
           } else if (eventType === 'ending_tickets') {
             localStorage.setItem('endingTicketsAnimation', 'true')
+            speakShortMessage('These Are The Ending Tickets')
           } else if (eventType === 'reload_live_display') {
             localStorage.setItem('reloadLiveDisplay', String(Date.now()))
           }
@@ -464,7 +480,7 @@ useEffect(() => {
     pollLiveEvents()
 
     return () => clearInterval(interval)
-  }, [])
+  }, [speakShortMessage])
 
   // useEffect(() => {
   //   let timeoutId = null
