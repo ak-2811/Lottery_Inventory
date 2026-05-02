@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import '../App.css'
 import './inventory.css'
 import './activatePacks.css'
+import axios from 'axios'
 
 // const API_BASE = 'http://127.0.0.1:8000/api'
 const API_BASE = 'https://lottery.bright-core-solutions.com/api'
@@ -103,6 +104,20 @@ export default function ActivatePacks() {
     setMoveTargetBox('')
     setSelectedMovePack(null)
     setMoveError('')
+  }
+
+  const handlePause = async (packId) => {
+    try {
+      await axios.post(`${API_BASE}/pause-pack/${packId}/`, {}, {
+        headers: getAuthHeaders()
+      })
+
+      // refresh activated packs
+      fetchActivatedPacks()
+
+    } catch (error) {
+      console.error("Pause failed", error)
+    }
   }
 
   const moveBoxOptions = useMemo(() => {
@@ -547,7 +562,7 @@ useEffect(() => {
                         >
                           Move
                         </button>
-                        <a href="#" className="action-link">Pause</a>
+                        <button className="action-link" onClick={() => handlePause(pack.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>Pause</button>
                       </div>
                     </td>
                   </tr>

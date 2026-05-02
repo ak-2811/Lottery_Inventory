@@ -1660,3 +1660,32 @@ class DirectSaleInventoryBookView(APIView):
             'pack_id': inventory_book.pack_id,
             'total_tickets': inventory_book.total_tickets,
         }, status=status.HTTP_200_OK)
+    
+class PauseActivatedPackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            activated_pack = ActivatedPack.objects.select_related('inventory_book').get(
+                pk=pk,
+                user=request.user
+            )
+        except ActivatedPack.DoesNotExist:
+            return Response({'error': 'Activated pack not found.'}, status=404)
+
+        inventory_book = activated_pack.inventory_book
+
+        # mark as returned (IMPORTANT)
+        inventory_book.is_returned = True
+        inventory_book.is_activated = False
+        inventory_book.is_sold = False
+        inventory_book.save(update_fields=['is_returned', 'is_activated', 'is_sold', 'updated_at'])
+
+        # remove from activated packs
+        activated_pack.delete()
+
+        return Response({
+            'message': 'Pack paused and returned successfully.',
+            'pack_id': inventory_book.pack_id,
+            'current_number': activated_pack.current_count
+        }, status=200)
