@@ -1495,6 +1495,7 @@ class DailySalesView(APIView):
 
             data.append({
                 'date': report.report_date.strftime('%b %d'),
+                'report_date': report.report_date.isoformat(),
                 'instant_sales': float(report.instant_sales),
                 'instant_cashes': float(report.instant_cashes),
                 'online_sales': float(report.online_sales),

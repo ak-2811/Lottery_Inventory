@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { Line } from 'react-chartjs-2'
@@ -29,6 +29,163 @@ ChartJS.register(
 
 // const API_BASE = 'http://127.0.0.1:8000/api'
 const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+
+const formatDateInputValue = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getDefaultSalesDateRange = () => {
+  const toDate = new Date()
+  const fromDate = new Date(toDate)
+  fromDate.setDate(toDate.getDate() - 13)
+
+  return {
+    from: formatDateInputValue(fromDate),
+    to: formatDateInputValue(toDate),
+  }
+}
+
+const parseDateInputValue = (value, endOfDay = false) => {
+  if (!value) return null
+
+  const parsedDate = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsedDate.getTime())) return null
+
+  if (endOfDay) {
+    parsedDate.setHours(23, 59, 59, 999)
+  }
+
+  return parsedDate
+}
+
+const formatDateDisplayValue = (value) => {
+  const date = parseDateInputValue(value)
+  if (!date) return 'Select date'
+
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+}
+
+const getMonthLabel = (date) =>
+  date.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
+
+const getMonthStart = (date) => new Date(date.getFullYear(), date.getMonth(), 1)
+
+const addMonths = (date, amount) => new Date(date.getFullYear(), date.getMonth() + amount, 1)
+
+const getCalendarDates = (monthDate) => {
+  const firstDay = getMonthStart(monthDate)
+  const gridStart = new Date(firstDay)
+  gridStart.setDate(firstDay.getDate() - firstDay.getDay())
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart)
+    date.setDate(gridStart.getDate() + index)
+    return date
+  })
+}
+
+const isDateOutsideBounds = (date, min, max) => {
+  const minDate = parseDateInputValue(min)
+  const maxDate = parseDateInputValue(max, true)
+
+  return (minDate && date < minDate) || (maxDate && date > maxDate)
+}
+
+const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+function SalesCalendar({ value, min, max, monthDate, onMonthChange, onSelect, onClose }) {
+  const today = new Date()
+  const dates = getCalendarDates(monthDate)
+  const todayValue = formatDateInputValue(today)
+  const canSelectToday = !isDateOutsideBounds(today, min, max)
+
+  return (
+    <div className="sales-calendar" role="dialog" aria-label="Choose date">
+      <div className="sales-calendar-header">
+        <button
+          type="button"
+          className="sales-calendar-month"
+          onClick={() => onMonthChange(getMonthStart(new Date()))}
+        >
+          {getMonthLabel(monthDate)}
+        </button>
+        <div className="sales-calendar-nav">
+          <button type="button" aria-label="Previous month" onClick={() => onMonthChange(addMonths(monthDate, -1))}>
+            ‹
+          </button>
+          <button type="button" aria-label="Next month" onClick={() => onMonthChange(addMonths(monthDate, 1))}>
+            ›
+          </button>
+        </div>
+      </div>
+
+      <div className="sales-calendar-weekdays" aria-hidden="true">
+        {weekDays.map((day, index) => (
+          <span key={`${day}-${index}`}>{day}</span>
+        ))}
+      </div>
+
+      <div className="sales-calendar-grid">
+        {dates.map((date) => {
+          const dateValue = formatDateInputValue(date)
+          const isOutsideMonth = date.getMonth() !== monthDate.getMonth()
+          const isSelected = dateValue === value
+          const isToday = dateValue === todayValue
+          const isDisabled = isDateOutsideBounds(date, min, max)
+
+          return (
+            <button
+              type="button"
+              key={dateValue}
+              className={[
+                'sales-calendar-day',
+                isOutsideMonth ? 'outside-month' : '',
+                isSelected ? 'selected' : '',
+                isToday ? 'today' : '',
+              ].filter(Boolean).join(' ')}
+              disabled={isDisabled}
+              onClick={() => onSelect(dateValue)}
+            >
+              {date.getDate()}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="sales-calendar-footer">
+        <button type="button" onClick={onClose}>Done</button>
+        <button
+          type="button"
+          disabled={!canSelectToday}
+          onClick={() => {
+            onMonthChange(getMonthStart(today))
+            onSelect(todayValue)
+          }}
+        >
+          Today
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const getSalesDate = (item) => {
+  if (item.report_date) return new Date(`${item.report_date}T00:00:00`)
+  if (item.raw_date) return new Date(`${item.raw_date}T00:00:00`)
+  if (item.date) return new Date(`${item.date} ${new Date().getFullYear()}`)
+  return null
+}
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -44,6 +201,23 @@ export default function Dashboard() {
   const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
   const [dailySalesData, setDailySalesData] = useState([])
+  const [salesDateRange, setSalesDateRange] = useState(getDefaultSalesDateRange)
+  const [activeSalesCalendar, setActiveSalesCalendar] = useState(null)
+  const [salesCalendarMonth, setSalesCalendarMonth] = useState(() => getMonthStart(new Date()))
+  const filteredDailySalesData = useMemo(() => {
+    const fromDate = parseDateInputValue(salesDateRange.from)
+    const toDate = parseDateInputValue(salesDateRange.to, true)
+    const datedSales = dailySalesData
+      .map((item) => ({ item, salesDate: getSalesDate(item) }))
+      .filter(({ salesDate }) => salesDate && !Number.isNaN(salesDate.getTime()))
+
+    if (!fromDate || !toDate || fromDate > toDate) return dailySalesData
+
+    return datedSales
+      .filter(({ salesDate }) => salesDate >= fromDate && salesDate <= toDate)
+      .map(({ item }) => item)
+  }, [dailySalesData, salesDateRange])
+  const chartMinWidth = Math.max(900, filteredDailySalesData.length * 100)
   // const [isEndShiftClosed, setIsEndShiftClosed] = useState(false)
 
   const [stats, setStats] = useState({
@@ -233,6 +407,17 @@ export default function Dashboard() {
       // fetchTodayEndShiftStatus(),
     ])
     console.log('Dashboard refreshed')
+  }
+
+  const openSalesCalendar = (field) => {
+    const selectedDate = parseDateInputValue(salesDateRange[field])
+    setSalesCalendarMonth(getMonthStart(selectedDate || new Date()))
+    setActiveSalesCalendar(field)
+  }
+
+  const handleSalesDateSelect = (field, value) => {
+    setSalesDateRange((range) => ({ ...range, [field]: value }))
+    setActiveSalesCalendar(null)
   }
 
   const fetchDashboardStats = async () => {
@@ -499,74 +684,129 @@ export default function Dashboard() {
 
           {/* Daily Sales Line Graph */}
           <div className="sales-chart-container">
-            <h3 style={{ marginBottom: '20px', color: '#333' }}>Daily Sales Trend</h3>
-            {dailySalesData.length > 0 && (
-              <Line
-                data={{
-                  labels: dailySalesData.map((item) => item.date),
-                  datasets: [
-                    {
-                      label: 'Total Sales ($)',
-                      data: dailySalesData.map((item) => item.total),
-                      borderColor: '#1a7a6f',
-                      backgroundColor: 'rgba(26, 122, 111, 0.1)',
-                      borderWidth: 2,
-                      fill: true,
-                      tension: 0.4,
-                      pointRadius: 5,
-                      pointBackgroundColor: '#1a7a6f',
-                      pointBorderColor: '#fff',
-                      pointBorderWidth: 2,
-                      pointHoverRadius: 7,
-                    },
-                  ],
-                }}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: true,
-                  plugins: {
-                    legend: {
-                      display: true,
-                      position: 'top',
-                      labels: {
-                        color: '#333',
-                        font: { size: 12, weight: 'bold' },
-                      },
-                    },
-                    tooltip: {
-                      backgroundColor: 'rgba(0,0,0,0.8)',
-                      padding: 12,
-                      callbacks: {
-                        label: function (context) {
-                          return `Total Sales: $${context.parsed.y.toLocaleString()}`;
+            <div className="sales-chart-header">
+              <h3>Daily Sales Trend</h3>
+              <div className="sales-range-filter" aria-label="Sales date range">
+                <div className="sales-date-field">
+                  <span>From</span>
+                  <button
+                    type="button"
+                    className="sales-date-trigger"
+                    aria-haspopup="dialog"
+                    aria-expanded={activeSalesCalendar === 'from'}
+                    onClick={() => openSalesCalendar('from')}
+                  >
+                    {formatDateDisplayValue(salesDateRange.from)}
+                  </button>
+                  {activeSalesCalendar === 'from' && (
+                    <SalesCalendar
+                      value={salesDateRange.from}
+                      max={salesDateRange.to}
+                      monthDate={salesCalendarMonth}
+                      onMonthChange={setSalesCalendarMonth}
+                      onSelect={(value) => handleSalesDateSelect('from', value)}
+                      onClose={() => setActiveSalesCalendar(null)}
+                    />
+                  )}
+                </div>
+                <span className="sales-date-divider" aria-hidden="true">to</span>
+                <div className="sales-date-field">
+                  <span>To</span>
+                  <button
+                    type="button"
+                    className="sales-date-trigger"
+                    aria-haspopup="dialog"
+                    aria-expanded={activeSalesCalendar === 'to'}
+                    onClick={() => openSalesCalendar('to')}
+                  >
+                    {formatDateDisplayValue(salesDateRange.to)}
+                  </button>
+                  {activeSalesCalendar === 'to' && (
+                    <SalesCalendar
+                      value={salesDateRange.to}
+                      min={salesDateRange.from}
+                      monthDate={salesCalendarMonth}
+                      onMonthChange={setSalesCalendarMonth}
+                      onSelect={(value) => handleSalesDateSelect('to', value)}
+                      onClose={() => setActiveSalesCalendar(null)}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+            {filteredDailySalesData.length > 0 && (
+              <div className="sales-chart-scroll">
+                <div className="sales-chart-inner" style={{ minWidth: `${chartMinWidth}px` }}>
+                  <Line
+                    data={{
+                      labels: filteredDailySalesData.map((item) => item.date),
+                      datasets: [
+                        {
+                          label: 'Total Sales ($)',
+                          data: filteredDailySalesData.map((item) => Number(item.total ?? item.sales ?? 0)),
+                          borderColor: '#1a7a6f',
+                          backgroundColor: 'rgba(26, 122, 111, 0.1)',
+                          borderWidth: 2,
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 5,
+                          pointBackgroundColor: '#1a7a6f',
+                          pointBorderColor: '#fff',
+                          pointBorderWidth: 2,
+                          pointHoverRadius: 7,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: true,
+                          position: 'top',
+                          labels: {
+                            color: '#333',
+                            font: { size: 12, weight: 'bold' },
+                          },
+                        },
+                        tooltip: {
+                          backgroundColor: 'rgba(0,0,0,0.8)',
+                          padding: 12,
+                          callbacks: {
+                            label: function (context) {
+                              return `Total Sales: $${context.parsed.y.toLocaleString()}`;
+                            },
+                          },
                         },
                       },
-                    },
-                  },
-                  scales: {
-                    y: {
-                      beginAtZero: true,
-                      ticks: {
-                        callback: function (value) {
-                          return '$' + value.toLocaleString();
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            callback: function (value) {
+                              return '$' + value.toLocaleString();
+                            },
+                            color: '#666',
+                          },
+                          grid: {
+                            color: 'rgba(200, 200, 200, 0.1)',
+                          },
                         },
-                        color: '#666',
+                        x: {
+                          ticks: {
+                            color: '#666',
+                            autoSkip: false,
+                            maxRotation: 0,
+                          },
+                          grid: {
+                            color: 'rgba(200, 200, 200, 0.1)',
+                          },
+                        },
                       },
-                      grid: {
-                        color: 'rgba(200, 200, 200, 0.1)',
-                      },
-                    },
-                    x: {
-                      ticks: {
-                        color: '#666',
-                      },
-                      grid: {
-                        color: 'rgba(200, 200, 200, 0.1)',
-                      },
-                    },
-                  },
-                }}
-              />
+                    }}
+                  />
+                </div>
+              </div>
             )}
           </div>
 
