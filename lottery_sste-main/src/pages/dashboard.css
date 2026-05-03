@@ -336,24 +336,36 @@
 }
 
 @media (max-width: 768px) {
+  .main-content {
+    min-width: 0;
+  }
+
   .dashboard-content {
-    padding: 16px;
+    padding: 16px 12px 24px;
   }
 
   .header {
     flex-direction: column;
-    align-items: flex-start;
-    padding: 16px;
-    gap: 16px;
+    align-items: center;
+    padding: 18px 14px;
+    gap: 14px;
   }
 
   .header-left h2 {
-    font-size: 26px;
+    font-size: 28px;
+    text-align: center;
   }
 
   .header-right {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: center;
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .header-right .end-btn {
+    grid-column: 1 / -1;
   }
 
   .stats-grid {
@@ -374,7 +386,8 @@
   }
 
   .stat-box.large {
-    padding: 28px;
+    padding: 28px 18px;
+    border-radius: 16px;
   }
 
   .tickets-grid {
@@ -418,39 +431,44 @@
   }
 
   .header-btn {
-    padding: 8px 14px;
-    font-size: 12px;
+    min-height: 50px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 15px;
+    letter-spacing: 0.04em;
   }
 
   .refresh-btn {
-    width: 40px;
-    height: 40px;
-    font-size: 18px;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+    font-size: 20px;
+    justify-self: center;
   }
 }
 
 @media (max-width: 480px) {
   .dashboard-content {
-    padding: 12px;
+    padding: 14px 10px 22px;
   }
 
   .header {
-    padding: 12px;
+    padding: 18px 12px;
   }
 
   .header-left h2 {
-    font-size: 22px;
+    font-size: 28px;
   }
 
   .header-right {
-    flex-direction: column;
-    width: 100%;
-    gap: 8px;
+    grid-template-columns: 56px minmax(0, 1fr);
+    width: min(100%, 360px);
+    gap: 10px;
   }
 
   .header-btn {
     width: 100%;
-    padding: 10px 12px;
+    padding: 12px;
     text-align: center;
   }
 
@@ -462,6 +480,7 @@
 
   .stat-box {
     padding: 16px;
+    border-radius: 10px;
   }
 
   .stat-box label {
@@ -473,11 +492,12 @@
   }
 
   .stat-box .stat-value.large-value {
-    font-size: 32px;
+    font-size: clamp(34px, 11vw, 46px);
+    line-height: 1.05;
   }
 
   .tickets-grid {
-    grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
 
@@ -496,6 +516,15 @@
 
   .tickets-section h3 {
     font-size: 16px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.25;
+  }
+
+  .tickets-section .subtitle {
+    font-size: 12px;
+    line-height: 1.35;
   }
 
   .ticket-types-grid {
@@ -503,7 +532,7 @@
   }
 
   .ticket-type-btn {
-    padding: 32px 20px;
+    padding: 24px 18px;
     border-radius: 12px;
   }
 
@@ -916,12 +945,15 @@
 
 @media (max-width: 768px) {
   .sales-chart-container {
-    height: 300px;
-    padding: 20px;
+    height: auto;
+    min-height: 410px;
+    padding: 22px 16px 18px;
+    border-radius: 14px;
+    margin-bottom: 26px;
   }
 
   .top-sales-chart-container {
-    height: 380px;
+    min-height: 500px;
   }
 
   .sales-chart-header {
@@ -932,7 +964,8 @@
   }
 
   .sales-chart-header h3 {
-    font-size: 20px;
+    font-size: 26px;
+    line-height: 1.15;
   }
 
   .sales-range-filter {
@@ -943,15 +976,20 @@
 
   .sales-range-filter {
     width: 100%;
+    padding: 8px;
+    border-radius: 16px;
+    box-shadow: 0 10px 22px rgba(20, 78, 71, 0.06);
   }
 
   .sales-date-field {
-    flex: 1 1 160px;
+    flex: 1 1 100%;
     min-width: 0;
+    min-height: 60px;
+    padding: 10px 12px;
   }
 
   .sales-date-trigger {
-    font-size: 15px;
+    font-size: 18px;
   }
 
   .sales-date-divider {
@@ -961,7 +999,7 @@
   .sales-calendar {
     left: 50%;
     right: auto;
-    width: min(318px, calc(100vw - 48px));
+    width: min(318px, calc(100vw - 28px));
     transform: translateX(-50%);
   }
 
@@ -971,7 +1009,30 @@
   }
 
   .sales-chart-inner {
-    min-width: 720px !important;
+    min-width: max(520px, calc(100vw - 132px)) !important;
+  }
+
+  .sales-chart-scroll {
+    min-height: 250px;
+    padding-bottom: 10px;
+  }
+
+  .top-sales-chart-container .sales-chart-scroll {
+    min-height: 260px;
+  }
+
+  .top-sales-title {
+    align-items: center;
+    text-align: center;
+  }
+
+  .top-sales-title h3 {
+    text-align: center;
+  }
+
+  .top-sales-title p {
+    font-size: 14px;
+    line-height: 1.35;
   }
 
   .top-sales-controls .sales-range-filter {
@@ -980,10 +1041,46 @@
 
   .top-sales-toggle {
     align-self: stretch;
+    padding: 6px;
+    border-radius: 14px;
   }
 
   .top-sales-toggle button {
     flex: 1;
+    height: 48px;
     padding: 0 10px;
+    font-size: 14px;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 480px) {
+  .sales-chart-container {
+    padding: 20px 14px 18px;
+  }
+
+  .sales-chart-header h3 {
+    font-size: 24px;
+  }
+
+  .sales-chart-inner {
+    min-width: max(460px, calc(100vw - 118px)) !important;
+  }
+
+  .top-sales-chart-container .sales-chart-inner {
+    min-width: max(640px, calc(100vw - 118px)) !important;
+  }
+
+  .sales-date-trigger {
+    font-size: 17px;
+  }
+
+  .sales-calendar {
+    padding: 14px;
+  }
+
+  .sales-calendar-day {
+    width: 32px;
+    height: 32px;
   }
 }
