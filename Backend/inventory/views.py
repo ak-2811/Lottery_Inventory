@@ -1,10 +1,12 @@
 from decimal import Decimal
+from datetime import timedelta
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail
 from .serializers import InventoryBookSerializer, ActivatedPackSerializer, DailyReportSerializer, DailyReportBoxDetailSerializer
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from io import BytesIO
 from django.http import FileResponse
 from reportlab.lib import colors
@@ -1505,6 +1507,82 @@ class DailySalesView(APIView):
             })
 
         return Response(data, status=status.HTTP_200_OK)
+
+class SalesPerformanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        today = get_business_date()
+        default_from = today - timedelta(days=13)
+
+        from_date = parse_date(request.query_params.get('from') or '') or default_from
+        to_date = parse_date(request.query_params.get('to') or '') or today
+
+        if from_date > to_date:
+            return Response(
+                {'error': 'From date must be before or equal to To date.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sold_tickets = SoldTicket.objects.filter(
+            user=request.user,
+            sold_at__date__gte=from_date,
+            sold_at__date__lte=to_date,
+        ).select_related('inventory_book__game')
+
+        game_totals = {}
+        value_totals = {}
+
+        for row in sold_tickets:
+            book = row.inventory_book
+            game = book.game
+            ticket_value = Decimal(book.ticket_value)
+            sold_count = Decimal(row.delta_count)
+            sales_amount = sold_count * ticket_value
+
+            game_key = game.game_id
+            if game_key not in game_totals:
+                game_totals[game_key] = {
+                    'label': game.name or game.game_id,
+                    'game_id': game.game_id,
+                    'tickets_sold': 0,
+                    'total_sales': Decimal('0.00'),
+                }
+
+            game_totals[game_key]['tickets_sold'] += int(row.delta_count)
+            game_totals[game_key]['total_sales'] += sales_amount
+
+            value_key = str(ticket_value)
+            if value_key not in value_totals:
+                value_totals[value_key] = {
+                    'label': f"${ticket_value:.0f}" if float(ticket_value).is_integer() else f"${ticket_value}",
+                    'ticket_value': float(ticket_value),
+                    'tickets_sold': 0,
+                    'total_sales': Decimal('0.00'),
+                }
+
+            value_totals[value_key]['tickets_sold'] += int(row.delta_count)
+            value_totals[value_key]['total_sales'] += sales_amount
+
+        def serialize_totals(rows):
+            return sorted(
+                [
+                    {
+                        **row,
+                        'total_sales': float(row['total_sales']),
+                    }
+                    for row in rows.values()
+                ],
+                key=lambda item: item['total_sales'],
+                reverse=True
+            )
+
+        return Response({
+            'from': from_date.isoformat(),
+            'to': to_date.isoformat(),
+            'games': serialize_totals(game_totals),
+            'ticket_values': serialize_totals(value_totals),
+        }, status=status.HTTP_200_OK)
 
 class DailyReportDownloadPDFView(APIView):
     permission_classes = [IsAuthenticated]

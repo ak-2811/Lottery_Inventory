@@ -802,6 +802,84 @@
   display: block;
 }
 
+.top-sales-chart-container {
+  height: 430px;
+}
+
+.top-sales-chart-header {
+  justify-content: space-between;
+}
+
+.top-sales-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.top-sales-title h3 {
+  text-align: left;
+}
+
+.top-sales-title p {
+  margin: 0;
+  color: #71817e;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.top-sales-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.top-sales-controls .sales-range-filter {
+  position: static;
+}
+
+.top-sales-controls .sales-calendar {
+  right: 0;
+}
+
+.top-sales-toggle {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border: 1px solid #d9e9e6;
+  border-radius: 12px;
+  background: #f6fbfa;
+}
+
+.top-sales-toggle button {
+  height: 40px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #61736f;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 0 14px;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+
+.top-sales-toggle button.active {
+  background: #1a7a6f;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(26, 122, 111, 0.18);
+}
+
+.top-sales-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #70817e;
+  font-size: 15px;
+  font-weight: 700;
+}
+
 @media (max-width: 1100px) {
   .sales-chart-header {
     align-items: stretch;
@@ -817,12 +895,33 @@
     max-width: 100%;
     margin: 0 auto;
   }
+
+  .top-sales-chart-header {
+    align-items: stretch;
+  }
+
+  .top-sales-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .top-sales-controls .sales-range-filter {
+    width: fit-content;
+  }
+
+  .top-sales-toggle {
+    align-self: center;
+  }
 }
 
 @media (max-width: 768px) {
   .sales-chart-container {
     height: 300px;
     padding: 20px;
+  }
+
+  .top-sales-chart-container {
+    height: 380px;
   }
 
   .sales-chart-header {
@@ -873,5 +972,18 @@
 
   .sales-chart-inner {
     min-width: 720px !important;
+  }
+
+  .top-sales-controls .sales-range-filter {
+    width: 100%;
+  }
+
+  .top-sales-toggle {
+    align-self: stretch;
+  }
+
+  .top-sales-toggle button {
+    flex: 1;
+    padding: 0 10px;
   }
 }

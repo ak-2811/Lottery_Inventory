@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { Line } from 'react-chartjs-2'
+import { Bar, Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  BarElement,
   PointElement,
   LineElement,
   Title,
@@ -20,6 +21,7 @@ import './dashboard.css'
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  BarElement,
   PointElement,
   LineElement,
   Title,
@@ -103,6 +105,11 @@ const isDateOutsideBounds = (date, min, max) => {
 
 const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
+const shortenChartLabel = (label, maxLength = 16) => {
+  if (!label || label.length <= maxLength) return label
+  return `${label.slice(0, maxLength - 1)}…`
+}
+
 function SalesCalendar({ value, min, max, monthDate, onMonthChange, onSelect, onClose }) {
   const today = new Date()
   const dates = getCalendarDates(monthDate)
@@ -179,6 +186,66 @@ function SalesCalendar({ value, min, max, monthDate, onMonthChange, onSelect, on
   )
 }
 
+function SalesDateRangePicker({
+  dateRange,
+  activeCalendar,
+  calendarMonth,
+  onOpenCalendar,
+  onMonthChange,
+  onSelectDate,
+  onCloseCalendar,
+}) {
+  return (
+    <div className="sales-range-filter" aria-label="Sales date range">
+      <div className="sales-date-field">
+        <span>From</span>
+        <button
+          type="button"
+          className="sales-date-trigger"
+          aria-haspopup="dialog"
+          aria-expanded={activeCalendar === 'from'}
+          onClick={() => onOpenCalendar('from')}
+        >
+          {formatDateDisplayValue(dateRange.from)}
+        </button>
+        {activeCalendar === 'from' && (
+          <SalesCalendar
+            value={dateRange.from}
+            max={dateRange.to}
+            monthDate={calendarMonth}
+            onMonthChange={onMonthChange}
+            onSelect={(value) => onSelectDate('from', value)}
+            onClose={onCloseCalendar}
+          />
+        )}
+      </div>
+      <span className="sales-date-divider" aria-hidden="true">to</span>
+      <div className="sales-date-field">
+        <span>To</span>
+        <button
+          type="button"
+          className="sales-date-trigger"
+          aria-haspopup="dialog"
+          aria-expanded={activeCalendar === 'to'}
+          onClick={() => onOpenCalendar('to')}
+        >
+          {formatDateDisplayValue(dateRange.to)}
+        </button>
+        {activeCalendar === 'to' && (
+          <SalesCalendar
+            value={dateRange.to}
+            min={dateRange.from}
+            monthDate={calendarMonth}
+            onMonthChange={onMonthChange}
+            onSelect={(value) => onSelectDate('to', value)}
+            onClose={onCloseCalendar}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 const getSalesDate = (item) => {
   if (item.report_date) return new Date(`${item.report_date}T00:00:00`)
   if (item.raw_date) return new Date(`${item.raw_date}T00:00:00`)
@@ -202,8 +269,13 @@ export default function Dashboard() {
   const [scanMessage, setScanMessage] = useState('')
   const [dailySalesData, setDailySalesData] = useState([])
   const [salesDateRange, setSalesDateRange] = useState(getDefaultSalesDateRange)
+  const [topSalesDateRange, setTopSalesDateRange] = useState(getDefaultSalesDateRange)
   const [activeSalesCalendar, setActiveSalesCalendar] = useState(null)
   const [salesCalendarMonth, setSalesCalendarMonth] = useState(() => getMonthStart(new Date()))
+  const [activeTopSalesCalendar, setActiveTopSalesCalendar] = useState(null)
+  const [topSalesCalendarMonth, setTopSalesCalendarMonth] = useState(() => getMonthStart(new Date()))
+  const [topSalesMode, setTopSalesMode] = useState('games')
+  const [topSalesData, setTopSalesData] = useState({ games: [], ticket_values: [] })
   const filteredDailySalesData = useMemo(() => {
     const fromDate = parseDateInputValue(salesDateRange.from)
     const toDate = parseDateInputValue(salesDateRange.to, true)
@@ -218,6 +290,8 @@ export default function Dashboard() {
       .map(({ item }) => item)
   }, [dailySalesData, salesDateRange])
   const chartMinWidth = Math.max(900, filteredDailySalesData.length * 100)
+  const topSalesRows = topSalesMode === 'games' ? topSalesData.games : topSalesData.ticket_values
+  const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 128)
   // const [isEndShiftClosed, setIsEndShiftClosed] = useState(false)
 
   const [stats, setStats] = useState({
@@ -289,6 +363,25 @@ export default function Dashboard() {
         })
       }
       setDailySalesData(fallbackData)
+    }
+  }
+
+  const fetchTopSalesData = async () => {
+    try {
+      const params = new URLSearchParams({
+        from: topSalesDateRange.from,
+        to: topSalesDateRange.to,
+      })
+      const res = await axios.get(`${API_BASE}/sales-performance/?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      })
+      setTopSalesData({
+        games: res.data.games || [],
+        ticket_values: res.data.ticket_values || [],
+      })
+    } catch (error) {
+      console.error('Error fetching top sales data:', error)
+      setTopSalesData({ games: [], ticket_values: [] })
     }
   }
 
@@ -404,6 +497,7 @@ export default function Dashboard() {
       fetchDashboardStats(),
       fetchTicketValues(),
       fetchDailySalesData(),
+      fetchTopSalesData(),
       // fetchTodayEndShiftStatus(),
     ])
     console.log('Dashboard refreshed')
@@ -418,6 +512,17 @@ export default function Dashboard() {
   const handleSalesDateSelect = (field, value) => {
     setSalesDateRange((range) => ({ ...range, [field]: value }))
     setActiveSalesCalendar(null)
+  }
+
+  const openTopSalesCalendar = (field) => {
+    const selectedDate = parseDateInputValue(topSalesDateRange[field])
+    setTopSalesCalendarMonth(getMonthStart(selectedDate || new Date()))
+    setActiveTopSalesCalendar(field)
+  }
+
+  const handleTopSalesDateSelect = (field, value) => {
+    setTopSalesDateRange((range) => ({ ...range, [field]: value }))
+    setActiveTopSalesCalendar(null)
   }
 
   const fetchDashboardStats = async () => {
@@ -564,6 +669,10 @@ export default function Dashboard() {
     // fetchTodayEndShiftStatus()
   }, [])
 
+  useEffect(() => {
+    fetchTopSalesData()
+  }, [topSalesDateRange])
+
   return (
     <div className="app-container">
       <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
@@ -686,53 +795,15 @@ export default function Dashboard() {
           <div className="sales-chart-container">
             <div className="sales-chart-header">
               <h3>Daily Sales Trend</h3>
-              <div className="sales-range-filter" aria-label="Sales date range">
-                <div className="sales-date-field">
-                  <span>From</span>
-                  <button
-                    type="button"
-                    className="sales-date-trigger"
-                    aria-haspopup="dialog"
-                    aria-expanded={activeSalesCalendar === 'from'}
-                    onClick={() => openSalesCalendar('from')}
-                  >
-                    {formatDateDisplayValue(salesDateRange.from)}
-                  </button>
-                  {activeSalesCalendar === 'from' && (
-                    <SalesCalendar
-                      value={salesDateRange.from}
-                      max={salesDateRange.to}
-                      monthDate={salesCalendarMonth}
-                      onMonthChange={setSalesCalendarMonth}
-                      onSelect={(value) => handleSalesDateSelect('from', value)}
-                      onClose={() => setActiveSalesCalendar(null)}
-                    />
-                  )}
-                </div>
-                <span className="sales-date-divider" aria-hidden="true">to</span>
-                <div className="sales-date-field">
-                  <span>To</span>
-                  <button
-                    type="button"
-                    className="sales-date-trigger"
-                    aria-haspopup="dialog"
-                    aria-expanded={activeSalesCalendar === 'to'}
-                    onClick={() => openSalesCalendar('to')}
-                  >
-                    {formatDateDisplayValue(salesDateRange.to)}
-                  </button>
-                  {activeSalesCalendar === 'to' && (
-                    <SalesCalendar
-                      value={salesDateRange.to}
-                      min={salesDateRange.from}
-                      monthDate={salesCalendarMonth}
-                      onMonthChange={setSalesCalendarMonth}
-                      onSelect={(value) => handleSalesDateSelect('to', value)}
-                      onClose={() => setActiveSalesCalendar(null)}
-                    />
-                  )}
-                </div>
-              </div>
+              <SalesDateRangePicker
+                dateRange={salesDateRange}
+                activeCalendar={activeSalesCalendar}
+                calendarMonth={salesCalendarMonth}
+                onOpenCalendar={openSalesCalendar}
+                onMonthChange={setSalesCalendarMonth}
+                onSelectDate={handleSalesDateSelect}
+                onCloseCalendar={() => setActiveSalesCalendar(null)}
+              />
             </div>
             {filteredDailySalesData.length > 0 && (
               <div className="sales-chart-scroll">
@@ -807,6 +878,125 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
+            )}
+          </div>
+
+          <div className="sales-chart-container top-sales-chart-container">
+            <div className="sales-chart-header top-sales-chart-header">
+              <div className="top-sales-title">
+                <h3>Top Sellers</h3>
+                <p>Most sold in selected date range</p>
+              </div>
+              <div className="top-sales-controls">
+                <div className="top-sales-toggle" role="group" aria-label="Top sales view">
+                  <button
+                    type="button"
+                    className={topSalesMode === 'games' ? 'active' : ''}
+                    onClick={() => setTopSalesMode('games')}
+                  >
+                    Games
+                  </button>
+                  <button
+                    type="button"
+                    className={topSalesMode === 'ticket_values' ? 'active' : ''}
+                    onClick={() => setTopSalesMode('ticket_values')}
+                  >
+                    Dollar Tickets
+                  </button>
+                </div>
+                <SalesDateRangePicker
+                  dateRange={topSalesDateRange}
+                  activeCalendar={activeTopSalesCalendar}
+                  calendarMonth={topSalesCalendarMonth}
+                  onOpenCalendar={openTopSalesCalendar}
+                  onMonthChange={setTopSalesCalendarMonth}
+                  onSelectDate={handleTopSalesDateSelect}
+                  onCloseCalendar={() => setActiveTopSalesCalendar(null)}
+                />
+              </div>
+            </div>
+            {topSalesRows.length > 0 ? (
+              <div className="sales-chart-scroll">
+                <div className="sales-chart-inner" style={{ minWidth: `${topSalesChartMinWidth}px` }}>
+                  <Bar
+                    data={{
+                      labels: topSalesRows.map((item) => shortenChartLabel(item.label)),
+                      datasets: [
+                        {
+                          label: topSalesMode === 'games' ? 'Game Sales ($)' : 'Ticket Value Sales ($)',
+                          data: topSalesRows.map((item) => Number(item.total_sales || 0)),
+                          backgroundColor: 'rgba(26, 122, 111, 0.72)',
+                          borderColor: '#1a7a6f',
+                          borderWidth: 1,
+                          borderRadius: 8,
+                          maxBarThickness: 58,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: true,
+                          position: 'top',
+                          labels: {
+                            color: '#333',
+                            font: { size: 12, weight: 'bold' },
+                          },
+                        },
+                        tooltip: {
+                          backgroundColor: 'rgba(0,0,0,0.8)',
+                          padding: 12,
+                          callbacks: {
+                            title: function (items) {
+                              const row = topSalesRows[items[0]?.dataIndex]
+                              return row?.label || ''
+                            },
+                            label: function (context) {
+                              const row = topSalesRows[context.dataIndex]
+                              return [
+                                `Sales: $${context.parsed.y.toLocaleString()}`,
+                                `Tickets: ${Number(row?.tickets_sold || 0).toLocaleString()}`,
+                              ]
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            callback: function (value) {
+                              return '$' + value.toLocaleString();
+                            },
+                            color: '#666',
+                          },
+                          grid: {
+                            color: 'rgba(200, 200, 200, 0.1)',
+                          },
+                        },
+                        x: {
+                          ticks: {
+                            color: '#666',
+                            autoSkip: false,
+                            maxRotation: 0,
+                            font: {
+                              size: 11,
+                              weight: '600',
+                            },
+                          },
+                          grid: {
+                            display: false,
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="top-sales-empty">No sales found for this date range.</div>
             )}
           </div>
 
