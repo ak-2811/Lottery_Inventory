@@ -7,6 +7,11 @@ import axios from 'axios'
 
 // const API_BASE = 'http://127.0.0.1:8000/api'
 const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const getBoxSortValue = (boxNum) => {
+  const parsed = Number.parseInt(boxNum, 10)
+  return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
+}
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -386,11 +391,13 @@ useEffect(() => {
   }
 
   const filteredPacks = useMemo(() => {
-    return packs.filter(pack =>
-      String(pack.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
-      String(pack.gameNum || '').includes(searchText) ||
-      String(pack.packNum || '').includes(searchText)
-    )
+    return packs
+      .filter(pack =>
+        String(pack.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        String(pack.gameNum || '').includes(searchText) ||
+        String(pack.packNum || '').includes(searchText)
+      )
+      .sort((a, b) => getBoxSortValue(a.boxNum) - getBoxSortValue(b.boxNum))
   }, [packs, searchText])
 
   const calculateTotal = () => {

@@ -22,6 +22,8 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.core.cache import cache
+from django.db.models import IntegerField
+from django.db.models.functions import Cast
 from django.http import JsonResponse
 from .models import JackpotValue
 import threading
@@ -613,7 +615,9 @@ class ActivatedInventoryBookListView(generics.ListAPIView):
     def get_queryset(self):
         return ActivatedPack.objects.select_related('inventory_book__game').filter(
             user=self.request.user
-        ).order_by('-updated_at')
+        ).annotate(
+            box_num_order=Cast('box_num', IntegerField())
+        ).order_by('box_num_order', 'id')
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
