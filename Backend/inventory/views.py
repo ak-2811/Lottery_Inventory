@@ -96,9 +96,8 @@ def create_report_snapshot(user, extra_data):
         user=user,
         report_date=today,
         report__isnull=True,
-        closing_status='Sold'
-    ).exclude(
-        inventory_book__is_returned=True
+        # closing_status='Sold'
+        closing_status__in=['Sold', 'Returned']
     ).order_by('box_num', 'id')
 
     for row in sold_rows:
@@ -161,9 +160,7 @@ def build_end_shift_preview(user):
         user=user,
         report_date=today,
         report__isnull=True,
-        closing_status='Sold'
-    ).exclude(
-        inventory_book__is_returned=True
+        closing_status__in=['Sold', 'Returned']
     ).order_by('box_num', 'id')
 
     for row in sold_rows:
@@ -218,8 +215,6 @@ def build_report_pdf_bytes(report, user):
     details = DailyReportBoxDetail.objects.filter(
         user=user,
         report=report
-    ).exclude(
-        inventory_book__is_returned=True
     ).order_by('box_num', 'id')
 
     buffer = BytesIO()
@@ -1476,8 +1471,6 @@ class DailyReportBoxDetailListView(APIView):
         details = DailyReportBoxDetail.objects.filter(
             user=request.user,
             report_id=pk
-        ).exclude(
-            inventory_book__is_returned=True
         ).order_by('box_num', 'id')
 
         serializer = DailyReportBoxDetailSerializer(details, many=True)
@@ -1600,8 +1593,6 @@ class DailyReportDownloadPDFView(APIView):
         details = DailyReportBoxDetail.objects.filter(
             user=request.user,
             report=report
-        ).exclude(
-            inventory_book__is_returned=True
         ).order_by('box_num', 'id')
 
         buffer = BytesIO()
@@ -1757,6 +1748,26 @@ class PauseActivatedPackView(APIView):
             return Response({'error': 'Activated pack not found.'}, status=404)
 
         inventory_book = activated_pack.inventory_book
+
+        DailyReportBoxDetail.objects.create(
+            user=request.user,
+            report_date=get_business_date(),
+            box_num=activated_pack.box_num,
+            inventory_book=inventory_book,
+            lottery_name=inventory_book.game.name or inventory_book.game.game_id,
+            game_num=inventory_book.game.game_id,
+            pack_num=inventory_book.pack_id,
+            start_num=activated_pack.today_start,
+            current_num=activated_pack.current_count,
+            ticket_value=inventory_book.ticket_value,
+            total_amount=calculate_box_total(
+                activated_pack.today_start,
+                activated_pack.current_count,
+                inventory_book.ticket_value,
+                'Returned'
+            ),
+            closing_status='Returned'
+        )
 
         # mark as returned (IMPORTANT)
         inventory_book.is_returned = True
