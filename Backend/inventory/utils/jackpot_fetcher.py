@@ -42,7 +42,7 @@ def extract_money_after_label(text, label):
 
 
 def fetch_powerball():
-    url = "https://www.powerball.com/draw-result"
+    url = "https://www.powerball.com/"
     driver = get_driver()
 
     try:
