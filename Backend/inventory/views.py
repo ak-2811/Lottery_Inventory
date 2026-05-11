@@ -58,23 +58,38 @@ def jackpot_values(request):
     )
     return JsonResponse({"jackpots": data})
 
-def get_today_instant_sales(user):
-    today = get_business_date()
-    instant_sales_today = Decimal('0.00')
+# def get_today_instant_sales(user):
+#     today = get_business_date()
+#     instant_sales_today = Decimal('0.00')
 
-    today_scans = SoldTicket.objects.filter(
+#     today_scans = SoldTicket.objects.filter(
+#         user=user,
+#         sold_at__date=today
+#     ).select_related('inventory_book__game')
+
+#     for row in today_scans:
+#         instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+
+#     return instant_sales_today
+# def get_today_instant_sales(user):
+#     return get_instant_sales_for_date(user, get_business_date())
+
+# def create_report_snapshot(user, extra_data):
+#     today = get_business_date()
+#     instant_sales_today = get_today_instant_sales(user)
+
+def create_report_snapshot(user, extra_data, report_date=None):
+    today = report_date or get_business_date()
+
+    existing_report = DailyReport.objects.filter(
         user=user,
-        sold_at__date=today
-    ).select_related('inventory_book__game')
+        report_date=today
+    ).first()
 
-    for row in today_scans:
-        instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+    if existing_report:
+        return existing_report, False
 
-    return instant_sales_today
-
-def create_report_snapshot(user, extra_data):
-    today = get_business_date()
-    instant_sales_today = get_today_instant_sales(user)
+    instant_sales_today = get_instant_sales_for_date(user, today)
 
     def parse_decimal(value):
         if value in [None, '', 'null']:
@@ -147,7 +162,38 @@ def create_report_snapshot(user, extra_data):
 
     roll_active_packs_to_next_day(user)
 
-    return report
+    return report, True
+
+def auto_save_yesterday_report_if_missing(user):
+    yesterday = get_business_date() - timedelta(days=1)
+
+    existing_report = DailyReport.objects.filter(
+        user=user,
+        report_date=yesterday
+    ).first()
+
+    if existing_report:
+        return existing_report, False
+
+    report, created = create_report_snapshot(
+        user=user,
+        extra_data={
+            'instantCashes': '0.00',
+            'onlineSales': '0.00',
+            'onlineCashes': '0.00',
+            'onlineCancels': '0.00',
+        },
+        report_date=yesterday
+    )
+
+    if created:
+        threading.Thread(
+            target=send_report_email,
+            args=(report, user),
+            daemon=True
+        ).start()
+
+    return report, created
 
 def build_end_shift_preview(user):
     today = get_business_date()
@@ -353,6 +399,22 @@ def send_report_email(report, user):
 
 def get_business_date():
     return timezone.localtime().date()
+
+def get_instant_sales_for_date(user, report_date):
+    instant_sales = Decimal('0.00')
+
+    scans = SoldTicket.objects.filter(
+        user=user,
+        sold_at__date=report_date
+    ).select_related('inventory_book__game')
+
+    for row in scans:
+        instant_sales += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+
+    return instant_sales
+
+def get_today_instant_sales(user):
+    return get_instant_sales_for_date(user, get_business_date())
 
 def calculate_box_total(start_num, current_num, ticket_value, closing_status):
     sold_count = max(current_num - start_num, 0)
@@ -1022,6 +1084,7 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        auto_save_yesterday_report_if_missing(request.user)
         now = timezone.localtime()
         today = now.date()
 
@@ -1317,19 +1380,26 @@ class EndShiftSaveView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        report = create_report_snapshot(request.user, request.data)
+        # report = create_report_snapshot(request.user, request.data)
 
-        threading.Thread(
-            target=send_report_email,
-            args=(report, request.user),
-            daemon=True
-        ).start()
+        # threading.Thread(
+        #     target=send_report_email,
+        #     args=(report, request.user),
+        #     daemon=True
+        # ).start()
+        report, created = create_report_snapshot(request.user, request.data)
+        if created:
+            threading.Thread(
+                target=send_report_email,
+                args=(report, request.user),
+                daemon=True
+            ).start()
 
         serializer = DailyReportSerializer(report)
         return Response({
-            'message': 'Report saved successfully.',
+            'message': 'Report saved successfully.'if created else 'Report already exists.',
             'report': serializer.data
-        }, status=status.HTTP_201_CREATED)
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 class EndShiftManualScanView(APIView):
     permission_classes = [IsAuthenticated]
