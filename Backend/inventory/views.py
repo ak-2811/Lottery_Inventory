@@ -28,6 +28,7 @@ from django.http import JsonResponse
 from .models import JackpotValue
 import threading
 import time
+from django.db import transaction
 
 
 LIVE_DISPLAY_EVENT_TYPES = {
@@ -928,78 +929,121 @@ class ScanSoldTicketView(APIView):
         raw_barcode = str(request.data.get('raw_barcode', '')).strip()
 
         if not raw_barcode:
-            return Response({'error': 'Invalid input'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Invalid input'}, status=400)
 
         try:
             parsed = self.parse_scanned_ticket(raw_barcode)
         except ValueError:
-            return Response({'error': 'Invalid input'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Invalid input'}, status=400)
 
         game_id = parsed['game_id']
         pack_id = parsed['pack_id']
         ticket_number = parsed['ticket_number']
 
-        try:
-            activated_pack = ActivatedPack.objects.select_related('inventory_book__game').get(
+        # -----------------------------
+        # SMART DUPLICATE PROTECTION
+        # -----------------------------
+        # block same ticket
+        ticket_lock_key = f"scan_ticket:{request.user.id}:{pack_id}:{ticket_number}"
+
+        # block rapid scans on same pack
+        pack_lock_key = f"scan_pack:{request.user.id}:{pack_id}"
+
+        if cache.get(ticket_lock_key) or cache.get(pack_lock_key):
+            return Response({
+                "message": "Duplicate scan blocked",
+                "ticket_number": ticket_number,
+                "duplicate": True
+            }, status=200)
+
+        # set both locks
+        cache.set(ticket_lock_key, True, timeout=0.5)
+        cache.set(pack_lock_key, True, timeout=0.3)
+        # last_scan = cache.get(cache_key)
+        # current_time = time.time()
+
+        # if last_scan:
+        #     same_ticket = last_scan.get("ticket") == ticket_number
+        #     time_diff = current_time - last_scan.get("time", 0)
+
+        #     if same_ticket:
+        #         # ❌ very fast duplicate (scanner glitch)
+        #         if time_diff < 0.5:
+        #             return Response({
+        #                 "message": "Duplicate scan ignored",
+        #                 "ticket_number": ticket_number,
+        #                 "duplicate": True
+        #             }, status=200)
+        #         # ✅ intentional rescan → allow
+
+        # cache.set(cache_key, {
+        #     "ticket": ticket_number,
+        #     "time": current_time
+        # }, timeout=2)
+
+        # -----------------------------
+        # MAIN LOGIC WITH LOCK
+        # -----------------------------
+        with transaction.atomic():
+            try:
+                activated_pack = ActivatedPack.objects.select_for_update().select_related(
+                    'inventory_book__game'
+                ).get(
+                    user=request.user,
+                    inventory_book__game__game_id=game_id,
+                    inventory_book__pack_id=pack_id,
+                    inventory_book__is_activated=True
+                )
+            except ActivatedPack.DoesNotExist:
+                return Response({'error': 'Pack not activated or not found'}, status=400)
+
+            book = activated_pack.inventory_book
+
+            if ticket_number >= book.total_tickets:
+                return Response({'error': 'Invalid input'}, status=400)
+
+            # -----------------------------
+            # ORIGINAL LOGIC (UNCHANGED)
+            # -----------------------------
+            previous_ticket = activated_pack.current_count
+            count = ticket_number - previous_ticket
+
+            if count > 0:
+                delta_count = count + 1
+            elif count < 0:
+                delta_count = count
+            else:
+                delta_count = 1
+
+            is_reversal = delta_count < 0
+
+            SoldTicket.objects.create(
                 user=request.user,
-                inventory_book__game__game_id=game_id,
-                inventory_book__pack_id=pack_id,
-                inventory_book__is_activated=True
-            )
-        except ActivatedPack.DoesNotExist:
-            return Response(
-                {'error': 'Pack not activated or not found'},
-                status=status.HTTP_400_BAD_REQUEST
+                inventory_book=book,
+                ticket_number=ticket_number,
+                scanned_code=raw_barcode,
+                delta_count=delta_count,
+                is_reversal=is_reversal
             )
 
-        book = activated_pack.inventory_book
+            activated_pack.last_ticket = previous_ticket
 
-        if ticket_number >= book.total_tickets:
-            return Response({'error': 'Invalid input'}, status=status.HTTP_400_BAD_REQUEST)
+            if ticket_number >= activated_pack.current_count:
+                activated_pack.current_count = ticket_number + 1
+                cc = ticket_number + 1
+            else:
+                activated_pack.current_count = ticket_number
+                cc = ticket_number
 
-        previous_ticket = activated_pack.current_count
-        count = ticket_number - previous_ticket
+            activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
 
-        if count > 0:
-            delta_count = count+1
-        elif count < 0:
-            delta_count = count
-        else:
-            delta_count = 1
+            create_active_box_detail(activated_pack, report_date=get_business_date())
 
-        is_reversal = delta_count < 0
-
-        # if delta_count == 0:
-        #     return Response(
-        #         {'error': 'Same ticket scanned again'},
-        #         status=status.HTTP_400_BAD_REQUEST
-        #     )
-
-        SoldTicket.objects.create(
-            user=request.user,
-            inventory_book=book,
-            ticket_number=ticket_number,
-            scanned_code=raw_barcode,
-            delta_count=delta_count,
-            is_reversal=is_reversal
-        )
-
-        activated_pack.last_ticket = previous_ticket
-        if ticket_number>=activated_pack.current_count:
-            activated_pack.current_count = ticket_number+1
-            cc=ticket_number+1
-        elif ticket_number<activated_pack.current_count:
-            activated_pack.current_count= ticket_number
-            cc=ticket_number
-        activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
-
-        create_active_box_detail(activated_pack, report_date=get_business_date())
-
-        pack_sold = False
-        if activated_pack.current_count >= (book.total_tickets):
-            create_sold_box_detail(activated_pack)
-            finalize_sold_pack(book, activated_pack)
-            pack_sold = True
+            pack_sold = False
+            if activated_pack.current_count >= book.total_tickets:
+                create_sold_box_detail(activated_pack)
+                finalize_sold_pack(book, activated_pack)
+                pack_sold = True
 
         return Response({
             'message': 'Ticket scanned successfully',
@@ -1009,7 +1053,7 @@ class ScanSoldTicketView(APIView):
             'delta_count': delta_count,
             'is_reversal': is_reversal,
             'pack_sold': pack_sold,
-        }, status=status.HTTP_200_OK)
+        }, status=200)
 
 class MarkInventoryBookSoldView(APIView):
     permission_classes = [IsAuthenticated]
