@@ -128,7 +128,7 @@ export default function ActivatePacks() {
   const moveBoxOptions = useMemo(() => {
     if (!selectedMovePack) return []
 
-    return [...Array(59)]
+    return [...Array(70)]
       .map((_, i) => String(i + 1))
       .filter((box) => box !== String(selectedMovePack.boxNum))
   }, [selectedMovePack])
@@ -413,7 +413,7 @@ useEffect(() => {
       packs.map((pack) => String(pack.boxNum))
     )
 
-    return [...Array(59)]
+    return [...Array(70)]
       .map((_, i) => String(i + 1))
       .filter((box) => !usedBoxes.has(box))
   }, [packs])
