@@ -80,15 +80,21 @@ const FOOTER_H  = 14
 const STUB_H    = 3
 const IMG_RATIO = 0.95
 const GAP       = 6
+const MAX_GRID_COLS = 14
+const TARGET_GRID_ROWS = 5
 
 function computeOptimalCols(N, W, H) {
   if (!W || !H || N === 0) return 12
   let bestCols = 1, bestScore = Infinity
 
-  // Test columns from 1 up to min(N, 12) - but also consider screen width
-  const maxCols = Math.min(N, 12)
+  // Keep the TV-style layout at five rows: 60 boxes = 12x5, 70 boxes = 14x5.
+  const maxCols = Math.min(N, MAX_GRID_COLS)
+  const minColsForTargetRows = Math.min(
+    maxCols,
+    Math.max(1, Math.ceil(N / TARGET_GRID_ROWS))
+  )
   
-  for (let cols = 1; cols <= maxCols; cols++) {
+  for (let cols = minColsForTargetRows; cols <= maxCols; cols++) {
     const cardW  = (W - GAP * (cols + 1)) / cols
     // Ensure minimum card width for readability
     if (cardW < 50) break
@@ -97,8 +103,10 @@ function computeOptimalCols(N, W, H) {
     const cardH  = cardW * IMG_RATIO + FOOTER_H + STUB_H
     const totalH = cardH * rows + GAP * (rows + 1)
 
-    const diff  = H - totalH
-    const score = diff >= 0 ? diff * diff : diff * diff * 0.2
+    const diff = H - totalH
+    const rowPenalty = Math.abs(rows - TARGET_GRID_ROWS) * H * H
+    const overflowPenalty = diff < 0 ? Math.abs(diff) * H : 0
+    const score = rowPenalty + overflowPenalty + Math.abs(diff)
 
     if (score < bestScore) { bestScore = score; bestCols = cols }
   }
