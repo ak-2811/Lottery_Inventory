@@ -63,7 +63,7 @@ def fetch_powerball():
 
 
 def fetch_mega_millions():
-    url = "https://www.megamillions.com/winning-numbers.aspx"
+    url = "https://www.megamillions.com/"
     driver = get_driver()
 
     try:
