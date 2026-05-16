@@ -82,10 +82,38 @@ const IMG_RATIO = 0.95
 const GAP       = 6
 const MAX_GRID_COLS = 14
 const TARGET_GRID_ROWS = 5
+const PORTRAIT_MAX_GRID_COLS = 8
 
 function computeOptimalCols(N, W, H) {
   if (!W || !H || N === 0) return 12
   let bestCols = 1, bestScore = Infinity
+
+  const isPortrait = H > W
+
+  if (isPortrait) {
+    const maxCols = Math.min(N, PORTRAIT_MAX_GRID_COLS)
+
+    for (let cols = 1; cols <= maxCols; cols++) {
+      const cardW = (W - GAP * (cols + 1)) / cols
+      if (cardW < 50) continue
+
+      const rows = Math.ceil(N / cols)
+      const cardH = cardW * IMG_RATIO + FOOTER_H + STUB_H
+      const totalH = cardH * rows + GAP * (rows + 1)
+      const usedArea = cardW * cardH * N
+
+      const overflowPenalty = totalH > H ? (totalH - H) * H * 10 : 0
+      const emptyHeightPenalty = totalH <= H ? (H - totalH) * W : 0
+      const score = overflowPenalty + emptyHeightPenalty - usedArea
+
+      if (score < bestScore) {
+        bestScore = score
+        bestCols = cols
+      }
+    }
+
+    return bestCols
+  }
 
   // Keep the TV-style layout at five rows: 60 boxes = 12x5, 70 boxes = 14x5.
   const maxCols = Math.min(N, MAX_GRID_COLS)
