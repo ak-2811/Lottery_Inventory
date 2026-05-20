@@ -957,7 +957,7 @@ class ScanSoldTicketView(APIView):
             }, status=200)
 
         # set both locks
-        cache.set(ticket_lock_key, True, timeout=0.5)
+        cache.set(ticket_lock_key, True, timeout=1.0)
         cache.set(pack_lock_key, True, timeout=0.3)
         # last_scan = cache.get(cache_key)
         # current_time = time.time()
