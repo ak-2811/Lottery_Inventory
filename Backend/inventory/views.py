@@ -1016,6 +1016,12 @@ class ScanSoldTicketView(APIView):
                 delta_count = 1
 
             is_reversal = delta_count < 0
+            if delta_count >0:
+                activated_pack.current_count = activated_pack.current_count  + delta_count
+                cc = activated_pack.current_count  + delta_count
+            elif delta_count < 0:
+                activated_pack.current_count = max(activated_pack.current_count  + delta_count, 0)
+                cc =  max(activated_pack.current_count  + delta_count, 0)
 
             SoldTicket.objects.create(
                 user=request.user,
@@ -1028,12 +1034,7 @@ class ScanSoldTicketView(APIView):
 
             activated_pack.last_ticket = previous_ticket
 
-            if ticket_number >= activated_pack.current_count:
-                activated_pack.current_count = ticket_number + 1
-                cc = ticket_number + 1
-            else:
-                activated_pack.current_count = ticket_number
-                cc = ticket_number
+           
 
             activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
 
