@@ -6,7 +6,7 @@ import './activatePacks.css'
 import axios from 'axios'
 
 // const API_BASE = 'http://127.0.0.1:8000/api'
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getBoxSortValue = (boxNum) => {
   const parsed = Number.parseInt(boxNum, 10)
   return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
