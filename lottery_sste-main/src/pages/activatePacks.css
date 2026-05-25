@@ -247,13 +247,14 @@
   padding: 28px 40px;
   background: white;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 32px;
   border-bottom: 1px solid #e5e5e5;
 }
 
 .activate-title {
   flex: 1;
+  min-width: 260px;
 }
 
 .activate-title h1 {
@@ -263,9 +264,20 @@
   margin-bottom: 4px;
 }
 
+.activate-header .stats-cards {
+  gap: 20px;
+  margin-left: auto;
+  margin-right: 32px;
+}
+
+.activate-header .stat-card {
+  min-width: 190px;
+}
+
 .activate-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 20px;
   background: #1a7a6f;
@@ -276,6 +288,8 @@
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s;
+  min-width: 124px;
+  flex-shrink: 0;
 }
 
 .activate-btn:hover {
@@ -307,4 +321,16 @@
 }
 .inventory-table th:last-child {
   text-align: left;
+}
+
+@media (max-width: 1100px) {
+  .activate-header {
+    flex-wrap: wrap;
+  }
+
+  .activate-header .stats-cards {
+    order: 3;
+    width: 100%;
+    margin: 0;
+  }
 }

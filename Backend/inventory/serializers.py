@@ -65,6 +65,7 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
     gameNum = serializers.CharField(source='inventory_book.game.game_id', read_only=True)
     packNum = serializers.CharField(source='inventory_book.pack_id', read_only=True)
     value = serializers.SerializerMethodField()
+    totalValue = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
     boxNum = serializers.CharField(source='box_num', read_only=True)
     reversed = serializers.BooleanField(source='reverse_mode', read_only=True)
@@ -83,6 +84,7 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
             'packNum',
             'reversed',
             'value',
+            'totalValue',
             'image',
             'currentNum',
             'lastTicket',
@@ -93,6 +95,10 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
 
     def get_value(self, obj):
         return f"${obj.inventory_book.ticket_value:.2f}"
+
+    def get_totalValue(self, obj):
+        total = Decimal(obj.inventory_book.total_tickets) * obj.inventory_book.ticket_value
+        return f"${total:.2f}"
 
     def get_image(self, obj):
         request = self.context.get('request')

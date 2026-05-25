@@ -82,10 +82,12 @@ export default function ActivatePacks() {
         name: item.name,
         currentNum: item.currentNum || 0,
         lastTicket: item.lastTicket || 0,
+        totalTickets: item.totalTickets || 0,
         gameNum: item.gameNum,
         packNum: item.packNum,
         dateUpdated: item.dateUpdated,
         value: item.value,
+        totalValue: item.totalValue,
         reversed: item.reversed,
         boxNum: item.boxNum,
       }))
@@ -400,14 +402,21 @@ useEffect(() => {
       .sort((a, b) => getBoxSortValue(a.boxNum) - getBoxSortValue(b.boxNum))
   }, [packs, searchText])
 
-  const calculateTotal = () => {
-    return activatedItems
-      .reduce((sum, item) => {
-        const val = parseFloat(String(item.value || '$0').replace('$', '')) || 0
-        return sum + val
-      }, 0)
-      .toFixed(2)
-  }
+  const totalPackCount = packs.length
+
+  const totalPackValue = useMemo(() => {
+    const total = packs.reduce((sum, item) => {
+      const packValue = item.totalValue || (
+        (parseFloat(String(item.value || '$0').replace('$', '')) || 0) *
+        (Number(item.totalTickets) || 0)
+      )
+      const val = parseFloat(String(packValue || '$0').replace('$', '')) || 0
+      return sum + val
+    }, 0)
+
+    return total.toFixed(2)
+  }, [packs])
+
   const availableBoxes = useMemo(() => {
     const usedBoxes = new Set(
       packs.map((pack) => String(pack.boxNum))
@@ -504,6 +513,18 @@ useEffect(() => {
           <div className="activate-title">
             <h1>Activate Packs</h1>
           </div>
+
+          <div className="stats-cards">
+            <div className="stat-card">
+              <label>TOTAL PACK VALUE</label>
+              <div className="stat-value">${totalPackValue}</div>
+            </div>
+            <div className="stat-card">
+              <label>TOTAL PACK COUNT</label>
+              <div className="stat-value">{totalPackCount}</div>
+            </div>
+          </div>
+
           <button className="activate-btn" onClick={handleOpenModal}>Activate</button>
         </div>
         {scanMessage && (
@@ -696,7 +717,7 @@ useEffect(() => {
 
                 <div className="activate-summary">
                   <div className="activate-price">
-                    <span className="price-label">${calculateTotal()}</span>
+                    <span className="price-label">${totalPackValue}</span>
                     <span className="price-text">Total pack : {activatedItems.length}</span>
                   </div>
                   <button
