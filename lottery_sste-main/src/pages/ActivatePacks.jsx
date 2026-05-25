@@ -6,11 +6,15 @@ import './activatePacks.css'
 import axios from 'axios'
 
 // const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getBoxSortValue = (boxNum) => {
   const parsed = Number.parseInt(boxNum, 10)
   return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
 }
+
+const parseCurrency = (value) => (
+  parseFloat(String(value || '$0').replace(/[$,]/g, '')) || 0
+)
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
@@ -406,12 +410,12 @@ useEffect(() => {
 
   const totalPackValue = useMemo(() => {
     const total = packs.reduce((sum, item) => {
-      const packValue = item.totalValue || (
-        (parseFloat(String(item.value || '$0').replace('$', '')) || 0) *
-        (Number(item.totalTickets) || 0)
-      )
-      const val = parseFloat(String(packValue || '$0').replace('$', '')) || 0
-      return sum + val
+      const ticketValue = parseCurrency(item.value)
+      const totalTickets = Number(item.totalTickets) || 0
+      const currentCount = Number(item.currentNum) || 0
+      const remainingTickets = Math.max(totalTickets - currentCount, 0)
+
+      return sum + (remainingTickets * ticketValue)
     }, 0)
 
     return total.toFixed(2)
