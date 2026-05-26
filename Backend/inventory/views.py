@@ -1018,10 +1018,13 @@ class ScanSoldTicketView(APIView):
             is_reversal = delta_count < 0
             if delta_count >0:
                 activated_pack.current_count = activated_pack.current_count  + delta_count
-                cc = activated_pack.current_count  + delta_count
+                cc = activated_pack.current_count
+                # print("DELTA:", cc, "CURRENT:", activated_pack.current_count)
+
             elif delta_count < 0:
                 activated_pack.current_count = max(activated_pack.current_count  + delta_count, 0)
-                cc =  max(activated_pack.current_count  + delta_count, 0)
+                cc =  max(activated_pack.current_count, 0)
+                # print("DELTA:", cc, "CURRENT:", activated_pack.current_count)
 
             SoldTicket.objects.create(
                 user=request.user,

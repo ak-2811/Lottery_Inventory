@@ -6,8 +6,8 @@ import './liveDisplay.css'
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
-// const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -604,52 +604,6 @@ useEffect(() => {
   }
 }, []) // ✅ empty deps — buffer is plain let, no stale closure
 
-  useEffect(() => {
-    let buffer = ''
-    let timeoutId = null
-
-    const handleGlobalKeyDown = (e) => {
-      const tag = document.activeElement?.tagName?.toLowerCase()
-      const isTypingInInput =
-        tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
-
-      if (isTypingInInput) return
-
-      // Still support Enter if scanner sends it
-      if (e.key === 'Enter') {
-        clearTimeout(timeoutId)
-        const scannedValue = buffer.trim()
-        console.log('Enter triggered, buffer:', scannedValue)
-        if (/^\d{10,20}$/.test(scannedValue)) {
-          handleTicketScan(scannedValue)
-        }
-        buffer = ''
-        return
-      }
-
-      if (/^\d$/.test(e.key)) {
-        e.preventDefault()
-        buffer += e.key
-        console.log('Buffer so far:', buffer)
-
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          const scannedValue = buffer.trim()
-          console.log('Timeout triggered, buffer:', scannedValue)
-          if (/^\d{10,20}$/.test(scannedValue)) {
-            handleTicketScan(scannedValue)
-          }
-          buffer = ''
-        }, 100)
-      }
-    }
-
-    window.addEventListener('keydown', handleGlobalKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyDown)
-      clearTimeout(timeoutId)
-    }
-  }, [])
 
   // Listen for blinking ticket requests from Dashboard (via localStorage)
   useEffect(() => {
