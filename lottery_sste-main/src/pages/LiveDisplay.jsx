@@ -28,7 +28,9 @@ const PRICE_COLOR_MAP = {
 
 const formatTicketPrice = (value) => {
   const numericValue = parseFloat(String(value ?? '').replace(/[$,]/g, ''))
-  return Number.isFinite(numericValue) ? `$${numericValue.toFixed(2)}` : '$0.00'
+  if (!Number.isFinite(numericValue)) return '$0'
+
+  return Number.isInteger(numericValue) ? `$${numericValue}` : `$${numericValue.toFixed(2)}`
 }
 
 // ─── Fetch current user from API ───────────────────────────────────────────

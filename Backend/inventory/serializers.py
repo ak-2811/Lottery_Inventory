@@ -3,6 +3,10 @@ from rest_framework import serializers
 from .models import LotteryGame, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail
 
 
+def format_ticket_value(value):
+    return f"${value:.0f}" if float(value).is_integer() else f"${value}"
+
+
 class LotteryGameSerializer(serializers.ModelSerializer):
     class Meta:
         model = LotteryGame
@@ -42,7 +46,7 @@ class InventoryBookSerializer(serializers.ModelSerializer):
         ]
 
     def get_value(self, obj):
-        return f"${obj.ticket_value:.2f}"
+        return format_ticket_value(obj.ticket_value)
 
     def get_totalValue(self, obj):
         total = Decimal(obj.total_tickets) * obj.ticket_value
@@ -94,7 +98,7 @@ class ActivatedPackSerializer(serializers.ModelSerializer):
         ]
 
     def get_value(self, obj):
-        return f"${obj.inventory_book.ticket_value:.2f}"
+        return format_ticket_value(obj.inventory_book.ticket_value)
 
     def get_totalValue(self, obj):
         total = Decimal(obj.inventory_book.total_tickets) * obj.inventory_book.ticket_value
