@@ -26,6 +26,11 @@ const PRICE_COLOR_MAP = {
   '1':  '#dc2626',  // red
 }
 
+const formatTicketPrice = (value) => {
+  const numericValue = parseFloat(String(value ?? '').replace(/[$,]/g, ''))
+  return Number.isFinite(numericValue) ? `$${numericValue.toFixed(2)}` : '$0.00'
+}
+
 // ─── Fetch current user from API ───────────────────────────────────────────
 async function fetchCurrentUser() {
   try {
@@ -61,7 +66,7 @@ async function fetchTicketsFromAPI() {
         id:            item.id,
         boxNumber:     parseInt(item.boxNum),
         name:          item.name,
-        price:         String(item.value),
+        price:         formatTicketPrice(item.value),
         footerBg:      PRICE_COLOR_MAP[String(item.value)] || '#16a34a',
         currentNumber: item.currentNum || 0,
         totalTickets:  item.totalTickets || 0,
@@ -844,7 +849,7 @@ useEffect(() => {
 
                 <div className="ld-card-img">
                   {/* Price tag */}
-                  <span className="ld-price-tag">${ticket.price}</span>
+                  <span className="ld-price-tag">{ticket.price}</span>
 
                   {/* Lottery ticket image — same image for every card */}
                   <img
