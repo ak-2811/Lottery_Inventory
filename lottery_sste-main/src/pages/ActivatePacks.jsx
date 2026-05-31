@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../App.css'
 import './inventory.css'
@@ -34,7 +34,6 @@ export default function ActivatePacks() {
   const [packs, setPacks] = useState([])
   const [loading, setLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
   const [selectedBox, setSelectedBox] = useState('')
   const [showMoveModal, setShowMoveModal] = useState(false)
@@ -42,6 +41,12 @@ export default function ActivatePacks() {
   const [selectedMovePack, setSelectedMovePack] = useState(null)
   const [moveError, setMoveError] = useState('')
   const [moveLoading, setMoveLoading] = useState(false)
+  const scanInputRef = useRef(null)
+
+  const clearScanInput = () => {
+    setScanBarcode('')
+    setTimeout(() => scanInputRef.current?.focus(), 0)
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('access_token')
@@ -339,6 +344,7 @@ useEffect(() => {
     if (!barcodeValue) {
       playBeep("error")
       setErrorMessage('Barcode is required.')
+      clearScanInput()
       return
     }
 
@@ -384,13 +390,14 @@ useEffect(() => {
       setScanBarcode('')
       setReverseMode(false)
       setSelectedBox('')
-      setShowActivateModal(false)
       setScanMessage(reverseMode ? 'Sold pack restored successfully' : 'Pack activated successfully')
       localStorage.setItem('inventoryNeedsRefresh', '1')
       await fetchActivatedPacks()
+      clearScanInput()
     } catch (error) {
       playBeep("error")
       setErrorMessage(error.message || 'Failed to activate pack')
+      clearScanInput()
     } finally {
       setLoading(false)
     }
@@ -676,6 +683,7 @@ useEffect(() => {
                   <div className="activate-form-group">
                     <label>Scan Barcode</label>
                     <input
+                      ref={scanInputRef}
                       type="text"
                       placeholder="eg. Scan the barcode"
                       value={scanBarcode}
