@@ -260,6 +260,7 @@ export default function Inventory() {
       setTicketInput('')
     } catch (error) {
       setErrorMessage(error.message)
+      setTicketInput('')
     } finally {
       setLoading(false)
     }
