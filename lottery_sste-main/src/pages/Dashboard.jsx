@@ -1205,7 +1205,7 @@ export default function Dashboard() {
                         <td>{pack.name || '-'}</td>
                         <td>{pack.currentNum}</td>
                         <td>{pack.gameNum}</td>
-                        <td>{pack.packNum}</td>
+                        <td className="dashboard-pack-number" title={pack.packNum}>{pack.packNum}</td>
                         <td className="dashboard-pack-date">{pack.dateUpdated || '-'}</td>
                         {selectedStatList.key === 'inactive_packs' && (
                           <td>
