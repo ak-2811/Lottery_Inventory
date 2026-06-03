@@ -225,11 +225,40 @@
 }
 
 .dashboard-pack-number {
+  background: transparent;
+  border: 0;
+  color: #343434;
+  cursor: pointer;
+  display: block;
+  font: inherit;
   font-size: 18px;
   max-width: 170px;
   overflow: hidden;
+  padding: 0;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.dashboard-pack-number:hover,
+.dashboard-pack-number:focus {
+  color: #1a7a6f;
+  outline: none;
+  text-decoration: underline;
+}
+
+.dashboard-pack-number.expanded {
+  background: #f7fbfb;
+  border: 1px solid #c9d8d6;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.35;
+  max-width: 170px;
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
+  text-decoration: none;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .dashboard-no-data {

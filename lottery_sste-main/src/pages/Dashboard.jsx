@@ -296,6 +296,7 @@ export default function Dashboard() {
   const [inactivePackRows, setInactivePackRows] = useState([])
   const [selectedStatList, setSelectedStatList] = useState(null)
   const [packPendingDelete, setPackPendingDelete] = useState(null)
+  const [expandedPackIds, setExpandedPackIds] = useState({})
   const filteredDailySalesData = useMemo(() => {
     const fromDate = parseDateInputValue(salesDateRange.from)
     const toDate = parseDateInputValue(salesDateRange.to, true)
@@ -331,6 +332,12 @@ export default function Dashboard() {
     }
   }, [activePackRows, inactivePackRows])
   const selectedPackRows = selectedStatList ? dashboardPackLists[selectedStatList.key] || [] : []
+  const toggleExpandedPack = (rowKey) => {
+    setExpandedPackIds((current) => ({
+      ...current,
+      [rowKey]: !current[rowKey],
+    }))
+  }
   // const [isEndShiftClosed, setIsEndShiftClosed] = useState(false)
 
   const [stats, setStats] = useState({
@@ -1205,7 +1212,16 @@ export default function Dashboard() {
                         <td>{pack.name || '-'}</td>
                         <td>{pack.currentNum}</td>
                         <td>{pack.gameNum}</td>
-                        <td className="dashboard-pack-number" title={pack.packNum}>{pack.packNum}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className={`dashboard-pack-number ${expandedPackIds[`${selectedStatList.key}-${pack.id}`] ? 'expanded' : ''}`}
+                            title={pack.packNum}
+                            onClick={() => toggleExpandedPack(`${selectedStatList.key}-${pack.id}`)}
+                          >
+                            {pack.packNum || '-'}
+                          </button>
+                        </td>
                         <td className="dashboard-pack-date">{pack.dateUpdated || '-'}</td>
                         {selectedStatList.key === 'inactive_packs' && (
                           <td>
