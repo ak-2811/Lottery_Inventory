@@ -261,11 +261,27 @@ const getAuthHeaders = () => {
   }
 }
 
+const getIsoWeekKey = (date) => {
+  if (!date || Number.isNaN(date.getTime())) return ''
+
+  const normalized = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNumber = normalized.getUTCDay() || 7
+  normalized.setUTCDate(normalized.getUTCDate() + 4 - dayNumber)
+  const yearStart = new Date(Date.UTC(normalized.getUTCFullYear(), 0, 1))
+  const weekNumber = Math.ceil((((normalized - yearStart) / 86400000) + 1) / 7)
+
+  return `${normalized.getUTCFullYear()}-${weekNumber}`
+}
+
+const getPackCreatedDate = (pack) => {
+  const createdDate = new Date(pack.created_at)
+  return Number.isNaN(createdDate.getTime()) ? null : createdDate
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [ticketOnScreen, setTicketOnScreen] = useState([])
-  const [scannerBuffer, setScannerBuffer] = useState('')
   const [scanMessage, setScanMessage] = useState('')
   const [dailySalesData, setDailySalesData] = useState([])
   const [salesDateRange, setSalesDateRange] = useState(getDefaultSalesDateRange)
@@ -276,6 +292,10 @@ export default function Dashboard() {
   const [topSalesCalendarMonth, setTopSalesCalendarMonth] = useState(() => getMonthStart(new Date()))
   const [topSalesMode, setTopSalesMode] = useState('games')
   const [topSalesData, setTopSalesData] = useState({ games: [], ticket_values: [] })
+  const [activePackRows, setActivePackRows] = useState([])
+  const [inactivePackRows, setInactivePackRows] = useState([])
+  const [selectedStatList, setSelectedStatList] = useState(null)
+  const [packPendingDelete, setPackPendingDelete] = useState(null)
   const filteredDailySalesData = useMemo(() => {
     const fromDate = parseDateInputValue(salesDateRange.from)
     const toDate = parseDateInputValue(salesDateRange.to, true)
@@ -292,6 +312,25 @@ export default function Dashboard() {
   const chartMinWidth = Math.max(900, filteredDailySalesData.length * 100)
   const topSalesRows = topSalesMode === 'games' ? topSalesData.games : topSalesData.ticket_values
   const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 128)
+  const dashboardPackLists = useMemo(() => {
+    const now = new Date()
+    const todayKey = now.toDateString()
+    const currentWeekKey = getIsoWeekKey(now)
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+
+    return {
+      active_boxes: activePackRows,
+      activated_today: activePackRows.filter((pack) => getPackCreatedDate(pack)?.toDateString() === todayKey),
+      activated_this_week: activePackRows.filter((pack) => getIsoWeekKey(getPackCreatedDate(pack)) === currentWeekKey),
+      activated_this_month: activePackRows.filter((pack) => {
+        const createdDate = getPackCreatedDate(pack)
+        return createdDate?.getFullYear() === currentYear && createdDate.getMonth() === currentMonth
+      }),
+      inactive_packs: inactivePackRows,
+    }
+  }, [activePackRows, inactivePackRows])
+  const selectedPackRows = selectedStatList ? dashboardPackLists[selectedStatList.key] || [] : []
   // const [isEndShiftClosed, setIsEndShiftClosed] = useState(false)
 
   const [stats, setStats] = useState({
@@ -382,6 +421,51 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error fetching top sales data:', error)
       setTopSalesData({ games: [], ticket_values: [] })
+    }
+  }
+
+  const fetchDashboardPackLists = async () => {
+    try {
+      const [activeRes, inventoryRes] = await Promise.all([
+        axios.get(`${API_BASE}/activated-books/`, {
+          headers: getAuthHeaders(),
+        }),
+        axios.get(`${API_BASE}/books/`, {
+          headers: getAuthHeaders(),
+        }),
+      ])
+
+      setActivePackRows(activeRes.data || [])
+      setInactivePackRows(
+        (inventoryRes.data || [])
+          .filter((book) => !book.is_activated && !book.is_sold)
+          .map((book) => ({
+            id: book.id,
+            boxNum: '-',
+            image: book.image,
+            name: book.name,
+            currentNum: '-',
+            gameNum: book.game,
+            packNum: book.pack || book.pack_id,
+            dateUpdated: book.date,
+            created_at: book.created_at,
+          }))
+      )
+    } catch (error) {
+      console.error('Error fetching dashboard pack lists:', error)
+    }
+  }
+
+  const handleDeleteInactivePack = async (pack) => {
+    try {
+      await axios.delete(`${API_BASE}/books/${pack.id}/`, {
+        headers: getAuthHeaders(),
+      })
+      await Promise.all([fetchDashboardStats(), fetchDashboardPackLists()])
+      setPackPendingDelete(null)
+    } catch (error) {
+      console.error('Error deleting inactive pack:', error)
+      setScanMessage('Failed to delete inactive pack')
     }
   }
 
@@ -495,6 +579,7 @@ export default function Dashboard() {
     console.log('Dashboard refresh clicked')
     await Promise.all([
       fetchDashboardStats(),
+      fetchDashboardPackLists(),
       fetchTicketValues(),
       fetchDailySalesData(),
       fetchTopSalesData(),
@@ -569,7 +654,7 @@ export default function Dashboard() {
           : `Ticket ${data.ticket_number} scanned successfully`
       )
 
-      await fetchDashboardStats()
+      await Promise.all([fetchDashboardStats(), fetchDashboardPackLists()])
     } catch (error) {
       playBeep("error")
       setScanMessage(error.message || 'Invalid input')
@@ -664,6 +749,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardStats()
+    fetchDashboardPackLists()
     fetchTicketValues()
     fetchDailySalesData()
     // fetchTodayEndShiftStatus()
@@ -1001,26 +1087,46 @@ export default function Dashboard() {
           </div>
 
           <div className="stats-grid">
-            <div className="stat-box">
+            <button
+              type="button"
+              className={`stat-box stat-box-button ${selectedStatList?.key === 'active_boxes' ? 'selected' : ''}`}
+              onClick={() => setSelectedStatList({ key: 'active_boxes', label: 'Active Boxes' })}
+            >
               <label>Active Boxes</label>
               <div className="stat-value">{stats.active_boxes}</div>
-            </div>
-            <div className="stat-box">
+            </button>
+            <button
+              type="button"
+              className={`stat-box stat-box-button ${selectedStatList?.key === 'activated_today' ? 'selected' : ''}`}
+              onClick={() => setSelectedStatList({ key: 'activated_today', label: 'Activated Today' })}
+            >
               <label>Activated Today</label>
               <div className="stat-value">{stats.activated_today}</div>
-            </div>
-            <div className="stat-box">
+            </button>
+            <button
+              type="button"
+              className={`stat-box stat-box-button ${selectedStatList?.key === 'activated_this_week' ? 'selected' : ''}`}
+              onClick={() => setSelectedStatList({ key: 'activated_this_week', label: 'Activated This Week' })}
+            >
               <label>Activated This Week</label>
               <div className="stat-value">{stats.activated_this_week}</div>
-            </div>
-            <div className="stat-box">
+            </button>
+            <button
+              type="button"
+              className={`stat-box stat-box-button ${selectedStatList?.key === 'activated_this_month' ? 'selected' : ''}`}
+              onClick={() => setSelectedStatList({ key: 'activated_this_month', label: 'Activated This Month' })}
+            >
               <label>Activated This Month</label>
               <div className="stat-value">{stats.activated_this_month}</div>
-            </div>
-            <div className="stat-box">
+            </button>
+            <button
+              type="button"
+              className={`stat-box stat-box-button ${selectedStatList?.key === 'inactive_packs' ? 'selected' : ''}`}
+              onClick={() => setSelectedStatList({ key: 'inactive_packs', label: 'Inactive Packs' })}
+            >
               <label>Inactive Packs</label>
               <div className="stat-value">{stats.inactive_packs}</div>
-            </div>
+            </button>
           </div>
 
           <div className="tickets-section">
@@ -1054,6 +1160,113 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {selectedStatList && (
+        <div className="dashboard-pack-modal-overlay" onClick={() => setSelectedStatList(null)}>
+          <div
+            className="dashboard-pack-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dashboard-pack-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="dashboard-pack-list-header">
+              <h3 id="dashboard-pack-modal-title">{selectedStatList.label}</h3>
+              <button type="button" onClick={() => setSelectedStatList(null)}>Close</button>
+            </div>
+            <div className="dashboard-table-scroll">
+              <table className="dashboard-pack-table">
+                <thead>
+                  <tr>
+                    <th>Box #</th>
+                    <th>Image</th>
+                    <th>Name</th>
+                    <th>Current #</th>
+                    <th>Game #</th>
+                    <th>Pack #</th>
+                    <th>Date Updated</th>
+                    {selectedStatList.key === 'inactive_packs' && <th>Action</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedPackRows.length > 0 ? (
+                    selectedPackRows.map((pack) => (
+                      <tr key={`${selectedStatList.key}-${pack.id}`}>
+                        <td>{pack.boxNum}</td>
+                        <td>
+                          <div className="dashboard-pack-image">
+                            {pack.image ? (
+                              <img src={pack.image} alt={pack.name || pack.gameNum} />
+                            ) : (
+                              '🎰'
+                            )}
+                          </div>
+                        </td>
+                        <td>{pack.name || '-'}</td>
+                        <td>{pack.currentNum}</td>
+                        <td>{pack.gameNum}</td>
+                        <td>{pack.packNum}</td>
+                        <td className="dashboard-pack-date">{pack.dateUpdated || '-'}</td>
+                        {selectedStatList.key === 'inactive_packs' && (
+                          <td>
+                            <button
+                              type="button"
+                              className="dashboard-delete-pack-btn"
+                              title="Delete inactive pack"
+                              aria-label={`Delete inactive pack ${pack.packNum || ''}`.trim()}
+                              onClick={() => setPackPendingDelete(pack)}
+                            >
+                              🗑
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={selectedStatList.key === 'inactive_packs' ? 8 : 7} className="dashboard-no-data">No packs found</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {packPendingDelete && (
+        <div className="dashboard-confirm-overlay" onClick={() => setPackPendingDelete(null)}>
+          <div
+            className="dashboard-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dashboard-confirm-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="dashboard-confirm-icon">🗑</div>
+            <h3 id="dashboard-confirm-title">Delete inactive pack?</h3>
+            <p>
+              Pack {packPendingDelete.packNum || '-'} will be removed from inventory.
+            </p>
+            <div className="dashboard-confirm-actions">
+              <button
+                type="button"
+                className="dashboard-confirm-cancel"
+                onClick={() => setPackPendingDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="dashboard-confirm-delete"
+                onClick={() => handleDeleteInactivePack(packPendingDelete)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

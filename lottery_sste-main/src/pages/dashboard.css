@@ -27,6 +27,18 @@
   border: 1px solid #f0f0f0;
 }
 
+.stat-box-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.stat-box-button.selected {
+  border-color: #1a7a6f;
+  box-shadow: 0 8px 20px rgba(26, 122, 111, 0.16);
+}
+
 .stat-box:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
@@ -73,6 +85,251 @@
 
 .stat-box .stat-value.large-value {
   font-size: 56px;
+}
+
+.dashboard-pack-modal-overlay {
+  align-items: center;
+  background: rgba(12, 27, 27, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 28px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.dashboard-pack-modal {
+  background: white;
+  border: 1px solid #e7eeee;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(20, 65, 60, 0.08);
+  max-height: min(760px, calc(100vh - 56px));
+  overflow: hidden;
+  width: min(1180px, calc(100vw - 56px));
+}
+
+.dashboard-pack-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #edf2f2;
+}
+
+.dashboard-pack-list-header h3 {
+  margin: 0;
+  color: #1a1a1a;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.dashboard-pack-list-header button {
+  background: transparent;
+  border: 1px solid #c9d8d6;
+  border-radius: 6px;
+  color: #1a7a6f;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 8px 12px;
+}
+
+.dashboard-table-scroll {
+  max-height: calc(100vh - 180px);
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.dashboard-pack-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.dashboard-pack-table th,
+.dashboard-pack-table td {
+  padding: 14px 18px;
+  text-align: left;
+  border-bottom: 1px solid #edf2f2;
+  color: #343434;
+}
+
+.dashboard-pack-table th {
+  background: #f7fbfb;
+  color: #5c6c69;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.dashboard-pack-table th:nth-child(1),
+.dashboard-pack-table td:nth-child(1) {
+  width: 62px;
+}
+
+.dashboard-pack-table th:nth-child(2),
+.dashboard-pack-table td:nth-child(2) {
+  width: 92px;
+}
+
+.dashboard-pack-table th:nth-child(3),
+.dashboard-pack-table td:nth-child(3) {
+  width: 280px;
+}
+
+.dashboard-pack-table th:nth-child(4),
+.dashboard-pack-table td:nth-child(4) {
+  width: 100px;
+}
+
+.dashboard-pack-table th:nth-child(5),
+.dashboard-pack-table td:nth-child(5) {
+  width: 90px;
+}
+
+.dashboard-pack-table th:nth-child(6),
+.dashboard-pack-table td:nth-child(6) {
+  width: 140px;
+}
+
+.dashboard-pack-table th:nth-child(7),
+.dashboard-pack-table td:nth-child(7) {
+  width: 150px;
+}
+
+.dashboard-pack-table th:nth-child(8),
+.dashboard-pack-table td:nth-child(8) {
+  width: 78px;
+}
+
+.dashboard-pack-image {
+  align-items: center;
+  display: flex;
+  height: 48px;
+  justify-content: center;
+  width: 48px;
+}
+
+.dashboard-pack-image img {
+  height: 44px;
+  object-fit: contain;
+  width: 44px;
+}
+
+.dashboard-pack-date {
+  font-size: 15px;
+  white-space: nowrap;
+  width: 150px;
+}
+
+.dashboard-no-data {
+  color: #777;
+  font-weight: 600;
+  text-align: center !important;
+}
+
+.dashboard-delete-pack-btn {
+  align-items: center;
+  background: #fff5f5;
+  border: 1px solid #f4c7c7;
+  border-radius: 6px;
+  color: #d92d20;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 18px;
+  height: 36px;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.2s ease;
+  width: 36px;
+}
+
+.dashboard-delete-pack-btn:hover {
+  background: #fee4e2;
+  border-color: #fda29b;
+}
+
+.dashboard-confirm-overlay {
+  align-items: center;
+  background: rgba(12, 27, 27, 0.56);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 1100;
+}
+
+.dashboard-confirm-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(12, 27, 27, 0.22);
+  max-width: 420px;
+  padding: 28px;
+  text-align: center;
+  width: 100%;
+}
+
+.dashboard-confirm-icon {
+  align-items: center;
+  background: #fff5f5;
+  border: 1px solid #f4c7c7;
+  border-radius: 50%;
+  color: #d92d20;
+  display: inline-flex;
+  font-size: 26px;
+  height: 58px;
+  justify-content: center;
+  margin-bottom: 16px;
+  width: 58px;
+}
+
+.dashboard-confirm-modal h3 {
+  color: #1a1a1a;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.dashboard-confirm-modal p {
+  color: #66706e;
+  font-size: 15px;
+  line-height: 1.45;
+  margin: 0 0 24px;
+}
+
+.dashboard-confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.dashboard-confirm-actions button {
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  min-width: 120px;
+  padding: 11px 18px;
+}
+
+.dashboard-confirm-cancel {
+  background: white;
+  border: 1px solid #c9d8d6;
+  color: #1a7a6f;
+}
+
+.dashboard-confirm-delete {
+  background: #d92d20;
+  border: 1px solid #d92d20;
+  color: white;
+}
+
+.dashboard-confirm-delete:hover {
+  background: #b42318;
+  border-color: #b42318;
 }
 
 .tickets-section {
