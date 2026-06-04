@@ -1602,13 +1602,7 @@ class DailySalesView(APIView):
 
         data = []
         for report in reports:
-            total = (
-                report.instant_sales +
-                report.instant_cashes +
-                report.online_sales +
-                report.online_cashes +
-                report.online_cancels
-            )
+            total = report.instant_sales + report.online_sales
 
             data.append({
                 'date': report.report_date.strftime('%b %d'),
