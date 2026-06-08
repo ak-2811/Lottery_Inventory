@@ -330,26 +330,41 @@ html, body, #root {
   height: 14px;          /* must match JS FOOTER_H constant */
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 0 4px;
+  gap: 2px;
   border-top: 1px solid rgba(255,255,255,0.25);
+  overflow: hidden;
+  width: 100%;
 }
 
 .ld-footer-label {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 5px;
   font-weight: 800;
   color: #111;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
   text-shadow: none;
 }
 
 .ld-footer-num {
+  flex: 0 0 auto;
+  min-width: 2ch;
+  max-width: 3ch;
   font-size: 8px;
   font-weight: 900;
   color: #111;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
   text-shadow: none;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ══ BOTTOM TICKER ═════════════════════════════════════════ */
