@@ -130,6 +130,7 @@ html, body, #root {
   flex-direction: column;
   width: 100%;
   height: 100%;
+  container-type: inline-size;
   background: white;
   border-radius: 2px 2px 4px 4px;
   overflow: visible;
@@ -327,25 +328,28 @@ html, body, #root {
 /* ── Card footer ─────────────────────────────────────────── */
 .ld-card-footer {
   flex-shrink: 0;
-  height: 14px;          /* must match JS FOOTER_H constant */
+  height: clamp(18px, 18cqi, 26px);
+  min-height: 18px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 4px;
-  gap: 2px;
+  padding: 0 clamp(4px, 3cqi, 8px);
+  gap: clamp(1px, 1.4cqi, 4px);
   border-top: 1px solid rgba(255,255,255,0.25);
   overflow: hidden;
   width: 100%;
+  container-type: inline-size;
 }
 
 .ld-footer-label {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 5px;
-  font-weight: 800;
+  font-size: clamp(7px, 8cqi, 12px);
+  font-weight: 900;
   color: #111;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0;
+  line-height: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: clip;
@@ -354,9 +358,9 @@ html, body, #root {
 
 .ld-footer-num {
   flex: 0 0 auto;
-  min-width: 2ch;
+  min-width: 1.7ch;
   max-width: 3ch;
-  font-size: 8px;
+  font-size: clamp(10px, 12cqi, 16px);
   font-weight: 900;
   color: #111;
   line-height: 1;
