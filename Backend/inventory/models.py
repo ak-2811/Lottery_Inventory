@@ -150,3 +150,23 @@ class JackpotValue(models.Model):
 
     def __str__(self):
         return f"{self.game_name} - {self.amount_text}"
+
+# -----------------------------
+# MULTI STORE SUPPORT
+# -----------------------------
+
+class StoreOwner(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+
+class Store(models.Model):
+    owner = models.ForeignKey(StoreOwner, on_delete=models.CASCADE, related_name="stores")
+    user = models.ForeignKey(User, on_delete=models.CASCADE)  # ✅ FIXED
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name

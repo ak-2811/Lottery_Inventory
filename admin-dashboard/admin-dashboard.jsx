@@ -1,47 +1,52 @@
 import { useMemo, useState } from 'react'
 import './styles.css'
+import { useEffect } from 'react'
 
-const stores = [
-  {
-    id: 'downtown',
-    initials: 'DM',
-    name: 'Downtown Market',
-    number: '001',
-    sales: 8240,
-    lotterySales: 5684,
-    inventory: 112,
-    inventoryValue: 18840,
-    openShifts: 2,
-    change: 14.2,
-    color: 'forest',
-  },
-  {
-    id: 'riverside',
-    initials: 'RE',
-    name: 'Riverside Express',
-    number: '002',
-    sales: 6105,
-    lotterySales: 4098,
-    inventory: 96,
-    inventoryValue: 16120,
-    openShifts: 2,
-    change: 9.8,
-    color: 'navy',
-  },
-  {
-    id: 'oak',
-    initials: 'OS',
-    name: 'Oak Street Mart',
-    number: '003',
-    sales: 4297,
-    lotterySales: 2698,
-    inventory: 76,
-    inventoryValue: 12960,
-    openShifts: 1,
-    change: -2.1,
-    color: 'rust',
-  },
-]
+
+
+// const stores = [
+//   {
+//     id: 'downtown',
+//     initials: 'DM',
+//     name: 'Downtown Market',
+//     number: '001',
+//     sales: 8240,
+//     lotterySales: 5684,
+//     inventory: 112,
+//     inventoryValue: 18840,
+//     openShifts: 2,
+//     change: 14.2,
+//     color: 'forest',
+//   },
+//   {
+//     id: 'riverside',
+//     initials: 'RE',
+//     name: 'Riverside Express',
+//     number: '002',
+//     sales: 6105,
+//     lotterySales: 4098,
+//     inventory: 96,
+//     inventoryValue: 16120,
+//     openShifts: 2,
+//     change: 9.8,
+//     color: 'navy',
+//   },
+//   {
+//     id: 'oak',
+//     initials: 'OS',
+//     name: 'Oak Street Mart',
+//     number: '003',
+//     sales: 4297,
+//     lotterySales: 2698,
+//     inventory: 76,
+//     inventoryValue: 12960,
+//     openShifts: 1,
+//     change: -2.1,
+//     color: 'rust',
+//   },
+// ]
+
+// const stores = apiData?.store_wise || []
 
 const inventoryItems = [
   {
@@ -178,34 +183,81 @@ export default function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showToast, setShowToast] = useState(false)
 
+  const [apiData, setApiData] = useState(null)
+
+  
+
+  useEffect(() => {
+    fetchDashboard()
+  }, [selectedStore])
+
+  const fetchDashboard = async () => {
+  try {
+    const res = await fetch(`http://127.0.0.1:8000/api/owner-dashboard/?store_id=${selectedStore}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`
+      }
+    })
+
+    const text = await res.text()
+
+    try {
+      const data = JSON.parse(text)
+      setApiData(data)
+    } catch (err) {
+      console.error("❌ Not JSON response:", text)
+    }
+
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+  const stores = (apiData?.store_wise || []).map((store, index) => ({
+    id: store.store_id,                    // ✅ FIX
+    name: store.store_name,               // ✅ FIX
+    sales: store.total_sales,             // ✅ FIX
+    initials: store.store_name.slice(0, 2).toUpperCase(),
+    number: store.store_id,
+    change: 0,
+    color: ['forest', 'navy', 'rust', 'amber'][index % 4]
+  }))
+
   const selectedStores = useMemo(
-    () =>
-      selectedStore === 'all'
-        ? stores
-        : stores.filter((store) => store.id === selectedStore),
-    [selectedStore],
+      () =>
+        selectedStore === 'all'
+          ? stores
+          : stores.filter((store) => store.id === Number(selectedStore)),
+      [selectedStore, stores]
   )
 
-  const totals = useMemo(
-    () =>
-      selectedStores.reduce(
-        (result, store) => ({
-          sales: result.sales + store.sales,
-          lotterySales: result.lotterySales + store.lotterySales,
-          inventory: result.inventory + store.inventory,
-          inventoryValue: result.inventoryValue + store.inventoryValue,
-          openShifts: result.openShifts + store.openShifts,
-        }),
-        {
-          sales: 0,
-          lotterySales: 0,
-          inventory: 0,
-          inventoryValue: 0,
-          openShifts: 0,
-        },
-      ),
-    [selectedStores],
-  )
+  // const totals = useMemo(
+  //   () =>
+  //     selectedStores.reduce(
+  //       (result, store) => ({
+  //         sales: result.sales + store.sales,
+  //         lotterySales: result.lotterySales + store.lotterySales,
+  //         inventory: result.inventory + store.inventory,
+  //         inventoryValue: result.inventoryValue + store.inventoryValue,
+  //         openShifts: result.openShifts + store.openShifts,
+  //       }),
+  //       {
+  //         sales: 0,
+  //         lotterySales: 0,
+  //         inventory: 0,
+  //         inventoryValue: 0,
+  //         openShifts: 0,
+  //       },
+  //     ),
+  //   [selectedStores],
+  // )
+  const totals = {
+  sales: apiData?.total_sales || 0,
+  lotterySales: apiData?.total_sales || 0,
+  inventory: apiData?.active_boxes || 0,
+  inventoryValue: 0,
+  openShifts: 0
+}
 
   const multiplier = periodMultipliers[period]
   const normalizedSearch = search.trim().toLowerCase()
@@ -305,7 +357,11 @@ export default function AdminDashboard() {
 
           <div className="topbar-title">
             <span>Owner dashboard</span>
-            <strong>{selectedStore === 'all' ? 'All stores' : selectedStores[0].name}</strong>
+            <strong>
+              {selectedStore === 'all'
+                ? 'All stores'
+                : selectedStores[0]?.name || 'Store'}
+            </strong>
           </div>
 
           <div className="topbar-actions">
@@ -347,7 +403,13 @@ export default function AdminDashboard() {
                 <span aria-hidden="true">⌂</span>
                 <select
                   aria-label="Select store"
-                  onChange={(event) => setSelectedStore(event.target.value)}
+                  onChange={(event) =>
+                    setSelectedStore(
+                      event.target.value === 'all'
+                        ? 'all'
+                        : Number(event.target.value)
+                    )
+                    }
                   value={selectedStore}
                 >
                   <option value="all">All stores</option>

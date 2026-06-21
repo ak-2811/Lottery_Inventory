@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './auth.css'
 
-// const API_BASE_URL = 'http://127.0.0.1:8000/api'
+const API_BASE_URL = 'http://127.0.0.1:8000/api'
 
-const API_BASE_URL = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE_URL = 'https://lottery.bright-core-solutions.com/api'
 export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
@@ -60,9 +60,14 @@ export default function Login() {
 
       localStorage.setItem('access_token', data.access)
       localStorage.setItem('refresh_token', data.refresh)
+      localStorage.setItem("is_owner", data.is_owner)
       localStorage.setItem('user', JSON.stringify(data.user))
 
-      navigate('/dashboard')
+      if (data.is_owner) {
+        navigate('/admin-dashboard')
+      } else {
+        navigate('/dashboard')
+      }
     } catch (err) {
       console.log(err)
       setError('Server error. Please try again.')

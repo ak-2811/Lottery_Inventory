@@ -22,10 +22,10 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.core.cache import cache
-from django.db.models import IntegerField
+from django.db.models import IntegerField,Sum
 from django.db.models.functions import Cast
 from django.http import JsonResponse
-from .models import JackpotValue
+from .models import JackpotValue, StoreOwner, Store
 import threading
 import time
 from django.db import transaction
@@ -572,11 +572,13 @@ class LoginView(APIView):
             return Response({'error': 'Invalid email or password'}, status=400)
 
         refresh = RefreshToken.for_user(user)
+        is_owner = StoreOwner.objects.filter(user=user).exists()
 
         return Response({
             'message': 'Login successful',
             'access': str(refresh.access_token),
             'refresh': str(refresh),
+            'is_owner': is_owner,
             'user': {
                 'id': user.id,
                 'name': user.first_name or user.username,
@@ -1895,3 +1897,95 @@ class PauseActivatedPackView(APIView):
             'pack_id': inventory_book.pack_id,
             'current_number': activated_pack.current_count
         }, status=200)
+    
+class OwnerDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            owner = StoreOwner.objects.get(user=request.user)
+        except StoreOwner.DoesNotExist:
+            return Response({'error': 'Not an owner account'}, status=400)
+
+        stores = Store.objects.filter(owner=owner)
+
+        store_id = request.query_params.get('store_id')
+
+        if store_id and store_id != "all":
+            stores = stores.filter(id=store_id)
+
+        store_users = [s.user for s in stores]
+
+        # -----------------------------
+        # TOTAL SALES
+        # -----------------------------
+        total_sales = Decimal('0.00')
+
+        tickets = SoldTicket.objects.filter(user__in=store_users).select_related('inventory_book__game')
+
+        for row in tickets:
+            total_sales += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+
+        # -----------------------------
+        # ACTIVE BOXES
+        # -----------------------------
+        active_boxes = ActivatedPack.objects.filter(user__in=store_users).count()
+
+        # -----------------------------
+        # INACTIVE PACKS
+        # -----------------------------
+        inactive_packs = InventoryBook.objects.filter(
+            user__in=store_users,
+            is_activated=False,
+            is_sold=False
+        ).count()
+
+        # -----------------------------
+        # DAILY SALES GRAPH
+        # -----------------------------
+        reports = DailyReport.objects.filter(user__in=store_users).order_by('report_date')
+
+        daily_data = {}
+
+        for report in reports:
+            date = report.report_date.strftime('%Y-%m-%d')
+
+            if date not in daily_data:
+                daily_data[date] = 0
+
+            daily_data[date] += float(report.instant_sales + report.online_sales)
+
+        daily_sales = [
+            {"date": k, "total": v}
+            for k, v in sorted(daily_data.items())
+        ]
+
+        # -----------------------------
+        # STORE WISE SALES
+        # -----------------------------
+        store_wise = []
+
+        for store in stores:
+            user = store.user
+
+            sales = SoldTicket.objects.filter(user=user).select_related('inventory_book__game')
+
+            total = Decimal('0.00')
+
+            for row in sales:
+                total += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+
+            store_wise.append({
+                "store_id": store.id,
+                "store_name": store.name,
+                "total_sales": float(total)
+            })
+
+        return Response({
+            "total_sales": float(total_sales),
+            "total_stores": stores.count(),
+            "active_boxes": active_boxes,
+            "inactive_packs": inactive_packs,
+            "daily_sales": daily_sales,
+            "store_wise": store_wise
+        })

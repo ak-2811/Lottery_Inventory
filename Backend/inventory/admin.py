@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, DailyReport, DailyReportBoxDetail
+from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, DailyReport, DailyReportBoxDetail,StoreOwner,Store
 
 
 @admin.register(LotteryGame)
@@ -40,3 +40,11 @@ class DailyReportAdmin(admin.ModelAdmin):
 class DailyReportBoxDetailtAdmin(admin.ModelAdmin):
     list_display = ('report_date', 'box_num',)
     search_fields = ('report_date',)
+
+@admin.register(StoreOwner)
+class StoreOwnerAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+
+@admin.register(Store)
+class StoreAdmin(admin.ModelAdmin):
+    list_display = ('name',)
