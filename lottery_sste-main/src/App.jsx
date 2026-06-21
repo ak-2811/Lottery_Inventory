@@ -9,6 +9,7 @@ import EndShift from './pages/EndShift.jsx'
 import LiveDisplay from './pages/LiveDisplay.jsx'
 import HorLiveDisplay from './pages/HorLiveDisplay.jsx'
 import ManualShift from './pages/ManualEndShift.jsx'
+import AdminDashboard from '../../admin-dashboard/admin-dashboard.jsx'
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
         <Route path="/live-display" element={<LiveDisplay />} />
         <Route path="/hor-live-display" element={<HorLiveDisplay />} />
         <Route path="/manual-shift" element={<ManualShift />} />
+        <Route path="/admin-dashboard" element={<AdminDashboard />} />
       </Routes>
     </Router>
   )
