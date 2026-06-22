@@ -1969,19 +1969,46 @@ class OwnerDashboardView(APIView):
             user = store.user
 
             sales = SoldTicket.objects.filter(user=user).select_related('inventory_book__game')
+            activated_packs = ActivatedPack.objects.filter(user=user).select_related(
+                'inventory_book__game'
+            ).order_by('box_num')
+            store_reports = DailyReport.objects.filter(user=user).order_by('report_date')
 
             total = Decimal('0.00')
 
             for row in sales:
                 total += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
 
+            store_daily_sales = [
+                {
+                    "date": report.report_date.strftime('%Y-%m-%d'),
+                    "total": float(report.instant_sales + report.online_sales),
+                }
+                for report in store_reports
+            ]
+
             store_wise.append({
                 "store_id": store.id,
                 "store_name": store.name,
-                "total_sales": float(total)
+                "store_user": user.first_name or user.username,
+                "store_email": user.email,
+                "total_sales": float(total),
+                "daily_sales": store_daily_sales,
+                "active_boxes": activated_packs.count(),
+                "inactive_packs": InventoryBook.objects.filter(
+                    user=user,
+                    is_activated=False,
+                    is_sold=False
+                ).count(),
+                "activated_packs": ActivatedPackSerializer(
+                    activated_packs,
+                    many=True,
+                    context={'request': request}
+                ).data,
             })
 
         return Response({
+            "owner_name": owner.name or request.user.first_name or request.user.username,
             "total_sales": float(total_sales),
             "total_stores": stores.count(),
             "active_boxes": active_boxes,
