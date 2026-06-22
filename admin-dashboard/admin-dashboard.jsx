@@ -450,7 +450,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-dashboard">
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+      <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
           <div><strong>LuckyDesk</strong><small>Owner Console</small></div>

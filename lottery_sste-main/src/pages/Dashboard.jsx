@@ -767,7 +767,7 @@ export default function Dashboard() {
   }, [topSalesDateRange])
 
   return (
-    <div className="app-container">
+    <div className={`app-container dashboard-app ${sidebarOpen ? 'sidebar-is-open' : 'sidebar-is-closed'}`}>
       <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
           ☰
