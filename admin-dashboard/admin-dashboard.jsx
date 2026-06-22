@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './styles.css'
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api'
+const SALES_REFRESH_INTERVAL = 5000
 
 const navItems = [
   ['Overview', '▦'],
@@ -52,6 +53,7 @@ export default function AdminDashboard() {
   const [apiData, setApiData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [lastUpdated, setLastUpdated] = useState(null)
 
   useEffect(() => {
     const elements = [document.documentElement, document.body, document.getElementById('root')]
@@ -84,15 +86,17 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
-    const fetchDashboard = async () => {
-      setLoading(true)
-      setError('')
+    let isMounted = true
+
+    const fetchDashboard = async ({ showLoading = false } = {}) => {
+      if (showLoading) setLoading(true)
 
       try {
         const response = await fetch(`${API_BASE_URL}/owner-dashboard/`, {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('access_token')}`,
           },
+          cache: 'no-store',
         })
         const data = await response.json()
 
@@ -100,15 +104,33 @@ export default function AdminDashboard() {
           throw new Error(data.error || 'Unable to load owner dashboard')
         }
 
-        setApiData(data)
+        if (isMounted) {
+          setApiData(data)
+          setLastUpdated(new Date())
+          setError('')
+        }
       } catch (requestError) {
-        setError(requestError.message)
+        if (isMounted) setError(requestError.message)
       } finally {
-        setLoading(false)
+        if (isMounted && showLoading) setLoading(false)
       }
     }
 
-    fetchDashboard()
+    fetchDashboard({ showLoading: true })
+    const refreshTimer = window.setInterval(() => {
+      fetchDashboard()
+    }, SALES_REFRESH_INTERVAL)
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') fetchDashboard()
+    }
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+
+    return () => {
+      isMounted = false
+      window.clearInterval(refreshTimer)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
   }, [])
 
   const stores = useMemo(
@@ -472,6 +494,10 @@ export default function AdminDashboard() {
             <strong>{activeNav}</strong>
           </div>
           <div className="topbar-actions">
+            <span className="live-status" title={lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : 'Connecting'}>
+              <i />
+              Live
+            </span>
             <label className="search-box">
               <span aria-hidden="true">⌕</span>
               <input

@@ -165,6 +165,12 @@ html { scroll-behavior: smooth; }
 
 .topbar-title { display: none; }
 .topbar-actions { display: flex; width: 100%; align-items: center; justify-content: flex-end; gap: 10px; }
+.live-status { display: inline-flex; align-items: center; gap: 6px; border-radius: 20px; background: var(--green-soft); padding: 5px 9px; color: var(--green-dark); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+.live-status i { width: 7px; height: 7px; border-radius: 50%; background: #2f9a78; box-shadow: 0 0 0 3px rgba(47,154,120,.13); animation: live-pulse 1.8s ease-in-out infinite; }
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .55; transform: scale(.8); }
+}
 .icon-button { display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 9px; background: white; }
 .icon-button svg { width: 19px; height: 19px; }
 .menu-button { display: none; margin-right: 12px; }
@@ -413,7 +419,7 @@ td small { margin-top: 2px; color: #98a19d; font-size: 8px; }
 
 @media (max-width: 650px) {
   .topbar { height: 64px; padding: 0 14px; }
-  .search-box, .profile-copy, .chevron { display: none; }
+  .search-box, .profile-copy, .chevron, .live-status { display: none; }
   .topbar-actions { gap: 5px; }
   .profile-button { padding-left: 2px; }
   main { padding: 23px 14px 40px; }
