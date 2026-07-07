@@ -83,7 +83,7 @@ async function fetchTicketsFromAPI() {
 }
 
 // ─── Grid calculation ─────────────────────────────────────────────────────
-const FOOTER_H  = 14
+const FOOTER_H  = 22
 const STUB_H    = 3
 const IMG_RATIO = 0.95
 const GAP       = 6
@@ -726,17 +726,10 @@ useEffect(() => {
     const cols = computeOptimalCols(N, W, H)
     const rows = Math.ceil(N / cols)
 
-    const cardW       = (W - GAP * (cols + 1)) / cols
-    const cardH       = cardW * IMG_RATIO + FOOTER_H + STUB_H
-    const totalH      = cardH * rows + GAP * (rows + 1)
-    
-    // Ensure all content fits in viewport - scale down if needed
-    let finalCardH = cardH
-    if (totalH > H) {
-      // Scale down card height to fit all rows
-      const scaleFactor = (H - GAP * (rows + 1)) / (cardH * rows)
-      finalCardH = cardH * scaleFactor
-    }
+    const cardW          = (W - GAP * (cols + 1)) / cols
+    const cardH          = cardW * IMG_RATIO + FOOTER_H + STUB_H
+    const availableCardH = Math.max(0, (H - GAP * (rows + 1)) / rows)
+    const finalCardH     = availableCardH || cardH
 
     setGridStyle({
       display:             'grid',
