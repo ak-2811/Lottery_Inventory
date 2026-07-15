@@ -560,6 +560,10 @@ export default function Dashboard() {
     // }
   }
 
+  const handleEndDay = () => {
+    navigate('/end-day')
+  }
+
   const handleReloadLiveDisplay = () => {
     // Signal LiveDisplay tab/window to perform a one-time hard reload
     localStorage.setItem('reloadLiveDisplay', String(Date.now()))
@@ -854,6 +858,7 @@ export default function Dashboard() {
             </button>
             {/* <button className="header-btn manage-btn">Manage Current Shift</button> */}
             {/* <button className="header-btn manage-btn" onClick={() => navigate('/manual-shift')}>Manual End Shift</button> */}
+            <button className="header-btn end-day-btn" onClick={handleEndDay}>End Day</button>
             <button className="header-btn end-btn" onClick={handleEndShift}>End Shift</button>
             {/* <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button> */}
           </div>
