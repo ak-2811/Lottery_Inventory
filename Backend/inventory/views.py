@@ -3,8 +3,8 @@ from datetime import timedelta
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail
-from .serializers import InventoryBookSerializer, ActivatedPackSerializer, DailyReportSerializer, DailyReportBoxDetailSerializer
+from .models import LotteryGame, InventoryBook, ActivatedPack, SoldTicket, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail, ShiftState, ShiftReport, ShiftReportBoxDetail
+from .serializers import InventoryBookSerializer, ActivatedPackSerializer, DailyReportSerializer, DailyReportBoxDetailSerializer, ShiftReportDetailSerializer
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from io import BytesIO
@@ -22,13 +22,15 @@ from django.contrib.auth import authenticate
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.core.cache import cache
-from django.db.models import IntegerField,Sum
+from django.db.models import IntegerField, Sum, Max, F, Count
 from django.db.models.functions import Cast
 from django.http import JsonResponse
 from .models import JackpotValue, StoreOwner, Store
 import threading
 import time
 from django.db import transaction
+import resend
+import base64
 
 
 LIVE_DISPLAY_EVENT_TYPES = {
@@ -59,25 +61,98 @@ def jackpot_values(request):
     )
     return JsonResponse({"jackpots": data})
 
-# def get_today_instant_sales(user):
-#     today = get_business_date()
-#     instant_sales_today = Decimal('0.00')
+def get_or_create_shift_state(user):
+    """
+    Returns the user's active shift state.
 
-#     today_scans = SoldTicket.objects.filter(
-#         user=user,
-#         sold_at__date=today
-#     ).select_related('inventory_book__game')
+    The visible shift number is calculated from ShiftReport records
+    belonging to the current date.
+    """
 
-#     for row in today_scans:
-#         instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+    today = get_business_date()
 
-#     return instant_sales_today
-# def get_today_instant_sales(user):
-#     return get_instant_sales_for_date(user, get_business_date())
+    shift_state, created = ShiftState.objects.get_or_create(
+        user=user,
+        defaults={
+            'shift_number': 1,
+            'instant_sales': Decimal('0.00'),
+        }
+    )
 
-# def create_report_snapshot(user, extra_data):
-#     today = get_business_date()
-#     instant_sales_today = get_today_instant_sales(user)
+    latest_shift_number = ShiftReport.objects.filter(
+        user=user,
+        report_date=today
+    ).aggregate(
+        highest_shift=Max('shift_number')
+    )['highest_shift'] or 0
+
+    expected_shift_number = latest_shift_number + 1
+
+    if shift_state.shift_number != expected_shift_number:
+        shift_state.shift_number = expected_shift_number
+        shift_state.save(
+            update_fields=[
+                'shift_number',
+                'updated_at'
+            ]
+        )
+
+    return shift_state
+
+
+def add_to_shift_sales(user, delta_count, ticket_value):
+    """
+    Adds or subtracts sales from the current shift.
+
+    Positive delta_count = sale
+    Negative delta_count = reversal
+    """
+
+    delta_amount = (
+        Decimal(str(delta_count)) *
+        Decimal(str(ticket_value))
+    )
+
+    shift_state = get_or_create_shift_state(user)
+
+    ShiftState.objects.filter(pk=shift_state.pk).update(
+        instant_sales=F('instant_sales') + delta_amount
+    )
+
+    shift_state.refresh_from_db()
+
+    # Prevent accidental negative display because of a bad reversal.
+    if shift_state.instant_sales < Decimal('0.00'):
+        shift_state.instant_sales = Decimal('0.00')
+        shift_state.save(
+            update_fields=['instant_sales', 'updated_at']
+        )
+
+    return shift_state
+
+
+def reset_shift_state(user):
+    """
+    Resets the displayed shift sales after a shift is completed.
+    The next shift number is also prepared here.
+    """
+
+    shift_state = get_or_create_shift_state(user)
+
+    shift_state.instant_sales = Decimal('0.00')
+    shift_state.shift_number += 1
+    shift_state.started_at = timezone.now()
+
+    shift_state.save(
+        update_fields=[
+            'instant_sales',
+            'shift_number',
+            'started_at',
+            'updated_at',
+        ]
+    )
+
+    return shift_state
 
 def create_report_snapshot(user, extra_data, report_date=None):
     today = report_date or get_business_date()
@@ -198,37 +273,54 @@ def auto_save_yesterday_report_if_missing(user):
 
 def build_end_shift_preview(user):
     today = get_business_date()
-    instant_sales_today = get_today_instant_sales(user)
+    shift_state = get_or_create_shift_state(user)
+
+    cumulative_totals = get_shift_cumulative_totals(
+        user=user,
+        report_date=today
+    )
+
+    next_shift_number = (
+        cumulative_totals['last_shift_number'] + 1
+    )
 
     preview_rows = []
 
-    # sold / direct sold / mark sold rows already tracked during day
+    # Sold and returned rows created during the current shift.
     sold_rows = DailyReportBoxDetail.objects.filter(
         user=user,
         report_date=today,
         report__isnull=True,
+        created_at__gte=shift_state.started_at,
         closing_status__in=['Sold', 'Returned']
     ).order_by('box_num', 'id')
 
     for row in sold_rows:
         preview_rows.append({
-            'id': f"sold-{row.id}",
+            'id': f"closed-{row.id}",
             'boxNum': row.box_num,
             'game': f"{row.lottery_name} - {row.pack_num}",
             'startNum': row.start_num,
             'endNum': row.current_num,
-            'value': f"${row.ticket_value:.0f}" if float(row.ticket_value).is_integer() else f"${row.ticket_value}",
+            'value': (
+                f"${row.ticket_value:.0f}"
+                if float(row.ticket_value).is_integer()
+                else f"${row.ticket_value}"
+            ),
             'total': f"${row.total_amount:.2f}",
             'status': row.closing_status,
         })
 
-    # current active packs snapshot at time of opening/saving end shift
-    active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(
+    # Current active packs.
+    active_packs = ActivatedPack.objects.select_related(
+        'inventory_book__game'
+    ).filter(
         user=user
     ).order_by('box_num', 'id')
 
     for pack in active_packs:
         book = pack.inventory_book
+
         total_amount = calculate_box_total(
             pack.today_start,
             pack.current_count,
@@ -239,10 +331,17 @@ def build_end_shift_preview(user):
         preview_rows.append({
             'id': f"active-{pack.id}",
             'boxNum': pack.box_num,
-            'game': f"{book.game.name or book.game.game_id} - {book.pack_id}",
+            'game': (
+                f"{book.game.name or book.game.game_id} "
+                f"- {book.pack_id}"
+            ),
             'startNum': pack.today_start,
             'endNum': pack.current_count,
-            'value': f"${book.ticket_value:.0f}" if float(book.ticket_value).is_integer() else f"${book.ticket_value}",
+            'value': (
+                f"${book.ticket_value:.0f}"
+                if float(book.ticket_value).is_integer()
+                else f"${book.ticket_value}"
+            ),
             'total': f"${total_amount:.2f}",
             'status': 'Active',
         })
@@ -250,13 +349,311 @@ def build_end_shift_preview(user):
     return {
         'id': None,
         'report_date': str(today),
-        'instantSales': f"{instant_sales_today:.2f}",
+
+        # Always calculated from today's saved ShiftReport records.
+        'shiftNumber': next_shift_number,
+        'shiftStartedAt': shift_state.started_at,
+        'instantSales': f"{shift_state.instant_sales:.2f}",
         'instantCashes': '0.00',
         'onlineSales': '0.00',
         'onlineCashes': '0.00',
         'onlineCancels': '0.00',
+
         'boxDetails': preview_rows,
     }
+
+class ShiftReportValidationError(Exception):
+    def __init__(self, message, field_errors=None):
+        super().__init__(message)
+        self.message = message
+        self.field_errors = field_errors or {}
+
+
+def parse_required_report_decimal(value, field_label):
+    """
+    Parses a required cumulative shift value.
+
+    All four manually entered values are required and cannot be negative.
+    """
+
+    if value in [None, '', 'null']:
+        raise ShiftReportValidationError(
+            f'{field_label} is required.'
+        )
+
+    try:
+        parsed_value = Decimal(str(value)).quantize(
+            Decimal('0.01')
+        )
+    except Exception:
+        raise ShiftReportValidationError(
+            f'{field_label} must be a valid number.'
+        )
+
+    if parsed_value < Decimal('0.00'):
+        raise ShiftReportValidationError(
+            f'{field_label} cannot be negative.'
+        )
+
+    return parsed_value
+
+def get_shift_cumulative_totals(user, report_date):
+    """
+    Since ShiftReport stores differences, summing today's shift reports
+    gives the cumulative value entered at the end of the latest shift.
+    """
+
+    totals = ShiftReport.objects.filter(
+        user=user,
+        report_date=report_date
+    ).aggregate(
+        instant_cashes_total=Sum('instant_cashes'),
+        online_sales_total=Sum('online_sales'),
+        online_cashes_total=Sum('online_cashes'),
+        online_cancels_total=Sum('online_cancels'),
+        highest_shift_number=Max('shift_number'),
+    )
+
+    return {
+        'instant_cashes': (
+            totals['instant_cashes_total']
+            or Decimal('0.00')
+        ),
+        'online_sales': (
+            totals['online_sales_total']
+            or Decimal('0.00')
+        ),
+        'online_cashes': (
+            totals['online_cashes_total']
+            or Decimal('0.00')
+        ),
+        'online_cancels': (
+            totals['online_cancels_total']
+            or Decimal('0.00')
+        ),
+        'last_shift_number': (
+            totals['highest_shift_number']
+            or 0
+        ),
+    }
+
+def calculate_shift_differences(user, report_date, extra_data):
+    """
+    The frontend sends cumulative daily values.
+
+    This function:
+    1. Gets cumulative totals from previous shifts today.
+    2. Validates that entered values did not decrease.
+    3. Returns only the difference belonging to the current shift.
+    """
+
+    previous_totals = get_shift_cumulative_totals(
+        user=user,
+        report_date=report_date
+    )
+
+    entered_values = {
+        'instant_cashes': parse_required_report_decimal(
+            extra_data.get('instantCashes'),
+            'Instant Cashes'
+        ),
+        'online_sales': parse_required_report_decimal(
+            extra_data.get('onlineSales'),
+            'Online Sales'
+        ),
+        'online_cashes': parse_required_report_decimal(
+            extra_data.get('onlineCashes'),
+            'Online Cashes'
+        ),
+        'online_cancels': parse_required_report_decimal(
+            extra_data.get('onlineCancels'),
+            'Online Cancels'
+        ),
+    }
+
+    labels = {
+        'instant_cashes': 'Instant Cashes',
+        'online_sales': 'Online Sales',
+        'online_cashes': 'Online Cashes',
+        'online_cancels': 'Online Cancels',
+    }
+
+    errors = {}
+
+    for field_name, entered_value in entered_values.items():
+        previous_value = previous_totals[field_name]
+
+        if entered_value < previous_value:
+            errors[field_name] = (
+                f"{labels[field_name]} must be at least "
+                f"${previous_value:.2f}. "
+                f"You entered ${entered_value:.2f}."
+            )
+
+    if errors:
+        first_error = next(iter(errors.values()))
+
+        raise ShiftReportValidationError(
+            message=first_error,
+            field_errors=errors
+        )
+
+    differences = {
+        field_name: entered_values[field_name] - previous_totals[field_name]
+        for field_name in entered_values
+    }
+
+    return {
+        'entered': entered_values,
+        'previous': previous_totals,
+        'differences': differences,
+        'shift_number': previous_totals['last_shift_number'] + 1,
+    }
+
+def create_shift_report_snapshot(user, extra_data):
+    """
+    Creates one permanent report for the current shift.
+
+    The four manually entered values are cumulative daily totals.
+    Only the difference belonging to this shift is stored.
+    """
+    today = get_business_date()
+
+    with transaction.atomic():
+        shift_state = ShiftState.objects.select_for_update().filter(
+            user=user
+        ).first()
+
+        if not shift_state:
+            shift_state = ShiftState.objects.create(
+                user=user,
+                shift_number=1,
+                instant_sales=Decimal('0.00')
+            )
+
+        shift_started_at = shift_state.started_at
+        shift_ended_at = timezone.now()
+
+        calculated_values = calculate_shift_differences(
+            user=user,
+            report_date=today,
+            extra_data=extra_data
+        )
+
+        shift_number = calculated_values['shift_number']
+        differences = calculated_values['differences']
+
+        # Prevent duplicate report creation for the same date and shift.
+        existing_report = ShiftReport.objects.filter(
+            user=user,
+            report_date=today,
+            shift_number=shift_number
+        ).first()
+
+        if existing_report:
+            return existing_report, False
+
+        report = ShiftReport.objects.create(
+            user=user,
+            report_date=today,
+            shift_number=shift_number,
+            shift_started_at=shift_started_at,
+            shift_ended_at=shift_ended_at,
+
+            # Instant sales is already specific to this shift.
+            instant_sales=shift_state.instant_sales,
+
+            # Store only this shift's calculated difference.
+            instant_cashes=differences['instant_cashes'],
+            online_sales=differences['online_sales'],
+            online_cashes=differences['online_cashes'],
+            online_cancels=differences['online_cancels'],
+        )
+
+        # Closed packs from the current shift.
+        closed_rows = DailyReportBoxDetail.objects.filter(
+            user=user,
+            report_date=today,
+            report__isnull=True,
+            created_at__gte=shift_started_at,
+            closing_status__in=['Sold', 'Returned']
+        ).order_by('box_num', 'id')
+
+        for row in closed_rows:
+            ShiftReportBoxDetail.objects.create(
+                user=user,
+                report=report,
+                report_date=today,
+                shift_number=shift_number,
+                box_num=row.box_num,
+                inventory_book=row.inventory_book,
+                lottery_name=row.lottery_name,
+                game_num=row.game_num,
+                pack_num=row.pack_num,
+                start_num=row.start_num,
+                current_num=row.current_num,
+                ticket_value=row.ticket_value,
+                total_amount=row.total_amount,
+                closing_status=row.closing_status,
+            )
+
+        # Current active packs.
+        active_packs = ActivatedPack.objects.select_related(
+            'inventory_book__game'
+        ).filter(
+            user=user
+        ).order_by('box_num', 'id')
+
+        for pack in active_packs:
+            book = pack.inventory_book
+
+            total_amount = calculate_box_total(
+                pack.today_start,
+                pack.current_count,
+                book.ticket_value,
+                'Active'
+            )
+
+            ShiftReportBoxDetail.objects.create(
+                user=user,
+                report=report,
+                report_date=today,
+                shift_number=shift_number,
+                box_num=pack.box_num,
+                inventory_book=book,
+                lottery_name=(
+                    book.game.name or book.game.game_id
+                ),
+                game_num=book.game.game_id,
+                pack_num=book.pack_id,
+                start_num=pack.today_start,
+                current_num=pack.current_count,
+                ticket_value=book.ticket_value,
+                total_amount=total_amount,
+                closing_status='Active',
+            )
+
+        # The next shift starts from current ticket positions.
+        roll_active_packs_to_next_day(user)
+
+        # Reset only the shift-specific instant sales.
+        shift_state.instant_sales = Decimal('0.00')
+
+        # This value is informational only.
+        # Actual next shift number is calculated from today's reports.
+        shift_state.shift_number = shift_number + 1
+        shift_state.started_at = shift_ended_at
+
+        shift_state.save(
+            update_fields=[
+                'instant_sales',
+                'shift_number',
+                'started_at',
+                'updated_at',
+            ]
+        )
+
+    return report, True
 
 def build_report_pdf_bytes(report, user):
     details = DailyReportBoxDetail.objects.filter(
@@ -345,39 +742,164 @@ def build_report_pdf_bytes(report, user):
     buffer.seek(0)
     return buffer.getvalue()
 
-# def send_report_email(report, user):
-#     if not user.email:
-#         return
+def build_shift_report_pdf_bytes(report, user):
+    details = ShiftReportBoxDetail.objects.filter(
+        user=user,
+        report=report
+    ).order_by('box_num', 'id')
 
-#     pdf_bytes = build_report_pdf_bytes(report, user)
+    buffer = BytesIO()
 
-#     subject = f"End Shift Report - {report.report_date}"
-#     body = (
-#         f"Hello {user.first_name or user.username},\n\n"
-#         f"Please find attached your end shift report for {report.report_date}.\n\n"
-#         f"Regards,\n"
-#         f"Bright Core Solutions"
-#     )
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=30,
+        leftMargin=30,
+        topMargin=30,
+        bottomMargin=30
+    )
 
-#     email = EmailMessage(
-#         subject=subject,
-#         body=body,
-#         from_email=settings.DEFAULT_FROM_EMAIL,
-#         to=[user.email],
-#     )
+    styles = getSampleStyleSheet()
+    elements = []
 
-#     email.attach(
-#         f"reports_eod_{report.id}_{report.report_date}.pdf",
-#         pdf_bytes,
-#         "application/pdf"
-#     )
+    elements.append(
+        Paragraph(
+            f"Shift Report - Shift {report.shift_number}",
+            styles['Title']
+        )
+    )
 
-#     email.send(fail_silently=False)
+    elements.append(
+        Paragraph(
+            f"Report Date: {report.report_date}",
+            styles['Normal']
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Shift Started: "
+            f"{timezone.localtime(report.shift_started_at).strftime('%Y-%m-%d %I:%M %p')}",
+            styles['Normal']
+        )
+    )
+
+    elements.append(
+        Paragraph(
+            f"Shift Ended: "
+            f"{timezone.localtime(report.shift_ended_at).strftime('%Y-%m-%d %I:%M %p')}",
+            styles['Normal']
+        )
+    )
+
+    elements.append(Spacer(1, 12))
+
+    elements.append(
+        Paragraph(
+            f"Online Sales ${report.online_sales}",
+            styles['Normal']
+        )
+    )
+    elements.append(
+        Paragraph(
+            f"Online Cashes ${report.online_cashes}",
+            styles['Normal']
+        )
+    )
+    elements.append(
+        Paragraph(
+            f"Online Cancel ${report.online_cancels}",
+            styles['Normal']
+        )
+    )
+    elements.append(
+        Paragraph(
+            f"Instant Sales ${report.instant_sales}",
+            styles['Normal']
+        )
+    )
+    elements.append(
+        Paragraph(
+            f"Instant Cashes ${report.instant_cashes}",
+            styles['Normal']
+        )
+    )
+
+    elements.append(Spacer(1, 12))
+    elements.append(
+        Paragraph(
+            "Lottery Slot Details",
+            styles['Heading2']
+        )
+    )
+
+    table_data = [[
+        'Slot #',
+        'Lottery Name',
+        'Start #',
+        'Current #',
+        'Value',
+        'Total',
+        'Status'
+    ]]
+
+    for row in details:
+        table_data.append([
+            str(row.box_num),
+            f"{row.lottery_name} - {row.pack_num}",
+            str(row.start_num),
+            str(row.current_num),
+            (
+                f"${row.ticket_value:.0f}"
+                if float(row.ticket_value).is_integer()
+                else f"${row.ticket_value}"
+            ),
+            f"${row.total_amount:.2f}",
+            row.closing_status,
+        ])
+
+    table = Table(
+        table_data,
+        colWidths=[
+            0.6 * inch,
+            2.3 * inch,
+            0.8 * inch,
+            0.9 * inch,
+            0.8 * inch,
+            0.8 * inch,
+            1.1 * inch,
+        ],
+        repeatRows=1
+    )
+
+    table.setStyle(TableStyle([
+        (
+            'BACKGROUND',
+            (0, 0),
+            (-1, 0),
+            colors.HexColor('#4A90E2')
+        ),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),
+        ('GRID', (0, 0), (-1, -1), 0.3, colors.grey),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return buffer.getvalue()
+
 def send_report_email(report, user):
     if not user.email:
         return
-
-    import resend
+    
     resend.api_key = settings.RESEND_API_KEY
 
     pdf_bytes = build_report_pdf_bytes(report, user)
@@ -395,6 +917,42 @@ def send_report_email(report, user):
         "attachments": [{
             "filename": f"reports_eod_{report.id}_{report.report_date}.pdf",
             "content": base64.b64encode(pdf_bytes).decode("utf-8"),
+        }],
+    })
+
+def send_shift_report_email(report, user):
+    if not user.email:
+        return
+
+    resend.api_key = settings.RESEND_API_KEY
+
+    pdf_bytes = build_shift_report_pdf_bytes(report, user)
+
+    resend.Emails.send({
+        "from": "admin@bright-core-solutions.com",
+        "to": [user.email],
+        "subject": (
+            f"Shift {report.shift_number} Report - "
+            f"{report.report_date}"
+        ),
+        "text": (
+            f"Hello {user.first_name or user.username},\n\n"
+            f"Please find attached the report for "
+            f"shift {report.shift_number} on "
+            f"{report.report_date}.\n\n"
+            f"Regards,\n"
+            f"Bright Core Solutions"
+        ),
+        "attachments": [{
+            "filename": (
+                f"shift_report_"
+                f"{report.id}_"
+                f"{report.report_date}_"
+                f"shift_{report.shift_number}.pdf"
+            ),
+            "content": base64.b64encode(
+                pdf_bytes
+            ).decode("utf-8"),
         }],
     })
 
@@ -792,9 +1350,6 @@ class ActivateInventoryBookView(APIView):
         # -----------------------------
         # REVERSE MODE: bring sold pack back
         # -----------------------------
-        # -----------------------------
-        # REVERSE MODE: bring sold pack back
-        # -----------------------------
         if reverse_mode:
             if inventory_book.is_activated:
                 return Response({'error': 'Pack is already activated.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -858,6 +1413,12 @@ class ActivateInventoryBookView(APIView):
                     delta_count=-1,
                     is_reversal=True
                 )
+            
+            add_to_shift_sales(
+                user=request.user,
+                delta_count=-1,
+                ticket_value=inventory_book.ticket_value
+            )
 
             if latest_sold_detail:
                 latest_sold_detail.box_num = box_num
@@ -961,27 +1522,6 @@ class ScanSoldTicketView(APIView):
         # set both locks
         cache.set(ticket_lock_key, True, timeout=1.0)
         cache.set(pack_lock_key, True, timeout=0.3)
-        # last_scan = cache.get(cache_key)
-        # current_time = time.time()
-
-        # if last_scan:
-        #     same_ticket = last_scan.get("ticket") == ticket_number
-        #     time_diff = current_time - last_scan.get("time", 0)
-
-        #     if same_ticket:
-        #         # ❌ very fast duplicate (scanner glitch)
-        #         if time_diff < 0.5:
-        #             return Response({
-        #                 "message": "Duplicate scan ignored",
-        #                 "ticket_number": ticket_number,
-        #                 "duplicate": True
-        #             }, status=200)
-        #         # ✅ intentional rescan → allow
-
-        # cache.set(cache_key, {
-        #     "ticket": ticket_number,
-        #     "time": current_time
-        # }, timeout=2)
 
         # -----------------------------
         # MAIN LOGIC WITH LOCK
@@ -1035,6 +1575,12 @@ class ScanSoldTicketView(APIView):
                 scanned_code=raw_barcode,
                 delta_count=delta_count,
                 is_reversal=is_reversal
+            )
+
+            add_to_shift_sales(
+                user=request.user,
+                delta_count=delta_count,
+                ticket_value=book.ticket_value
             )
 
             activated_pack.last_ticket = previous_ticket
@@ -1117,6 +1663,12 @@ class MarkInventoryBookSoldView(APIView):
                 scanned_code='MARK_SOLD'
             )
 
+            add_to_shift_sales(
+                user=request.user,
+                delta_count=remaining_count,
+                ticket_value=inventory_book.ticket_value
+            )
+
         activated_pack.last_ticket = previous_count
         activated_pack.current_count = final_ticket_number
         activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
@@ -1134,7 +1686,7 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        auto_save_yesterday_report_if_missing(request.user)
+        # auto_save_yesterday_report_if_missing(request.user)
         now = timezone.localtime()
         today = now.date()
 
@@ -1163,15 +1715,8 @@ class DashboardStatsView(APIView):
             is_sold=False
         ).count()
 
-        instant_sales_today = Decimal('0.00')
-
-        today_scans = SoldTicket.objects.filter(
-            user=request.user,
-            sold_at__date=today
-        ).select_related('inventory_book__game')
-
-        for row in today_scans:
-            instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+        shift_state = get_or_create_shift_state(request.user)
+        instant_sales_today = shift_state.instant_sales
 
         return Response({
             "instant_sales_today": f"{instant_sales_today:.2f}",
@@ -1306,12 +1851,204 @@ class MoveActivatedPackView(APIView):
         }, status=status.HTTP_200_OK)
     
 class DailyReportListView(APIView):
+    """
+    Returns one cumulative report row per date.
+
+    ShiftReport stores individual shift differences.
+    Summing all ShiftReport rows for a date gives the full daily totals.
+    """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        reports = DailyReport.objects.filter(user=request.user).order_by('-report_date')
-        serializer = DailyReportSerializer(reports, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        grouped_reports = (
+            ShiftReport.objects
+            .filter(user=request.user)
+            .values('report_date')
+            .annotate(
+                instant_sales_total=Sum('instant_sales'),
+                instant_cashes_total=Sum('instant_cashes'),
+                online_sales_total=Sum('online_sales'),
+                online_cashes_total=Sum('online_cashes'),
+                online_cancels_total=Sum('online_cancels'),
+                shifts_count=Count('id'),
+            )
+            .order_by('-report_date')
+        )
+
+        response_data = []
+
+        for daily_group in grouped_reports:
+            report_date = daily_group['report_date']
+
+            shifts = ShiftReport.objects.filter(
+                user=request.user,
+                report_date=report_date
+            ).order_by('shift_number')
+
+            shift_options = [
+                {
+                    'id': shift.id,
+                    'shiftNumber': shift.shift_number,
+                    'label': f"Shift {shift.shift_number}",
+                    'shiftStartedAt': shift.shift_started_at,
+                    'shiftEndedAt': shift.shift_ended_at,
+                }
+                for shift in shifts
+            ]
+
+            response_data.append({
+                # Date is the unique row identifier on the frontend.
+                'id': report_date.isoformat(),
+                'report_date': report_date.isoformat(),
+
+                # Daily cumulative totals.
+                'instantSales': str(
+                    daily_group['instant_sales_total']
+                    or Decimal('0.00')
+                ),
+                'instantCashes': str(
+                    daily_group['instant_cashes_total']
+                    or Decimal('0.00')
+                ),
+                'onlineSales': str(
+                    daily_group['online_sales_total']
+                    or Decimal('0.00')
+                ),
+                'onlineCashes': str(
+                    daily_group['online_cashes_total']
+                    or Decimal('0.00')
+                ),
+                'onlineCancels': str(
+                    daily_group['online_cancels_total']
+                    or Decimal('0.00')
+                ),
+
+                'shiftsCount': daily_group['shifts_count'],
+                'shifts': shift_options,
+            })
+
+        return Response(
+            response_data,
+            status=status.HTTP_200_OK
+        )
+
+class ShiftReportDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            report = (
+                ShiftReport.objects
+                .prefetch_related('box_details')
+                .get(
+                    pk=pk,
+                    user=request.user
+                )
+            )
+        except ShiftReport.DoesNotExist:
+            return Response(
+                {
+                    'error': 'Shift report not found.'
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = ShiftReportDetailSerializer(report)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_200_OK
+        )
+
+class ShiftReportUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        try:
+            report = ShiftReport.objects.get(
+                pk=pk,
+                user=request.user
+            )
+        except ShiftReport.DoesNotExist:
+            return Response(
+                {'error': 'Shift report not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        def parse_shift_value(value, field_label):
+            if value in [None, '', 'null']:
+                raise ShiftReportValidationError(
+                    f'{field_label} is required.'
+                )
+
+            try:
+                parsed_value = Decimal(str(value)).quantize(
+                    Decimal('0.01')
+                )
+            except Exception:
+                raise ShiftReportValidationError(
+                    f'{field_label} must be a valid number.'
+                )
+
+            if parsed_value < Decimal('0.00'):
+                raise ShiftReportValidationError(
+                    f'{field_label} cannot be negative.'
+                )
+
+            return parsed_value
+
+        try:
+            instant_cashes = parse_shift_value(
+                request.data.get('instantCashes'),
+                'Instant Cashes'
+            )
+
+            online_sales = parse_shift_value(
+                request.data.get('onlineSales'),
+                'Online Sales'
+            )
+
+            online_cashes = parse_shift_value(
+                request.data.get('onlineCashes'),
+                'Online Cashes'
+            )
+
+            online_cancels = parse_shift_value(
+                request.data.get('onlineCancels'),
+                'Online Cancels'
+            )
+
+        except ShiftReportValidationError as error:
+            return Response(
+                {'error': error.message},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        report.instant_cashes = instant_cashes
+        report.online_sales = online_sales
+        report.online_cashes = online_cashes
+        report.online_cancels = online_cancels
+
+        report.save(
+            update_fields=[
+                'instant_cashes',
+                'online_sales',
+                'online_cashes',
+                'online_cancels',
+                'updated_at',
+            ]
+        )
+
+        serializer = ShiftReportDetailSerializer(report)
+
+        return Response(
+            {
+                'message': 'Shift report updated successfully.',
+                'report': serializer.data,
+            },
+            status=status.HTTP_200_OK
+        )
     
 class DailyReportUpdateView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1430,26 +2167,84 @@ class EndShiftSaveView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # report = create_report_snapshot(request.user, request.data)
+        try:
+            report, created = create_shift_report_snapshot(
+                request.user,
+                request.data
+            )
 
-        # threading.Thread(
-        #     target=send_report_email,
-        #     args=(report, request.user),
-        #     daemon=True
-        # ).start()
-        report, created = create_report_snapshot(request.user, request.data)
+        except ShiftReportValidationError as error:
+            return Response(
+                {
+                    'error': error.message,
+                    'field_errors': error.field_errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        except Exception as error:
+            return Response(
+                {
+                    'error': 'Failed to save shift report.',
+                    'details': str(error),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
         if created:
             threading.Thread(
-                target=send_report_email,
+                target=send_shift_report_email,
                 args=(report, request.user),
                 daemon=True
             ).start()
 
-        serializer = DailyReportSerializer(report)
-        return Response({
-            'message': 'Report saved successfully.'if created else 'Report already exists.',
-            'report': serializer.data
-        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        cumulative_totals = get_shift_cumulative_totals(
+            user=request.user,
+            report_date=report.report_date
+        )
+
+        return Response(
+            {
+                'message': (
+                    'Shift report saved successfully.'
+                    if created
+                    else 'This shift report already exists.'
+                ),
+                'report': {
+                    'id': report.id,
+                    'report_date': str(report.report_date),
+                    'shiftNumber': report.shift_number,
+
+                    # Values stored for this specific shift.
+                    'instantSales': str(report.instant_sales),
+                    'instantCashes': str(report.instant_cashes),
+                    'onlineSales': str(report.online_sales),
+                    'onlineCashes': str(report.online_cashes),
+                    'onlineCancels': str(report.online_cancels),
+
+                    # Complete cumulative totals after this shift.
+                    'cumulativeTotals': {
+                        'instantCashes': str(
+                            cumulative_totals['instant_cashes']
+                        ),
+                        'onlineSales': str(
+                            cumulative_totals['online_sales']
+                        ),
+                        'onlineCashes': str(
+                            cumulative_totals['online_cashes']
+                        ),
+                        'onlineCancels': str(
+                            cumulative_totals['online_cancels']
+                        ),
+                    }
+                }
+            },
+            status=(
+                status.HTTP_201_CREATED
+                if created
+                else status.HTTP_200_OK
+            )
+        )
 
 class EndShiftManualScanView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1527,6 +2322,12 @@ class EndShiftManualScanView(APIView):
             scanned_code=raw_barcode,
             delta_count=delta_count,
             is_reversal=delta_count < 0
+        )
+
+        add_to_shift_sales(
+            user=request.user,
+            delta_count=delta_count,
+            ticket_value=book.ticket_value
         )
 
         activated_pack.last_ticket = previous_current
@@ -1821,6 +2622,12 @@ class DirectSaleInventoryBookView(APIView):
             scanned_code='DIRECT_SALE'
         )
 
+        add_to_shift_sales(
+            user=request.user,
+            delta_count=inventory_book.total_tickets,
+            ticket_value=inventory_book.ticket_value
+        )
+
         # mark inventory sold
         inventory_book.is_sold = True
         inventory_book.is_activated = False
@@ -2016,3 +2823,66 @@ class OwnerDashboardView(APIView):
             "daily_sales": daily_sales,
             "store_wise": store_wise
         })
+
+class ShiftReportListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        reports = ShiftReport.objects.filter(
+            user=request.user
+        ).order_by(
+            '-report_date',
+            '-shift_number'
+        )
+
+        data = []
+
+        for report in reports:
+            data.append({
+                'id': report.id,
+                'reportType': 'Shift',
+                'report_date': report.report_date,
+                'shiftNumber': report.shift_number,
+                'instantSales': str(report.instant_sales),
+                'instantCashes': str(report.instant_cashes),
+                'onlineSales': str(report.online_sales),
+                'onlineCashes': str(report.online_cashes),
+                'onlineCancels': str(report.online_cancels),
+                'createdAt': report.created_at,
+            })
+
+        return Response(data, status=status.HTTP_200_OK)
+
+class ShiftReportDownloadPDFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            report = ShiftReport.objects.get(
+                pk=pk,
+                user=request.user
+            )
+        except ShiftReport.DoesNotExist:
+            return Response(
+                {'error': 'Shift report not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        pdf_bytes = build_shift_report_pdf_bytes(
+            report,
+            request.user
+        )
+
+        buffer = BytesIO(pdf_bytes)
+
+        filename = (
+            f"shift_report_"
+            f"{report.report_date}_"
+            f"shift_{report.shift_number}.pdf"
+        )
+
+        return FileResponse(
+            buffer,
+            as_attachment=True,
+            filename=filename
+        )

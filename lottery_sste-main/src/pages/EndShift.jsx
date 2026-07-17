@@ -4,8 +4,8 @@ import axios from 'axios'
 import '../App.css'
 import './endShift.css'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -610,8 +610,8 @@ export default function EndShift() {
           <button className="btn btn-cancel" onClick={handleCancel}>
             Cancel
           </button>
-          <button className="btn btn-save" onClick={handleSave} disabled={saveLoading}>
-            {saveLoading ? 'Saving...' : 'Save Report'}
+          <button className="btn btn-save" onClick={handleSave} disabled={saveLoading || isLoggedOut}>
+            {saveLoading ? 'Saving...' : 'Save Shift Report'}
           </button>
         </div>
       </div>

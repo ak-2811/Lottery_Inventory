@@ -29,8 +29,8 @@ ChartJS.register(
   Legend
 )
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 
 const formatDateInputValue = (date) => {
   const year = date.getFullYear()
@@ -560,9 +560,9 @@ export default function Dashboard() {
     // }
   }
 
-  const handleEndDay = () => {
-    navigate('/end-day')
-  }
+  // const handleEndDay = () => {
+  //   navigate('/end-shift')
+  // }
 
   const handleReloadLiveDisplay = () => {
     // Signal LiveDisplay tab/window to perform a one-time hard reload
@@ -858,7 +858,7 @@ export default function Dashboard() {
             </button>
             {/* <button className="header-btn manage-btn">Manage Current Shift</button> */}
             {/* <button className="header-btn manage-btn" onClick={() => navigate('/manual-shift')}>Manual End Shift</button> */}
-            <button className="header-btn end-day-btn" onClick={handleEndDay}>End Day</button>
+            {/* <button className="header-btn end-day-btn" onClick={handleEndDay}>End Day</button> */}
             <button className="header-btn end-btn" onClick={handleEndShift}>End Shift</button>
             {/* <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button> */}
           </div>
@@ -884,7 +884,7 @@ export default function Dashboard() {
         <div className="dashboard-content">
           <div className="stats-grid">
             <div className="stat-box large">
-              <label>Instant Sales ( Today )</label>
+              <label>Instant Sales </label>
               <div className="stat-value large-value">$ {stats.instant_sales_today}</div>
             </div>
           </div>

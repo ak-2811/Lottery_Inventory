@@ -28,7 +28,11 @@ from .views import (
     EndShiftManualScanView,
     jackpot_values,
     PauseActivatedPackView,
-    OwnerDashboardView
+    OwnerDashboardView,
+    ShiftReportDownloadPDFView,
+    ShiftReportListView,
+    ShiftReportDetailView,
+    ShiftReportUpdateView,
 )
 
 urlpatterns = [
@@ -67,4 +71,8 @@ urlpatterns = [
     path('jackpot-values/', jackpot_values, name="jackpot-values"),
     path('pause-pack/<int:pk>/', PauseActivatedPackView.as_view()),
     path('owner-dashboard/', OwnerDashboardView.as_view()),
+    path('shift-reports/<int:pk>/', ShiftReportDetailView.as_view(), name='shift-report-detail'),
+    path('shift-reports/<int:pk>/update/', ShiftReportUpdateView.as_view(), name='shift-report-update'),
+    path('shift-reports/<int:pk>/download/',ShiftReportDownloadPDFView.as_view(),name='shift-report-download'),
+    path('shift-reports/', ShiftReportListView.as_view(), name='shift-report-list'),
 ]

@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import LotteryGame, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail
+from .models import LotteryGame, InventoryBook, ActivatedPack, DailyReport, DailyReportBoxDetail, ShiftReport, ShiftReportBoxDetail
 
 
 def format_ticket_value(value):
@@ -174,3 +174,126 @@ class DailyReportBoxDetailSerializer(serializers.ModelSerializer):
 
     def get_total(self, obj):
         return f"${obj.total_amount:.2f}"
+    
+class ShiftReportBoxDetailSerializer(serializers.ModelSerializer):
+    boxNum = serializers.CharField(
+        source='box_num',
+        read_only=True
+    )
+
+    game = serializers.SerializerMethodField()
+
+    startNum = serializers.IntegerField(
+        source='start_num',
+        read_only=True
+    )
+
+    endNum = serializers.IntegerField(
+        source='current_num',
+        read_only=True
+    )
+
+    value = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+
+    status = serializers.CharField(
+        source='closing_status',
+        read_only=True
+    )
+
+    class Meta:
+        model = ShiftReportBoxDetail
+        fields = [
+            'id',
+            'boxNum',
+            'game',
+            'startNum',
+            'endNum',
+            'value',
+            'total',
+            'status',
+        ]
+
+    def get_game(self, obj):
+        return f"{obj.lottery_name} - {obj.pack_num}"
+
+    def get_value(self, obj):
+        return f"${obj.ticket_value:.2f}"
+
+    def get_total(self, obj):
+        return f"${obj.total_amount:.2f}"
+
+
+class ShiftReportDetailSerializer(serializers.ModelSerializer):
+    shiftNumber = serializers.IntegerField(
+        source='shift_number',
+        read_only=True
+    )
+
+    instantSales = serializers.DecimalField(
+        source='instant_sales',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+
+    instantCashes = serializers.DecimalField(
+        source='instant_cashes',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+
+    onlineSales = serializers.DecimalField(
+        source='online_sales',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+
+    onlineCashes = serializers.DecimalField(
+        source='online_cashes',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+
+    onlineCancels = serializers.DecimalField(
+        source='online_cancels',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+
+    shiftStartedAt = serializers.DateTimeField(
+        source='shift_started_at',
+        read_only=True
+    )
+
+    shiftEndedAt = serializers.DateTimeField(
+        source='shift_ended_at',
+        read_only=True
+    )
+
+    boxDetails = ShiftReportBoxDetailSerializer(
+        source='box_details',
+        many=True,
+        read_only=True
+    )
+
+    class Meta:
+        model = ShiftReport
+        fields = [
+            'id',
+            'report_date',
+            'shiftNumber',
+            'shiftStartedAt',
+            'shiftEndedAt',
+            'instantSales',
+            'instantCashes',
+            'onlineSales',
+            'onlineCashes',
+            'onlineCancels',
+            'boxDetails',
+            'created_at',
+        ]
