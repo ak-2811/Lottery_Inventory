@@ -11,9 +11,10 @@ from io import BytesIO
 from django.http import FileResponse
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 from django.contrib.auth.models import User
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -742,158 +743,1169 @@ def build_report_pdf_bytes(report, user):
     buffer.seek(0)
     return buffer.getvalue()
 
-def build_shift_report_pdf_bytes(report, user):
-    details = ShiftReportBoxDetail.objects.filter(
-        user=user,
-        report=report
-    ).order_by('box_num', 'id')
+def pdf_money(value, negative_parentheses=False):
+    """
+    Formats Decimal values for the PDF.
+    """
 
-    buffer = BytesIO()
-
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=30,
-        leftMargin=30,
-        topMargin=30,
-        bottomMargin=30
+    amount = Decimal(str(value or 0)).quantize(
+        Decimal('0.01')
     )
 
-    styles = getSampleStyleSheet()
-    elements = []
+    if negative_parentheses and amount > 0:
+        return f"(${amount:,.2f})"
 
-    elements.append(
-        Paragraph(
-            f"Shift Report - Shift {report.shift_number}",
-            styles['Title']
-        )
-    )
+    if amount < 0:
+        return f"(${abs(amount):,.2f})"
 
-    elements.append(
-        Paragraph(
-            f"Report Date: {report.report_date}",
-            styles['Normal']
-        )
-    )
+    return f"${amount:,.2f}"
 
-    elements.append(
-        Paragraph(
-            f"Shift Started: "
-            f"{timezone.localtime(report.shift_started_at).strftime('%Y-%m-%d %I:%M %p')}",
-            styles['Normal']
-        )
+
+def pdf_datetime(value):
+    if not value:
+        return '-'
+
+    return timezone.localtime(value).strftime(
+        '%m-%d-%Y %I:%M:%S %p'
     )
 
-    elements.append(
-        Paragraph(
-            f"Shift Ended: "
-            f"{timezone.localtime(report.shift_ended_at).strftime('%Y-%m-%d %I:%M %p')}",
-            styles['Normal']
-        )
-    )
 
-    elements.append(Spacer(1, 12))
+def safe_ticket_count(start_num, current_num):
+    try:
+        start = int(start_num or 0)
+        current = int(current_num or 0)
+        return max(current - start, 0)
+    except (TypeError, ValueError):
+        return 0
 
-    elements.append(
-        Paragraph(
-            f"Online Sales ${report.online_sales}",
-            styles['Normal']
-        )
-    )
-    elements.append(
-        Paragraph(
-            f"Online Cashes ${report.online_cashes}",
-            styles['Normal']
-        )
-    )
-    elements.append(
-        Paragraph(
-            f"Online Cancel ${report.online_cancels}",
-            styles['Normal']
-        )
-    )
-    elements.append(
-        Paragraph(
-            f"Instant Sales ${report.instant_sales}",
-            styles['Normal']
-        )
-    )
-    elements.append(
-        Paragraph(
-            f"Instant Cashes ${report.instant_cashes}",
-            styles['Normal']
-        )
-    )
 
-    elements.append(Spacer(1, 12))
-    elements.append(
-        Paragraph(
-            "Lottery Slot Details",
-            styles['Heading2']
-        )
-    )
+def get_numeric_box_sort_value(box_num):
+    """
+    Keeps numeric boxes ordered correctly and places labels such as
+    'Direct Sale' after numbered boxes.
+    """
 
-    table_data = [[
-        'Slot #',
-        'Lottery Name',
-        'Start #',
-        'Current #',
-        'Value',
-        'Total',
-        'Status'
-    ]]
+    try:
+        return 0, int(str(box_num))
+    except (TypeError, ValueError):
+        return 1, str(box_num or '')
 
-    for row in details:
-        table_data.append([
-            str(row.box_num),
-            f"{row.lottery_name} - {row.pack_num}",
-            str(row.start_num),
-            str(row.current_num),
-            (
-                f"${row.ticket_value:.0f}"
-                if float(row.ticket_value).is_integer()
-                else f"${row.ticket_value}"
-            ),
-            f"${row.total_amount:.2f}",
-            row.closing_status,
-        ])
+
+def build_pdf_table(
+    data,
+    col_widths=None,
+    header_rows=1,
+    font_size=8,
+    alignments=None,
+):
+    """
+    Reusable PDF table styling.
+    """
 
     table = Table(
-        table_data,
-        colWidths=[
-            0.6 * inch,
-            2.3 * inch,
-            0.8 * inch,
-            0.9 * inch,
-            0.8 * inch,
-            0.8 * inch,
-            1.1 * inch,
-        ],
-        repeatRows=1
+        data,
+        colWidths=col_widths,
+        repeatRows=header_rows,
+        hAlign='LEFT',
     )
 
-    table.setStyle(TableStyle([
+    table_style = [
         (
             'BACKGROUND',
             (0, 0),
-            (-1, 0),
-            colors.HexColor('#4A90E2')
+            (-1, header_rows - 1),
+            colors.HexColor('#BFBFBF')
         ),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        (
+            'TEXTCOLOR',
+            (0, 0),
+            (-1, header_rows - 1),
+            colors.black
+        ),
+        (
+            'FONTNAME',
+            (0, 0),
+            (-1, header_rows - 1),
+            'Helvetica-Bold'
+        ),
+        (
+            'FONTNAME',
+            (0, header_rows),
+            (-1, -1),
+            'Helvetica'
+        ),
+        ('FONTSIZE', (0, 0), (-1, -1), font_size),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('ALIGN', (1, 1), (1, -1), 'LEFT'),
-        ('GRID', (0, 0), (-1, -1), 0.3, colors.grey),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        (
+            'GRID',
+            (0, 0),
+            (-1, -1),
+            0.5,
+            colors.HexColor('#707070')
+        ),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]
+
+    if alignments:
+        for column_index, alignment in alignments.items():
+            table_style.append(
+                (
+                    'ALIGN',
+                    (column_index, header_rows),
+                    (column_index, -1),
+                    alignment
+                )
+            )
+
+    table.setStyle(TableStyle(table_style))
+    return table
+
+def build_shift_report_pdf_bytes(report, user):
+    """
+    Generates a detailed shift report similar to the supplied reference.
+
+    Sections:
+    1. Store and shift information
+    2. Lottery box sales details
+    3. Selected shift totals
+    4. Daily shift-by-shift sales summary
+    5. Inventory and active ticket information
+    6. Active, sold and returned ticket details
+    """
+
+    zero = Decimal('0.00')
+
+    # ---------------------------------------------------------
+    # SELECTED SHIFT DETAILS
+    # ---------------------------------------------------------
+    shift_details = list(
+        ShiftReportBoxDetail.objects
+        .select_related(
+            'inventory_book',
+            'inventory_book__game'
+        )
+        .filter(
+            user=user,
+            report=report
+        )
+    )
+
+    shift_details.sort(
+        key=lambda item: (
+            get_numeric_box_sort_value(item.box_num),
+            item.id
+        )
+    )
+
+    # ---------------------------------------------------------
+    # ALL SHIFTS FOR THE SAME DATE
+    # ---------------------------------------------------------
+    daily_shifts = list(
+        ShiftReport.objects.filter(
+            user=user,
+            report_date=report.report_date
+        ).order_by('shift_number')
+    )
+
+    # ---------------------------------------------------------
+    # STORE INFORMATION
+    # ---------------------------------------------------------
+    store = (
+        Store.objects
+        .filter(user=user)
+        .select_related('owner')
+        .first()
+    )
+
+    location_name = (
+        store.name
+        if store
+        else user.first_name or user.username
+    )
+
+    legal_name = (
+        store.owner.name
+        if store and store.owner
+        else user.first_name or user.username
+    )
+
+    user_login = user.username
+
+    # The Store model currently does not have an address.
+    store_address = 'Not configured'
+
+    # ---------------------------------------------------------
+    # SELECTED SHIFT CALCULATIONS
+    # ---------------------------------------------------------
+    total_ticket_count = 0
+    details_total = zero
+
+    active_details = []
+    sold_details = []
+    returned_details = []
+
+    for detail in shift_details:
+        count = safe_ticket_count(
+            detail.start_num,
+            detail.current_num
+        )
+
+        total_ticket_count += count
+        details_total += Decimal(
+            str(detail.total_amount or 0)
+        )
+
+        normalized_status = (
+            detail.closing_status or ''
+        ).strip().lower()
+
+        if normalized_status == 'sold':
+            sold_details.append(detail)
+        elif normalized_status == 'returned':
+            returned_details.append(detail)
+        else:
+            active_details.append(detail)
+
+    shift_total_sales = (
+        Decimal(str(report.instant_sales or 0))
+        + Decimal(str(report.online_sales or 0))
+    )
+
+    shift_total_cashes = (
+        Decimal(str(report.instant_cashes or 0))
+        + Decimal(str(report.online_cashes or 0))
+    )
+
+    calculated_money_drop = (
+        Decimal(str(report.instant_sales or 0))
+        + Decimal(str(report.online_sales or 0))
+        - Decimal(str(report.instant_cashes or 0))
+        - Decimal(str(report.online_cashes or 0))
+        - Decimal(str(report.online_cancels or 0))
+    )
+
+    # ---------------------------------------------------------
+    # ACTIVE TICKET SNAPSHOT
+    # ---------------------------------------------------------
+    active_remaining_ticket_count = 0
+    active_remaining_value = zero
+
+    for detail in active_details:
+        book = detail.inventory_book
+
+        if not book:
+            continue
+
+        remaining_tickets = max(
+            int(book.total_tickets or 0)
+            - int(detail.current_num or 0),
+            0
+        )
+
+        active_remaining_ticket_count += remaining_tickets
+
+        active_remaining_value += (
+            Decimal(remaining_tickets)
+            * Decimal(str(detail.ticket_value or 0))
+        )
+
+    # ---------------------------------------------------------
+    # CURRENT INACTIVE INVENTORY
+    # ---------------------------------------------------------
+    #
+    # This is current inventory at PDF generation time.
+    # It is exact when the report is emailed immediately at shift end.
+    #
+    inactive_inventory = list(
+        InventoryBook.objects.filter(
+            user=user,
+            is_activated=False,
+            is_sold=False,
+            is_returned=False,
+        ).select_related('game')
+    )
+
+    inactive_pack_count = len(inactive_inventory)
+    inactive_ticket_count = 0
+    inactive_inventory_value = zero
+
+    for book in inactive_inventory:
+        inactive_ticket_count += int(
+            book.total_tickets or 0
+        )
+
+        inactive_inventory_value += (
+            Decimal(book.total_tickets or 0)
+            * Decimal(str(book.ticket_value or 0))
+        )
+
+    # ---------------------------------------------------------
+    # EMPTY BOXES
+    # ---------------------------------------------------------
+    #
+    # Your application currently supports box numbers through 70.
+    #
+    used_boxes = set()
+
+    for detail in shift_details:
+        try:
+            used_boxes.add(int(str(detail.box_num)))
+        except (TypeError, ValueError):
+            continue
+
+    empty_boxes = [
+        str(box_number)
+        for box_number in range(1, 71)
+        if box_number not in used_boxes
+    ]
+
+    # ---------------------------------------------------------
+    # DAILY TOTALS
+    # ---------------------------------------------------------
+    daily_instant_sales = sum(
+        (
+            Decimal(str(item.instant_sales or 0))
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_online_sales = sum(
+        (
+            Decimal(str(item.online_sales or 0))
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_instant_cashes = sum(
+        (
+            Decimal(str(item.instant_cashes or 0))
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_online_cashes = sum(
+        (
+            Decimal(str(item.online_cashes or 0))
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_online_cancels = sum(
+        (
+            Decimal(str(item.online_cancels or 0))
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_total_sales = (
+        daily_instant_sales
+        + daily_online_sales
+    )
+
+    daily_total_cashes = (
+        daily_instant_cashes
+        + daily_online_cashes
+    )
+
+    daily_calculated_money_drop = (
+        daily_total_sales
+        - daily_total_cashes
+        - daily_online_cancels
+    )
+
+    # ---------------------------------------------------------
+    # PDF SETUP
+    # ---------------------------------------------------------
+    buffer = BytesIO()
+
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=18,
+        leftMargin=18,
+        topMargin=22,
+        bottomMargin=22,
+        title=(
+            f"Shift {report.shift_number} Report "
+            f"{report.report_date}"
+        ),
+        author='Bright Core Solutions',
+    )
+
+    stylesheet = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=stylesheet['Title'],
+        fontName='Helvetica-Bold',
+        fontSize=17,
+        leading=20,
+        alignment=TA_CENTER,
+        spaceAfter=5,
+    )
+
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=stylesheet['Heading2'],
+        fontName='Helvetica-Bold',
+        fontSize=12,
+        leading=14,
+        alignment=TA_CENTER,
+        spaceAfter=10,
+    )
+
+    section_style = ParagraphStyle(
+        'SectionHeading',
+        parent=stylesheet['Heading2'],
+        fontName='Helvetica-Bold',
+        fontSize=12,
+        leading=15,
+        alignment=TA_LEFT,
+        spaceBefore=8,
+        spaceAfter=6,
+    )
+
+    small_style = ParagraphStyle(
+        'SmallText',
+        parent=stylesheet['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
+    )
+
+    small_bold_style = ParagraphStyle(
+        'SmallBoldText',
+        parent=small_style,
+        fontName='Helvetica-Bold',
+    )
+
+    right_small_style = ParagraphStyle(
+        'RightSmallText',
+        parent=small_style,
+        alignment=TA_RIGHT,
+    )
+
+    story = []
+
+    # ---------------------------------------------------------
+    # REPORT TITLE
+    # ---------------------------------------------------------
+    story.append(
+        Paragraph(
+            'THE LOTTERY SYSTEM',
+            title_style
+        )
+    )
+
+    story.append(
+        Paragraph(
+            f"Detailed Shift Report - {location_name}",
+            subtitle_style
+        )
+    )
+
+    # ---------------------------------------------------------
+    # HEADER INFORMATION
+    # ---------------------------------------------------------
+    left_header = [
+        [
+            Paragraph(
+                '<b>Location Name</b>',
+                small_style
+            ),
+            Paragraph(
+                str(location_name),
+                small_style
+            ),
+        ],
+        [
+            Paragraph(
+                '<b>Legal Name</b>',
+                small_style
+            ),
+            Paragraph(
+                str(legal_name),
+                small_style
+            ),
+        ],
+        [
+            Paragraph(
+                '<b>Address</b>',
+                small_style
+            ),
+            Paragraph(
+                str(store_address),
+                small_style
+            ),
+        ],
+    ]
+
+    right_header = [
+        [
+            Paragraph(
+                '<b>User Login</b>',
+                small_style
+            ),
+            Paragraph(
+                str(user_login),
+                small_style
+            ),
+        ],
+        [
+            Paragraph(
+                '<b>Shift #</b>',
+                small_style
+            ),
+            Paragraph(
+                f"Shift {report.shift_number}",
+                small_style
+            ),
+        ],
+        [
+            Paragraph(
+                '<b>Start Date</b>',
+                small_style
+            ),
+            Paragraph(
+                pdf_datetime(report.shift_started_at),
+                small_style
+            ),
+        ],
+        [
+            Paragraph(
+                '<b>Close Date</b>',
+                small_style
+            ),
+            Paragraph(
+                pdf_datetime(report.shift_ended_at),
+                small_style
+            ),
+        ],
+        [
+            Paragraph(
+                '<b>Report #</b>',
+                small_style
+            ),
+            Paragraph(
+                str(report.id),
+                small_style
+            ),
+        ],
+    ]
+
+    header_table = Table(
+        [
+            [
+                Table(
+                    left_header,
+                    colWidths=[0.9 * inch, 2.35 * inch],
+                ),
+                Table(
+                    right_header,
+                    colWidths=[0.85 * inch, 2.25 * inch],
+                ),
+            ]
+        ],
+        colWidths=[3.35 * inch, 3.25 * inch],
+    )
+
+    header_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 1),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
     ]))
 
-    elements.append(table)
+    story.append(header_table)
+    story.append(Spacer(1, 10))
 
-    doc.build(elements)
+    # ---------------------------------------------------------
+    # LOTTERY BOX DETAIL TABLE
+    # ---------------------------------------------------------
+    story.append(
+        Paragraph(
+            'Lottery Box Sales Details',
+            section_style
+        )
+    )
+
+    box_table_data = [[
+        'Box',
+        'Ticket ID',
+        'Pack #',
+        'Ticket Name',
+        'Open #',
+        'Close #',
+        'Value',
+        'Count',
+        'Total',
+    ]]
+
+    for detail in shift_details:
+        ticket_count = safe_ticket_count(
+            detail.start_num,
+            detail.current_num
+        )
+
+        box_table_data.append([
+            str(detail.box_num),
+            str(detail.game_num),
+            str(detail.pack_num),
+            Paragraph(
+                str(detail.lottery_name),
+                small_bold_style
+            ),
+            str(detail.start_num),
+            str(detail.current_num),
+            pdf_money(detail.ticket_value),
+            str(ticket_count),
+            pdf_money(detail.total_amount),
+        ])
+
+    if not shift_details:
+        box_table_data.append([
+            '',
+            '',
+            '',
+            'No lottery box details available',
+            '',
+            '',
+            '',
+            '',
+            '',
+        ])
+
+    box_table_data.append([
+        '',
+        '',
+        '',
+        Paragraph(
+            '<b>Total</b>',
+            right_small_style
+        ),
+        '',
+        '',
+        '',
+        str(total_ticket_count),
+        pdf_money(details_total),
+    ])
+
+    box_table = build_pdf_table(
+        box_table_data,
+        col_widths=[
+            0.42 * inch,
+            0.58 * inch,
+            0.72 * inch,
+            2.15 * inch,
+            0.55 * inch,
+            0.57 * inch,
+            0.62 * inch,
+            0.53 * inch,
+            0.72 * inch,
+        ],
+        font_size=7,
+        alignments={
+            3: 'LEFT',
+            8: 'RIGHT',
+        },
+    )
+
+    box_table.setStyle(TableStyle([
+        (
+            'SPAN',
+            (0, len(box_table_data) - 1),
+            (2, len(box_table_data) - 1)
+        ),
+        (
+            'SPAN',
+            (3, len(box_table_data) - 1),
+            (6, len(box_table_data) - 1)
+        ),
+        (
+            'FONTNAME',
+            (0, len(box_table_data) - 1),
+            (-1, len(box_table_data) - 1),
+            'Helvetica-Bold'
+        ),
+    ]))
+
+    story.append(box_table)
+    story.append(Spacer(1, 12))
+
+    # ---------------------------------------------------------
+    # SHIFT FINANCIAL SUMMARY
+    # ---------------------------------------------------------
+    shift_summary_left = [
+        ['Online Cancels', pdf_money(
+            report.online_cancels,
+            negative_parentheses=True
+        )],
+        ['Total Tickets Sold', str(total_ticket_count)],
+        ['Active Boxes', str(len(active_details))],
+        ['Sold Packs', str(len(sold_details))],
+        ['Returned Packs', str(len(returned_details))],
+    ]
+
+    shift_summary_right = [
+        ['Instant Sales', pdf_money(report.instant_sales)],
+        ['Online Sales', pdf_money(report.online_sales)],
+        ['Total Sales', pdf_money(shift_total_sales)],
+        [
+            'Online CashOut',
+            pdf_money(
+                report.online_cashes,
+                negative_parentheses=True
+            )
+        ],
+        [
+            'Instant CashOut',
+            pdf_money(
+                report.instant_cashes,
+                negative_parentheses=True
+            )
+        ],
+        [
+            'Total CashOut',
+            pdf_money(
+                shift_total_cashes,
+                negative_parentheses=True
+            )
+        ],
+        [
+            'Calculated Money Drop',
+            pdf_money(calculated_money_drop)
+        ],
+    ]
+
+    financial_summary = Table(
+        [
+            [
+                Table(
+                    shift_summary_left,
+                    colWidths=[1.25 * inch, 1.15 * inch],
+                ),
+                Table(
+                    shift_summary_right,
+                    colWidths=[1.35 * inch, 1.25 * inch],
+                ),
+            ]
+        ],
+        colWidths=[3.2 * inch, 3.2 * inch],
+    )
+
+    financial_summary.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+    ]))
+
+    for nested_data in [
+        financial_summary._cellvalues[0][0],
+        financial_summary._cellvalues[0][1],
+    ]:
+        nested_data.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+
+    story.append(financial_summary)
+    story.append(Spacer(1, 14))
+
+    # ---------------------------------------------------------
+    # DAILY SALES SUMMARY
+    # ---------------------------------------------------------
+    story.append(
+        Paragraph(
+            'Daily Sales Summary',
+            section_style
+        )
+    )
+
+    daily_summary_header = ['']
+
+    for shift in daily_shifts:
+        daily_summary_header.append(
+            f"Shift {shift.shift_number}"
+        )
+
+    daily_summary_header.append('Daily Total')
+
+    def build_daily_summary_row(
+        label,
+        field_name=None,
+        calculated_function=None,
+        negative=False,
+        daily_total=None,
+    ):
+        row = [label]
+
+        for shift in daily_shifts:
+            if calculated_function:
+                value = calculated_function(shift)
+            else:
+                value = getattr(
+                    shift,
+                    field_name,
+                    zero
+                )
+
+            row.append(
+                pdf_money(
+                    value,
+                    negative_parentheses=negative
+                )
+            )
+
+        row.append(
+            pdf_money(
+                daily_total,
+                negative_parentheses=negative
+            )
+        )
+
+        return row
+
+    daily_summary_data = [
+        daily_summary_header,
+        build_daily_summary_row(
+            'Instant Sales',
+            field_name='instant_sales',
+            daily_total=daily_instant_sales,
+        ),
+        build_daily_summary_row(
+            'Online Sales',
+            field_name='online_sales',
+            daily_total=daily_online_sales,
+        ),
+        build_daily_summary_row(
+            'Total Sales',
+            calculated_function=lambda shift: (
+                Decimal(str(shift.instant_sales or 0))
+                + Decimal(str(shift.online_sales or 0))
+            ),
+            daily_total=daily_total_sales,
+        ),
+        build_daily_summary_row(
+            'Online CashOut',
+            field_name='online_cashes',
+            negative=True,
+            daily_total=daily_online_cashes,
+        ),
+        build_daily_summary_row(
+            'Instant CashOut',
+            field_name='instant_cashes',
+            negative=True,
+            daily_total=daily_instant_cashes,
+        ),
+        build_daily_summary_row(
+            'Total CashOut',
+            calculated_function=lambda shift: (
+                Decimal(str(shift.instant_cashes or 0))
+                + Decimal(str(shift.online_cashes or 0))
+            ),
+            negative=True,
+            daily_total=daily_total_cashes,
+        ),
+        build_daily_summary_row(
+            'Online Cancels',
+            field_name='online_cancels',
+            negative=True,
+            daily_total=daily_online_cancels,
+        ),
+        build_daily_summary_row(
+            'Calculated Money Drop',
+            calculated_function=lambda shift: (
+                Decimal(str(shift.instant_sales or 0))
+                + Decimal(str(shift.online_sales or 0))
+                - Decimal(str(shift.instant_cashes or 0))
+                - Decimal(str(shift.online_cashes or 0))
+                - Decimal(str(shift.online_cancels or 0))
+            ),
+            daily_total=daily_calculated_money_drop,
+        ),
+    ]
+
+    shift_column_count = max(
+        len(daily_summary_header) - 1,
+        1
+    )
+
+    daily_summary_table = build_pdf_table(
+        daily_summary_data,
+        col_widths=[
+            1.45 * inch,
+            *(
+                [5.2 * inch / shift_column_count]
+                * shift_column_count
+            ),
+        ],
+        font_size=7,
+        alignments={
+            0: 'LEFT',
+        },
+    )
+
+    daily_summary_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (-1, 0), (-1, -1), 'Helvetica-Bold'),
+    ]))
+
+    story.append(daily_summary_table)
+    story.append(Spacer(1, 14))
+
+    # ---------------------------------------------------------
+    # INVENTORY AND ACTIVE TICKET INFORMATION
+    # ---------------------------------------------------------
+    story.append(
+        Paragraph(
+            'Inventory and Active Ticket Information',
+            section_style
+        )
+    )
+
+    inventory_summary_data = [
+        [
+            'Category',
+            'Pack Count',
+            'Ticket Count',
+            'Value',
+        ],
+        [
+            'Active Display Boxes',
+            str(len(active_details)),
+            str(active_remaining_ticket_count),
+            pdf_money(active_remaining_value),
+        ],
+        [
+            'Inactive Inventory',
+            str(inactive_pack_count),
+            str(inactive_ticket_count),
+            pdf_money(inactive_inventory_value),
+        ],
+        [
+            'Combined Total',
+            str(
+                len(active_details)
+                + inactive_pack_count
+            ),
+            str(
+                active_remaining_ticket_count
+                + inactive_ticket_count
+            ),
+            pdf_money(
+                active_remaining_value
+                + inactive_inventory_value
+            ),
+        ],
+    ]
+
+    inventory_table = build_pdf_table(
+        inventory_summary_data,
+        col_widths=[
+            2.2 * inch,
+            1.1 * inch,
+            1.25 * inch,
+            1.5 * inch,
+        ],
+        font_size=8,
+        alignments={
+            0: 'LEFT',
+            3: 'RIGHT',
+        },
+    )
+
+    inventory_table.setStyle(TableStyle([
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]))
+
+    story.append(inventory_table)
+    story.append(Spacer(1, 8))
+
+    story.append(
+        Paragraph(
+            (
+                '<b>Total Value of Leftover Tickets in Display Boxes:</b> '
+                f'{pdf_money(active_remaining_value)}'
+            ),
+            small_style
+        )
+    )
+
+    story.append(
+        Paragraph(
+            (
+                '<b>Total Inventory Ticket Value:</b> '
+                f'{pdf_money(inactive_inventory_value)}'
+            ),
+            small_style
+        )
+    )
+
+    story.append(
+        Paragraph(
+            (
+                '<b>Empty Boxes:</b> '
+                f'{", ".join(empty_boxes) if empty_boxes else "None"}'
+            ),
+            small_style
+        )
+    )
+
+    story.append(PageBreak())
+
+    # ---------------------------------------------------------
+    # TICKET STATUS TABLE BUILDER
+    # ---------------------------------------------------------
+    def add_ticket_status_section(
+        heading,
+        rows,
+        include_count=False,
+    ):
+        story.append(
+            Paragraph(
+                heading,
+                section_style
+            )
+        )
+
+        status_data = [[
+            'Box',
+            'Ticket ID',
+            'Pack #',
+            'Ticket Name',
+            'Open #',
+            'Close #',
+            'Value',
+            'Count',
+            'Total',
+            'Status',
+        ]]
+
+        for detail in rows:
+            count = safe_ticket_count(
+                detail.start_num,
+                detail.current_num
+            )
+
+            status_data.append([
+                str(detail.box_num),
+                str(detail.game_num),
+                str(detail.pack_num),
+                Paragraph(
+                    str(detail.lottery_name),
+                    small_style
+                ),
+                str(detail.start_num),
+                str(detail.current_num),
+                pdf_money(detail.ticket_value),
+                str(count),
+                pdf_money(detail.total_amount),
+                str(detail.closing_status),
+            ])
+
+        if not rows:
+            status_data.append([
+                '',
+                '',
+                '',
+                'No records available',
+                '',
+                '',
+                '',
+                '',
+                '',
+                '',
+            ])
+
+        status_table = build_pdf_table(
+            status_data,
+            col_widths=[
+                0.4 * inch,
+                0.55 * inch,
+                0.7 * inch,
+                1.8 * inch,
+                0.48 * inch,
+                0.5 * inch,
+                0.58 * inch,
+                0.47 * inch,
+                0.68 * inch,
+                0.62 * inch,
+            ],
+            font_size=6.5,
+            alignments={
+                3: 'LEFT',
+                8: 'RIGHT',
+            },
+        )
+
+        story.append(status_table)
+        story.append(Spacer(1, 12))
+
+    # ---------------------------------------------------------
+    # ACTIVE, SOLD AND RETURNED DETAILS
+    # ---------------------------------------------------------
+    add_ticket_status_section(
+        f"Shift {report.shift_number} - Active Tickets at Shift Close",
+        active_details,
+    )
+
+    add_ticket_status_section(
+        f"Shift {report.shift_number} - Sold Out Tickets",
+        sold_details,
+    )
+
+    add_ticket_status_section(
+        f"Shift {report.shift_number} - Returned Tickets",
+        returned_details,
+    )
+
+    # ---------------------------------------------------------
+    # FOOTER CALLBACK
+    # ---------------------------------------------------------
+    def add_page_number(canvas, doc):
+        canvas.saveState()
+
+        canvas.setFont(
+            'Helvetica',
+            7
+        )
+
+        canvas.drawString(
+            18,
+            12,
+            (
+                f"Report #{report.id} | "
+                f"Shift {report.shift_number} | "
+                f"{report.report_date}"
+            )
+        )
+
+        canvas.drawRightString(
+            letter[0] - 18,
+            12,
+            f"Page {doc.page}"
+        )
+
+        canvas.restoreState()
+
+    document.build(
+        story,
+        onFirstPage=add_page_number,
+        onLaterPages=add_page_number,
+    )
+
     buffer.seek(0)
-
     return buffer.getvalue()
 
 def send_report_email(report, user):
