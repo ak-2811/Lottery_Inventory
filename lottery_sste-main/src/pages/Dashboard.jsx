@@ -1,14 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { Bar, Line } from 'react-chartjs-2'
+import { Bar } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
-  PointElement,
-  LineElement,
   Title,
   Tooltip,
   Legend,
@@ -22,8 +20,6 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
-  PointElement,
-  LineElement,
   Title,
   Tooltip,
   Legend
@@ -246,13 +242,6 @@ function SalesDateRangePicker({
   )
 }
 
-const getSalesDate = (item) => {
-  if (item.report_date) return new Date(`${item.report_date}T00:00:00`)
-  if (item.raw_date) return new Date(`${item.raw_date}T00:00:00`)
-  if (item.date) return new Date(`${item.date} ${new Date().getFullYear()}`)
-  return null
-}
-
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -283,11 +272,7 @@ export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [ticketOnScreen, setTicketOnScreen] = useState([])
   const [scanMessage, setScanMessage] = useState('')
-  const [dailySalesData, setDailySalesData] = useState([])
-  const [salesDateRange, setSalesDateRange] = useState(getDefaultSalesDateRange)
   const [topSalesDateRange, setTopSalesDateRange] = useState(getDefaultSalesDateRange)
-  const [activeSalesCalendar, setActiveSalesCalendar] = useState(null)
-  const [salesCalendarMonth, setSalesCalendarMonth] = useState(() => getMonthStart(new Date()))
   const [activeTopSalesCalendar, setActiveTopSalesCalendar] = useState(null)
   const [topSalesCalendarMonth, setTopSalesCalendarMonth] = useState(() => getMonthStart(new Date()))
   const [topSalesMode, setTopSalesMode] = useState('games')
@@ -297,20 +282,6 @@ export default function Dashboard() {
   const [selectedStatList, setSelectedStatList] = useState(null)
   const [packPendingDelete, setPackPendingDelete] = useState(null)
   const [expandedPackIds, setExpandedPackIds] = useState({})
-  const filteredDailySalesData = useMemo(() => {
-    const fromDate = parseDateInputValue(salesDateRange.from)
-    const toDate = parseDateInputValue(salesDateRange.to, true)
-    const datedSales = dailySalesData
-      .map((item) => ({ item, salesDate: getSalesDate(item) }))
-      .filter(({ salesDate }) => salesDate && !Number.isNaN(salesDate.getTime()))
-
-    if (!fromDate || !toDate || fromDate > toDate) return dailySalesData
-
-    return datedSales
-      .filter(({ salesDate }) => salesDate >= fromDate && salesDate <= toDate)
-      .map(({ item }) => item)
-  }, [dailySalesData, salesDateRange])
-  const chartMinWidth = Math.max(900, filteredDailySalesData.length * 100)
   const topSalesRows = topSalesMode === 'games' ? topSalesData.games : topSalesData.ticket_values
   const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 128)
   const dashboardPackLists = useMemo(() => {
@@ -388,29 +359,6 @@ export default function Dashboard() {
   //     console.error('Failed to fetch end shift status', error)
   //   }
   // }
-
-  const fetchDailySalesData = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/daily-sales/`, {
-        headers: getAuthHeaders(),
-      })
-      setDailySalesData(res.data)
-    } catch (error) {
-      console.error('Error fetching daily sales data:', error)
-      // Fallback data for development with actual dates (last 7 days)
-      const today = new Date()
-      const fallbackData = []
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today)
-        date.setDate(date.getDate() - i)
-        fallbackData.push({
-          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          sales: Math.floor(Math.random() * 3000) + 1000
-        })
-      }
-      setDailySalesData(fallbackData)
-    }
-  }
 
   const fetchTopSalesData = async () => {
     try {
@@ -592,22 +540,10 @@ export default function Dashboard() {
       fetchDashboardStats(),
       fetchDashboardPackLists(),
       fetchTicketValues(),
-      fetchDailySalesData(),
       fetchTopSalesData(),
       // fetchTodayEndShiftStatus(),
     ])
     console.log('Dashboard refreshed')
-  }
-
-  const openSalesCalendar = (field) => {
-    const selectedDate = parseDateInputValue(salesDateRange[field])
-    setSalesCalendarMonth(getMonthStart(selectedDate || new Date()))
-    setActiveSalesCalendar(field)
-  }
-
-  const handleSalesDateSelect = (field, value) => {
-    setSalesDateRange((range) => ({ ...range, [field]: value }))
-    setActiveSalesCalendar(null)
   }
 
   const openTopSalesCalendar = (field) => {
@@ -762,7 +698,6 @@ export default function Dashboard() {
     fetchDashboardStats()
     fetchDashboardPackLists()
     fetchTicketValues()
-    fetchDailySalesData()
     // fetchTodayEndShiftStatus()
   }, [])
 
@@ -887,96 +822,6 @@ export default function Dashboard() {
               <label>Instant Sales </label>
               <div className="stat-value large-value">$ {stats.instant_sales_today}</div>
             </div>
-          </div>
-
-          {/* Daily Sales Line Graph */}
-          <div className="sales-chart-container">
-            <div className="sales-chart-header">
-              <h3>Daily Sales Trend</h3>
-              <SalesDateRangePicker
-                dateRange={salesDateRange}
-                activeCalendar={activeSalesCalendar}
-                calendarMonth={salesCalendarMonth}
-                onOpenCalendar={openSalesCalendar}
-                onMonthChange={setSalesCalendarMonth}
-                onSelectDate={handleSalesDateSelect}
-                onCloseCalendar={() => setActiveSalesCalendar(null)}
-              />
-            </div>
-            {filteredDailySalesData.length > 0 && (
-              <div className="sales-chart-scroll">
-                <div className="sales-chart-inner" style={{ minWidth: `${chartMinWidth}px` }}>
-                  <Line
-                    data={{
-                      labels: filteredDailySalesData.map((item) => item.date),
-                      datasets: [
-                        {
-                          label: 'Total Sales ($)',
-                          data: filteredDailySalesData.map((item) => Number(item.total ?? item.sales ?? 0)),
-                          borderColor: '#1a7a6f',
-                          backgroundColor: 'rgba(26, 122, 111, 0.1)',
-                          borderWidth: 2,
-                          fill: true,
-                          tension: 0.4,
-                          pointRadius: 5,
-                          pointBackgroundColor: '#1a7a6f',
-                          pointBorderColor: '#fff',
-                          pointBorderWidth: 2,
-                          pointHoverRadius: 7,
-                        },
-                      ],
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          display: true,
-                          position: 'top',
-                          labels: {
-                            color: '#333',
-                            font: { size: 12, weight: 'bold' },
-                          },
-                        },
-                        tooltip: {
-                          backgroundColor: 'rgba(0,0,0,0.8)',
-                          padding: 12,
-                          callbacks: {
-                            label: function (context) {
-                              return `Total Sales: $${context.parsed.y.toLocaleString()}`;
-                            },
-                          },
-                        },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function (value) {
-                              return '$' + value.toLocaleString();
-                            },
-                            color: '#666',
-                          },
-                          grid: {
-                            color: 'rgba(200, 200, 200, 0.1)',
-                          },
-                        },
-                        x: {
-                          ticks: {
-                            color: '#666',
-                            autoSkip: false,
-                            maxRotation: 0,
-                          },
-                          grid: {
-                            color: 'rgba(200, 200, 200, 0.1)',
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="sales-chart-container top-sales-chart-container">

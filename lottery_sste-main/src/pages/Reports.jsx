@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import '../App.css'
 import './reports.css'
 
@@ -25,6 +25,9 @@ const getOnlyAuthHeader = () => {
 
 export default function Reports() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const storeId = searchParams.get('store_id') || ''
+  const storeName = searchParams.get('store_name') || ''
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -181,8 +184,11 @@ export default function Reports() {
       setLoading(true)
       setPageMessage('')
 
+      const params = new URLSearchParams()
+      if (storeId) params.set('store_id', storeId)
+
       const response = await fetch(
-        `${API_BASE}/reports/`,
+        `${API_BASE}/reports/${params.toString() ? `?${params.toString()}` : ''}`,
         {
           headers: getAuthHeaders(),
         }
@@ -273,7 +279,7 @@ export default function Reports() {
 
   useEffect(() => {
     fetchReports()
-  }, [])
+  }, [storeId])
 
   const filteredReports = useMemo(() => {
     return reports.filter((report) => {
@@ -591,7 +597,7 @@ export default function Reports() {
       <div className="main-content">
         <div className="header">
           <div className="header-left">
-            <h2>Reports</h2>
+            <h2>{storeName ? `${storeName} Reports` : 'Reports'}</h2>
           </div>
 
           <div className="header-right">

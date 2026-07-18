@@ -19,6 +19,120 @@ const formatCurrency = (value, decimals = 0) =>
     maximumFractionDigits: decimals,
   })
 
+const formatAxisLabel = (value) => {
+  const amount = Number(value || 0)
+  if (amount >= 1000) return `$${Number((amount / 1000).toFixed(1)).toLocaleString()}k`
+  return `$${amount.toFixed(0)}`
+}
+
+const getDateInputValue = (date = new Date()) => {
+  const timezoneOffset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10)
+}
+
+const getDefaultSalesRange = () => ({
+  from: addDays(getDateInputValue(), -6),
+  to: getDateInputValue(),
+})
+
+const formatDateLabel = (value) =>
+  new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+
+const formatDateDisplayValue = (value) => {
+  if (!value) return 'Select date'
+
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+}
+
+const addDays = (value, days) => {
+  const date = new Date(`${value || getDateInputValue()}T00:00:00`)
+  date.setDate(date.getDate() + days)
+  return getDateInputValue(date)
+}
+
+const getDateRange = (fromDate, toDate) => {
+  if (!fromDate || !toDate) return [getDateInputValue()]
+
+  const start = fromDate <= toDate ? fromDate : toDate
+  const end = fromDate <= toDate ? toDate : fromDate
+  const dates = []
+  let current = start
+
+  while (current <= end) {
+    dates.push(current)
+    current = addDays(current, 1)
+  }
+
+  return dates
+}
+
+const getStoreSalesForDate = (store, date) => {
+  const dailyReport = (store.daily_sales || []).find((report) => report.date === date)
+  return Number(dailyReport?.total || 0)
+}
+
+const getStoreSalesForRange = (store, fromDate, toDate) =>
+  getDateRange(fromDate, toDate).reduce(
+    (total, date) => total + getStoreSalesForDate(store, date),
+    0,
+  )
+
+const getMonthStart = (date) => new Date(date.getFullYear(), date.getMonth(), 1)
+
+const addMonths = (date, amount) => new Date(date.getFullYear(), date.getMonth() + amount, 1)
+
+const getMonthLabel = (date) =>
+  date.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
+
+const getCalendarDates = (monthDate) => {
+  const firstDay = getMonthStart(monthDate)
+  const gridStart = new Date(firstDay)
+  gridStart.setDate(firstDay.getDate() - firstDay.getDay())
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart)
+    date.setDate(gridStart.getDate() + index)
+    return date
+  })
+}
+
+const isDateOutsideBounds = (date, min, max) => {
+  const minDate = min ? new Date(`${min}T00:00:00`) : null
+  const maxDate = max ? new Date(`${max}T23:59:59`) : null
+
+  return (minDate && date < minDate) || (maxDate && date > maxDate)
+}
+
+const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+const buildPath = (points, maxValue, height = 220) => {
+  const width = 700
+  if (!points.length) return `M0,${height - 12} L${width},${height - 12}`
+
+  if (points.length === 1) {
+    const y = height - (Number(points[0].total || 0) / maxValue) * (height - 24) - 12
+    return `M0,${y} L${width},${y}`
+  }
+
+  const step = points.length > 1 ? width / (points.length - 1) : width
+  const yFor = (value) => height - (Number(value || 0) / maxValue) * (height - 24) - 12
+
+  return points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'}${index * step},${yFor(point.total)}`)
+    .join(' ')
+}
+
 const readLoggedInUser = () => {
   try {
     return JSON.parse(localStorage.getItem('user') || '{}')
@@ -44,7 +158,144 @@ function EmptyState({ children }) {
   return <div className="empty-state">{children}</div>
 }
 
+function SalesCalendar({ value, min, max, monthDate, onMonthChange, onSelect, onClose }) {
+  const today = new Date()
+  const dates = getCalendarDates(monthDate)
+  const todayValue = getDateInputValue(today)
+  const canSelectToday = !isDateOutsideBounds(today, min, max)
+
+  return (
+    <div className="sales-calendar" role="dialog" aria-label="Choose date">
+      <div className="sales-calendar-header">
+        <button
+          className="sales-calendar-month"
+          onClick={() => onMonthChange(getMonthStart(new Date()))}
+          type="button"
+        >
+          {getMonthLabel(monthDate)}
+        </button>
+        <div className="sales-calendar-nav">
+          <button type="button" aria-label="Previous month" onClick={() => onMonthChange(addMonths(monthDate, -1))}>
+            ‹
+          </button>
+          <button type="button" aria-label="Next month" onClick={() => onMonthChange(addMonths(monthDate, 1))}>
+            ›
+          </button>
+        </div>
+      </div>
+
+      <div className="sales-calendar-weekdays" aria-hidden="true">
+        {weekDays.map((day, index) => (
+          <span key={`${day}-${index}`}>{day}</span>
+        ))}
+      </div>
+
+      <div className="sales-calendar-grid">
+        {dates.map((date) => {
+          const dateValue = getDateInputValue(date)
+          const isOutsideMonth = date.getMonth() !== monthDate.getMonth()
+          const isSelected = dateValue === value
+          const isToday = dateValue === todayValue
+          const isDisabled = isDateOutsideBounds(date, min, max)
+
+          return (
+            <button
+              className={[
+                'sales-calendar-day',
+                isOutsideMonth ? 'outside-month' : '',
+                isSelected ? 'selected' : '',
+                isToday ? 'today' : '',
+              ].filter(Boolean).join(' ')}
+              disabled={isDisabled}
+              key={dateValue}
+              onClick={() => onSelect(dateValue)}
+              type="button"
+            >
+              {date.getDate()}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="sales-calendar-footer">
+        <button type="button" onClick={onClose}>Done</button>
+        <button
+          disabled={!canSelectToday}
+          onClick={() => {
+            onMonthChange(getMonthStart(today))
+            onSelect(todayValue)
+          }}
+          type="button"
+        >
+          Today
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SalesDateRangePicker({
+  dateRange,
+  activeCalendar,
+  calendarMonth,
+  onOpenCalendar,
+  onMonthChange,
+  onSelectDate,
+  onCloseCalendar,
+}) {
+  return (
+    <div className="sales-range-filter" aria-label="Sales date range">
+      <div className="sales-date-field">
+        <span>From</span>
+        <button
+          aria-expanded={activeCalendar === 'from'}
+          aria-haspopup="dialog"
+          className="sales-date-trigger"
+          onClick={() => onOpenCalendar('from')}
+          type="button"
+        >
+          {formatDateDisplayValue(dateRange.from)}
+        </button>
+        {activeCalendar === 'from' && (
+          <SalesCalendar
+            max={dateRange.to}
+            monthDate={calendarMonth}
+            onClose={onCloseCalendar}
+            onMonthChange={onMonthChange}
+            onSelect={(value) => onSelectDate('from', value)}
+            value={dateRange.from}
+          />
+        )}
+      </div>
+      <span className="sales-date-divider" aria-hidden="true">to</span>
+      <div className="sales-date-field">
+        <span>To</span>
+        <button
+          aria-expanded={activeCalendar === 'to'}
+          aria-haspopup="dialog"
+          className="sales-date-trigger"
+          onClick={() => onOpenCalendar('to')}
+          type="button"
+        >
+          {formatDateDisplayValue(dateRange.to)}
+        </button>
+        {activeCalendar === 'to' && (
+          <SalesCalendar
+            min={dateRange.from}
+            monthDate={calendarMonth}
+            onClose={onCloseCalendar}
+            onMonthChange={onMonthChange}
+            onSelect={(value) => onSelectDate('to', value)}
+            value={dateRange.to}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function AdminDashboard() {
+  const defaultSalesRange = useMemo(getDefaultSalesRange, [])
   const loggedInUser = readLoggedInUser()
   const [activeNav, setActiveNav] = useState('Overview')
   const [selectedStore, setSelectedStore] = useState('all')
@@ -54,6 +305,11 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [salesFromDate, setSalesFromDate] = useState(defaultSalesRange.from)
+  const [salesToDate, setSalesToDate] = useState(defaultSalesRange.to)
+  const [salesOverviewStore, setSalesOverviewStore] = useState('all')
+  const [activeSalesCalendar, setActiveSalesCalendar] = useState(null)
+  const [salesCalendarMonth, setSalesCalendarMonth] = useState(() => getMonthStart(new Date()))
 
   useEffect(() => {
     const elements = [document.documentElement, document.body, document.getElementById('root')]
@@ -171,6 +427,79 @@ export default function AdminDashboard() {
     [selectedStores],
   )
 
+  const salesOverviewStores = useMemo(
+    () =>
+      salesOverviewStore === 'all'
+        ? stores
+        : stores.filter((store) => String(store.id) === String(salesOverviewStore)),
+    [salesOverviewStore, stores],
+  )
+
+  const selectedRangeStores = useMemo(
+    () =>
+      salesOverviewStores.map((store) => ({
+        ...store,
+        filtered_sales: getStoreSalesForRange(store, salesFromDate, salesToDate),
+      })),
+    [salesOverviewStores, salesFromDate, salesToDate],
+  )
+
+  const selectedRangeVisibleStores = useMemo(() => {
+    const normalized = search.trim().toLowerCase()
+    return selectedRangeStores.filter((store) =>
+      `${store.name} ${store.store_user || ''} ${store.store_email || ''}`
+        .toLowerCase()
+        .includes(normalized),
+    )
+  }, [selectedRangeStores, search])
+
+  const selectedRangeSalesTotal = useMemo(
+    () => selectedRangeVisibleStores.reduce((sum, store) => sum + Number(store.filtered_sales || 0), 0),
+    [selectedRangeVisibleStores],
+  )
+
+  const salesChartData = useMemo(() => {
+    const dates = getDateRange(salesFromDate, salesToDate)
+    return dates.map((date) => {
+      const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+        month: dates.length > 7 ? 'short' : undefined,
+        day: dates.length > 7 ? 'numeric' : undefined,
+        weekday: dates.length <= 7 ? 'short' : undefined,
+      })
+
+      return {
+        date,
+        label: dateLabel,
+        total: salesOverviewStores.reduce((sum, store) => sum + getStoreSalesForDate(store, date), 0),
+      }
+    })
+  }, [salesOverviewStores, salesFromDate, salesToDate])
+
+  const previousSalesChartData = useMemo(() => {
+    const daysInRange = salesChartData.length
+    const previousStart = addDays(salesFromDate <= salesToDate ? salesFromDate : salesToDate, -daysInRange)
+    const previousEnd = addDays(previousStart, daysInRange - 1)
+    const dates = getDateRange(previousStart, previousEnd)
+
+    return dates.map((date, index) => ({
+      date,
+      label: salesChartData[index]?.label || '',
+      total: salesOverviewStores.reduce((sum, store) => sum + getStoreSalesForDate(store, date), 0),
+    }))
+  }, [salesOverviewStores, salesFromDate, salesToDate, salesChartData])
+
+  const chartMaxValue = Math.max(
+    ...salesChartData.map((item) => item.total),
+    ...previousSalesChartData.map((item) => item.total),
+    1,
+  )
+  const roundedChartMax = Math.ceil(chartMaxValue / 1000) * 1000 || 1000
+  const currentPath = buildPath(salesChartData, roundedChartMax)
+  const previousPath = buildPath(previousSalesChartData, roundedChartMax)
+  const areaPath = `${currentPath} L700,220 L0,220 Z`
+  const rangeStartDate = salesFromDate <= salesToDate ? salesFromDate : salesToDate
+  const rangeEndDate = salesFromDate <= salesToDate ? salesToDate : salesFromDate
+
   const normalizedSearch = search.trim().toLowerCase()
   const visibleStores = selectedStores.filter((store) =>
     `${store.name} ${store.store_user || ''} ${store.store_email || ''}`
@@ -193,46 +522,72 @@ export default function AdminDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const openStore = (storeId) => {
-    setSelectedStore(storeId)
-    setActiveNav('My Stores')
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const openStore = (store) => {
+    const params = new URLSearchParams({
+      store_id: String(store.id),
+      store_name: store.name,
+    })
+
+    window.location.href = `/reports?${params.toString()}`
+  }
+
+  const openSalesCalendar = (field) => {
+    const selectedValue = field === 'from' ? salesFromDate : salesToDate
+    const selectedDate = selectedValue ? new Date(`${selectedValue}T00:00:00`) : new Date()
+
+    setSalesCalendarMonth(getMonthStart(selectedDate))
+    setActiveSalesCalendar(field)
+  }
+
+  const selectSalesDate = (field, value) => {
+    if (field === 'from') {
+      setSalesFromDate(value)
+    } else {
+      setSalesToDate(value)
+    }
+
+    setActiveSalesCalendar(null)
   }
 
   const renderStoreRows = (rows, compact = false) => {
     if (!rows.length) return <EmptyState>No stores match your search.</EmptyState>
-    const maxSales = Math.max(...stores.map((store) => Number(store.total_sales || 0)), 1)
+    const getSalesValue = (store) => Number(store.filtered_sales ?? store.total_sales ?? 0)
+    const maxSales = Math.max(...rows.map((store) => getSalesValue(store)), 1)
 
     return (
       <div className={compact ? 'store-list' : 'store-cards-grid'}>
-        {rows.map((store) => (
-          <button
-            className={compact ? 'store-row' : 'store-detail-card'}
-            key={store.id}
-            onClick={() => openStore(store.id)}
-            type="button"
-          >
-            <span className={`store-badge ${store.color}`}>{store.initials}</span>
-            <span className="store-info">
-              <strong>{store.name}</strong>
-              <small>Store #{store.id} · Active</small>
-            </span>
-            <span className="store-result">
-              <strong>{formatCurrency(store.total_sales)}</strong>
-              <small>Gross sales</small>
-            </span>
-            {!compact && (
-              <span className="store-facts">
-                <span><strong>{store.active_boxes || 0}</strong><small>Activated packs</small></span>
-                <span><strong>{store.inactive_packs || 0}</strong><small>Inactive packs</small></span>
-                <span><strong>{store.store_user || '—'}</strong><small>Store user</small></span>
+        {rows.map((store) => {
+          const salesValue = getSalesValue(store)
+
+          return (
+            <button
+              className={compact ? 'store-row' : 'store-detail-card'}
+              key={store.id}
+              onClick={() => openStore(store)}
+              type="button"
+            >
+              <span className={`store-badge ${store.color}`}>{store.initials}</span>
+              <span className="store-info">
+                <strong>{store.name}</strong>
+                <small>Store #{store.id} · Active</small>
               </span>
-            )}
-            <span className="progress">
-              <i style={{ width: `${(Number(store.total_sales || 0) / maxSales) * 100}%` }} />
-            </span>
-          </button>
-        ))}
+              <span className="store-result">
+                <strong>{formatCurrency(salesValue)}</strong>
+                <small>{store.filtered_sales === undefined ? 'Gross sales' : 'Selected range'}</small>
+              </span>
+              {!compact && (
+                <span className="store-facts">
+                  <span><strong>{store.active_boxes || 0}</strong><small>Activated packs</small></span>
+                  <span><strong>{store.inactive_packs || 0}</strong><small>Inactive packs</small></span>
+                  <span><strong>{store.store_user || '—'}</strong><small>Store user</small></span>
+                </span>
+              )}
+              <span className="progress">
+                <i style={{ width: `${(salesValue / maxSales) * 100}%` }} />
+              </span>
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -453,7 +808,7 @@ export default function AdminDashboard() {
       <aside className={`admin-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand">
           <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
-          <div><strong>LuckyDesk</strong><small>Owner Console</small></div>
+          <div><strong>The Lottery System</strong><small>Owner Console</small></div>
         </div>
 
         <nav className="main-nav" aria-label="Main navigation">
@@ -600,16 +955,46 @@ export default function AdminDashboard() {
                   <div className="panel-header">
                     <div>
                       <h2>Sales overview</h2>
-                      <p>Combined performance across selected locations</p>
+                      <p>Sales performance across selected locations</p>
+                    </div>
+                    <div className="sales-overview-controls">
+                      <label className="sales-store-filter">
+                        <span>Store</span>
+                        <select
+                          aria-label="Filter sales overview by store"
+                          onChange={(event) => setSalesOverviewStore(event.target.value)}
+                          value={salesOverviewStore}
+                        >
+                          <option value="all">All stores</option>
+                          {stores.map((store) => (
+                            <option key={store.id} value={store.id}>{store.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <SalesDateRangePicker
+                        activeCalendar={activeSalesCalendar}
+                        calendarMonth={salesCalendarMonth}
+                        dateRange={{ from: salesFromDate, to: salesToDate }}
+                        onCloseCalendar={() => setActiveSalesCalendar(null)}
+                        onMonthChange={setSalesCalendarMonth}
+                        onOpenCalendar={openSalesCalendar}
+                        onSelectDate={selectSalesDate}
+                      />
                     </div>
                   </div>
                   <div className="chart-summary">
-                    <div><strong>{formatCurrency(totals.sales, 2)}</strong></div>
-                    <small>Total gross sales</small>
+                    <div><strong>{formatCurrency(selectedRangeSalesTotal, 2)}</strong></div>
+                    <small>
+                      Sales from {formatDateLabel(rangeStartDate)} to {formatDateLabel(rangeEndDate)}
+                    </small>
                   </div>
                   <div className="chart-wrap">
-                    <div className="y-axis"><span>$4k</span><span>$3k</span><span>$2k</span><span>$1k</span><span>$0</span></div>
-                    <div className="chart" aria-label="Seven-day sales chart">
+                    <div className="y-axis">
+                      {[1, 0.75, 0.5, 0.25, 0].map((step) => (
+                        <span key={step}>{formatAxisLabel(roundedChartMax * step)}</span>
+                      ))}
+                    </div>
+                    <div className="chart" aria-label="Sales chart for selected date range">
                       <div className="grid-lines" aria-hidden="true"><i /><i /><i /><i /><i /></div>
                       <svg className="line-chart" viewBox="0 0 700 220" preserveAspectRatio="none" aria-hidden="true">
                         <defs>
@@ -618,12 +1003,12 @@ export default function AdminDashboard() {
                             <stop offset="100%" stopColor="#286b5d" stopOpacity="0" />
                           </linearGradient>
                         </defs>
-                        <path className="area-path" d="M0,150 L116,128 L233,141 L350,83 L466,105 L583,58 L700,76 L700,220 L0,220 Z" />
-                        <path className="previous-path" d="M0,174 L116,145 L233,155 L350,122 L466,132 L583,106 L700,118" />
-                        <path className="current-path" d="M0,150 L116,128 L233,141 L350,83 L466,105 L583,58 L700,76" />
+                        <path className="area-path" d={areaPath} />
+                        <path className="previous-path" d={previousPath} />
+                        <path className="current-path" d={currentPath} />
                       </svg>
                       <div className="x-axis">
-                        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => <span key={day}>{day}</span>)}
+                        {salesChartData.map((day) => <span key={day.date}>{day.label}</span>)}
                       </div>
                     </div>
                   </div>
@@ -631,10 +1016,10 @@ export default function AdminDashboard() {
 
                 <article className="panel stores-panel">
                   <div className="panel-header">
-                    <div><h2>Store performance</h2><p>Sales contribution</p></div>
+                    <div><h2>Store performance</h2><p>Sales contribution for selected range</p></div>
                     <button className="text-button" onClick={() => openTab('My Stores')} type="button">View stores →</button>
                   </div>
-                  {renderStoreRows(visibleStores, true)}
+                  {renderStoreRows(selectedRangeVisibleStores, true)}
                 </article>
               </section>
             </>

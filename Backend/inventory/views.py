@@ -2861,7 +2861,29 @@ class MoveActivatedPackView(APIView):
         return Response({
             'message': f'Pack moved successfully to Box {target_box}'
         }, status=status.HTTP_200_OK)
-    
+def get_report_user_for_request(request):
+    store_id = request.query_params.get('store_id')
+
+    if not store_id:
+        return request.user
+
+    try:
+        owner = StoreOwner.objects.get(user=request.user)
+        store = Store.objects.get(id=store_id, owner=owner)
+    except (StoreOwner.DoesNotExist, Store.DoesNotExist):
+        return None
+
+    return store.user
+
+def can_access_report_user(request, report_user):
+    if report_user == request.user:
+        return True
+
+    return Store.objects.filter(
+        owner__user=request.user,
+        user=report_user
+    ).exists()
+
 class DailyReportListView(APIView):
     """
     Returns one cumulative report row per date.
@@ -2873,9 +2895,17 @@ class DailyReportListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        report_user = get_report_user_for_request(request)
+
+        if report_user is None:
+            return Response(
+                {'error': 'Store not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
         grouped_reports = (
             ShiftReport.objects
-            .filter(user=request.user)
+            .filter(user=report_user)
             .values('report_date')
             .annotate(
                 instant_sales_total=Sum('instant_sales'),
@@ -2894,7 +2924,7 @@ class DailyReportListView(APIView):
             report_date = daily_group['report_date']
 
             shifts = ShiftReport.objects.filter(
-                user=request.user,
+                user=report_user,
                 report_date=report_date
             ).order_by('shift_number')
 
@@ -2953,16 +2983,19 @@ class ShiftReportDetailView(APIView):
             report = (
                 ShiftReport.objects
                 .prefetch_related('box_details')
-                .get(
-                    pk=pk,
-                    user=request.user
-                )
+                .get(pk=pk)
             )
         except ShiftReport.DoesNotExist:
             return Response(
                 {
                     'error': 'Shift report not found.'
                 },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not can_access_report_user(request, report.user):
+            return Response(
+                {'error': 'Shift report not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
@@ -2978,11 +3011,14 @@ class ShiftReportUpdateView(APIView):
 
     def put(self, request, pk):
         try:
-            report = ShiftReport.objects.get(
-                pk=pk,
-                user=request.user
-            )
+            report = ShiftReport.objects.get(pk=pk)
         except ShiftReport.DoesNotExist:
+            return Response(
+                {'error': 'Shift report not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not can_access_report_user(request, report.user):
             return Response(
                 {'error': 'Shift report not found.'},
                 status=status.HTTP_404_NOT_FOUND
@@ -3762,12 +3798,30 @@ class OwnerDashboardView(APIView):
         # -----------------------------
         # DAILY SALES GRAPH
         # -----------------------------
-        reports = DailyReport.objects.filter(user__in=store_users).order_by('report_date')
+        reports = DailyReport.objects.filter(
+            user__in=store_users
+        ).order_by('report_date')
+        shift_reports = ShiftReport.objects.filter(
+            user__in=store_users
+        ).order_by('report_date')
 
         daily_data = {}
+        shift_dates = set()
+
+        for report in shift_reports:
+            date = report.report_date.strftime('%Y-%m-%d')
+
+            if date not in daily_data:
+                daily_data[date] = 0
+
+            daily_data[date] += float(report.instant_sales + report.online_sales)
+            shift_dates.add(date)
 
         for report in reports:
             date = report.report_date.strftime('%Y-%m-%d')
+
+            if date in shift_dates:
+                continue
 
             if date not in daily_data:
                 daily_data[date] = 0
@@ -3792,18 +3846,43 @@ class OwnerDashboardView(APIView):
                 'inventory_book__game'
             ).order_by('box_num')
             store_reports = DailyReport.objects.filter(user=user).order_by('report_date')
+            store_shift_reports = ShiftReport.objects.filter(user=user).order_by('report_date')
 
             total = Decimal('0.00')
 
             for row in sales:
                 total += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
 
+            store_daily_data = {}
+            store_shift_dates = set()
+
+            for report in store_shift_reports:
+                date = report.report_date.strftime('%Y-%m-%d')
+
+                if date not in store_daily_data:
+                    store_daily_data[date] = 0
+
+                store_daily_data[date] += float(
+                    report.instant_sales + report.online_sales
+                )
+                store_shift_dates.add(date)
+
+            for report in store_reports:
+                date = report.report_date.strftime('%Y-%m-%d')
+
+                if date in store_shift_dates:
+                    continue
+
+                if date not in store_daily_data:
+                    store_daily_data[date] = 0
+
+                store_daily_data[date] += float(
+                    report.instant_sales + report.online_sales
+                )
+
             store_daily_sales = [
-                {
-                    "date": report.report_date.strftime('%Y-%m-%d'),
-                    "total": float(report.instant_sales + report.online_sales),
-                }
-                for report in store_reports
+                {"date": k, "total": v}
+                for k, v in sorted(store_daily_data.items())
             ]
 
             store_wise.append({
@@ -3870,11 +3949,14 @@ class ShiftReportDownloadPDFView(APIView):
 
     def get(self, request, pk):
         try:
-            report = ShiftReport.objects.get(
-                pk=pk,
-                user=request.user
-            )
+            report = ShiftReport.objects.get(pk=pk)
         except ShiftReport.DoesNotExist:
+            return Response(
+                {'error': 'Shift report not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not can_access_report_user(request, report.user):
             return Response(
                 {'error': 'Shift report not found.'},
                 status=status.HTTP_404_NOT_FOUND
@@ -3882,7 +3964,7 @@ class ShiftReportDownloadPDFView(APIView):
 
         pdf_bytes = build_shift_report_pdf_bytes(
             report,
-            request.user
+            report.user
         )
 
         buffer = BytesIO(pdf_bytes)
