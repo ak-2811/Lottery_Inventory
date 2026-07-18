@@ -3758,161 +3758,295 @@ class OwnerDashboardView(APIView):
 
     def get(self, request):
         try:
-            owner = StoreOwner.objects.get(user=request.user)
+            owner = StoreOwner.objects.get(
+                user=request.user
+            )
         except StoreOwner.DoesNotExist:
-            return Response({'error': 'Not an owner account'}, status=400)
+            return Response(
+                {'error': 'Not an owner account'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        stores = Store.objects.filter(owner=owner)
+        stores = (
+            Store.objects
+            .filter(owner=owner)
+            .select_related('user')
+        )
 
-        store_id = request.query_params.get('store_id')
+        requested_store_id = request.query_params.get(
+            'store_id'
+        )
 
-        if store_id and store_id != "all":
-            stores = stores.filter(id=store_id)
+        if (
+            requested_store_id
+            and requested_store_id != 'all'
+        ):
+            stores = stores.filter(
+                id=requested_store_id
+            )
 
-        store_users = [s.user for s in stores]
+        store_users = [
+            store.user
+            for store in stores
+        ]
 
-        # -----------------------------
-        # TOTAL SALES
-        # -----------------------------
+        # --------------------------------------------------
+        # COMPLETED SHIFT SALES FOR ALL SELECTED STORES
+        # --------------------------------------------------
+        completed_sales_by_user = {
+            row['user_id']: (
+                row['instant_sales_total']
+                or Decimal('0.00')
+            )
+            for row in (
+                ShiftReport.objects
+                .filter(user__in=store_users)
+                .values('user_id')
+                .annotate(
+                    instant_sales_total=Sum(
+                        'instant_sales'
+                    )
+                )
+            )
+        }
+
+        # --------------------------------------------------
+        # CURRENT OPEN SHIFT SALES
+        # --------------------------------------------------
+        current_sales_by_user = {
+            row['user_id']: (
+                row['instant_sales']
+                or Decimal('0.00')
+            )
+            for row in (
+                ShiftState.objects
+                .filter(user__in=store_users)
+                .values(
+                    'user_id',
+                    'instant_sales'
+                )
+            )
+        }
+
+        # --------------------------------------------------
+        # TOTAL GROSS SALES ACROSS ALL SELECTED STORES
+        # --------------------------------------------------
         total_sales = Decimal('0.00')
 
-        tickets = SoldTicket.objects.filter(user__in=store_users).select_related('inventory_book__game')
+        for store_user in store_users:
+            completed_sales = (
+                completed_sales_by_user.get(
+                    store_user.id,
+                    Decimal('0.00')
+                )
+            )
 
-        for row in tickets:
-            total_sales += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
+            current_shift_sales = (
+                current_sales_by_user.get(
+                    store_user.id,
+                    Decimal('0.00')
+                )
+            )
 
-        # -----------------------------
-        # ACTIVE BOXES
-        # -----------------------------
-        active_boxes = ActivatedPack.objects.filter(user__in=store_users).count()
+            total_sales += (
+                completed_sales
+                + current_shift_sales
+            )
 
-        # -----------------------------
-        # INACTIVE PACKS
-        # -----------------------------
+        # --------------------------------------------------
+        # ACTIVE AND INACTIVE PACKS
+        # --------------------------------------------------
+        active_boxes = ActivatedPack.objects.filter(
+            user__in=store_users
+        ).count()
+
         inactive_packs = InventoryBook.objects.filter(
             user__in=store_users,
             is_activated=False,
             is_sold=False
         ).count()
 
-        # -----------------------------
+        # --------------------------------------------------
         # DAILY SALES GRAPH
-        # -----------------------------
-        reports = DailyReport.objects.filter(
-            user__in=store_users
-        ).order_by('report_date')
-        shift_reports = ShiftReport.objects.filter(
-            user__in=store_users
-        ).order_by('report_date')
+        #
+        # Completed shifts are grouped by report date.
+        # Current shift sales are added to today's date.
+        # --------------------------------------------------
+        daily_sales_rows = (
+            ShiftReport.objects
+            .filter(user__in=store_users)
+            .values('report_date')
+            .annotate(
+                instant_sales_total=Sum(
+                    'instant_sales'
+                )
+            )
+            .order_by('report_date')
+        )
 
-        daily_data = {}
-        shift_dates = set()
+        daily_data = {
+            row['report_date'].isoformat(): float(
+                row['instant_sales_total']
+                or Decimal('0.00')
+            )
+            for row in daily_sales_rows
+        }
 
-        for report in shift_reports:
-            date = report.report_date.strftime('%Y-%m-%d')
+        today = get_business_date()
+        today_key = today.isoformat()
 
-            if date not in daily_data:
-                daily_data[date] = 0
+        current_open_sales_total = sum(
+            current_sales_by_user.values(),
+            Decimal('0.00')
+        )
 
-            daily_data[date] += float(report.instant_sales + report.online_sales)
-            shift_dates.add(date)
-
-        for report in reports:
-            date = report.report_date.strftime('%Y-%m-%d')
-
-            if date in shift_dates:
-                continue
-
-            if date not in daily_data:
-                daily_data[date] = 0
-
-            daily_data[date] += float(report.instant_sales + report.online_sales)
+        if current_open_sales_total:
+            daily_data[today_key] = (
+                daily_data.get(today_key, 0)
+                + float(current_open_sales_total)
+            )
 
         daily_sales = [
-            {"date": k, "total": v}
-            for k, v in sorted(daily_data.items())
+            {
+                'date': report_date,
+                'total': total,
+            }
+            for report_date, total in sorted(
+                daily_data.items()
+            )
         ]
 
-        # -----------------------------
-        # STORE WISE SALES
-        # -----------------------------
+        # --------------------------------------------------
+        # STORE-WISE DETAILS
+        # --------------------------------------------------
         store_wise = []
 
         for store in stores:
-            user = store.user
+            store_user = store.user
 
-            sales = SoldTicket.objects.filter(user=user).select_related('inventory_book__game')
-            activated_packs = ActivatedPack.objects.filter(user=user).select_related(
-                'inventory_book__game'
-            ).order_by('box_num')
-            store_reports = DailyReport.objects.filter(user=user).order_by('report_date')
-            store_shift_reports = ShiftReport.objects.filter(user=user).order_by('report_date')
-
-            total = Decimal('0.00')
-
-            for row in sales:
-                total += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
-
-            store_daily_data = {}
-            store_shift_dates = set()
-
-            for report in store_shift_reports:
-                date = report.report_date.strftime('%Y-%m-%d')
-
-                if date not in store_daily_data:
-                    store_daily_data[date] = 0
-
-                store_daily_data[date] += float(
-                    report.instant_sales + report.online_sales
+            completed_sales = (
+                completed_sales_by_user.get(
+                    store_user.id,
+                    Decimal('0.00')
                 )
-                store_shift_dates.add(date)
+            )
 
-            for report in store_reports:
-                date = report.report_date.strftime('%Y-%m-%d')
+            current_shift_sales = (
+                current_sales_by_user.get(
+                    store_user.id,
+                    Decimal('0.00')
+                )
+            )
 
-                if date in store_shift_dates:
-                    continue
+            store_total_sales = (
+                completed_sales
+                + current_shift_sales
+            )
 
-                if date not in store_daily_data:
-                    store_daily_data[date] = 0
+            activated_packs = (
+                ActivatedPack.objects
+                .filter(user=store_user)
+                .select_related(
+                    'inventory_book__game'
+                )
+                .order_by('box_num')
+            )
 
-                store_daily_data[date] += float(
-                    report.instant_sales + report.online_sales
+            # Completed daily shift totals for this store.
+            store_daily_rows = (
+                ShiftReport.objects
+                .filter(user=store_user)
+                .values('report_date')
+                .annotate(
+                    instant_sales_total=Sum(
+                        'instant_sales'
+                    )
+                )
+                .order_by('report_date')
+            )
+
+            store_daily_data = {
+                row['report_date'].isoformat(): float(
+                    row['instant_sales_total']
+                    or Decimal('0.00')
+                )
+                for row in store_daily_rows
+            }
+
+            # Add current unfinished shift to today.
+            if current_shift_sales:
+                store_daily_data[today_key] = (
+                    store_daily_data.get(
+                        today_key,
+                        0
+                    )
+                    + float(current_shift_sales)
                 )
 
             store_daily_sales = [
-                {"date": k, "total": v}
-                for k, v in sorted(store_daily_data.items())
+                {
+                    'date': report_date,
+                    'total': total,
+                }
+                for report_date, total in sorted(
+                    store_daily_data.items()
+                )
             ]
 
             store_wise.append({
-                "store_id": store.id,
-                "store_name": store.name,
-                "store_user": user.first_name or user.username,
-                "store_email": user.email,
-                "total_sales": float(total),
-                "daily_sales": store_daily_sales,
-                "active_boxes": activated_packs.count(),
-                "inactive_packs": InventoryBook.objects.filter(
-                    user=user,
-                    is_activated=False,
-                    is_sold=False
-                ).count(),
-                "activated_packs": ActivatedPackSerializer(
-                    activated_packs,
-                    many=True,
-                    context={'request': request}
-                ).data,
+                'store_id': store.id,
+                'store_name': store.name,
+                'store_user': (
+                    store_user.first_name
+                    or store_user.username
+                ),
+                'store_email': store_user.email,
+
+                # Completed + currently open shift
+                'total_sales': float(
+                    store_total_sales
+                ),
+
+                # Optional debugging/display values
+                'completed_shift_sales': float(
+                    completed_sales
+                ),
+                'current_shift_sales': float(
+                    current_shift_sales
+                ),
+
+                'daily_sales': store_daily_sales,
+                'active_boxes': (
+                    activated_packs.count()
+                ),
+                'inactive_packs': (
+                    InventoryBook.objects.filter(
+                        user=store_user,
+                        is_activated=False,
+                        is_sold=False
+                    ).count()
+                ),
+                'activated_packs': (
+                    ActivatedPackSerializer(
+                        activated_packs,
+                        many=True,
+                        context={'request': request}
+                    ).data
+                ),
             })
 
         return Response({
-            "owner_name": owner.name or request.user.first_name or request.user.username,
-            "total_sales": float(total_sales),
-            "total_stores": stores.count(),
-            "active_boxes": active_boxes,
-            "inactive_packs": inactive_packs,
-            "daily_sales": daily_sales,
-            "store_wise": store_wise
+            'owner_name': (
+                owner.name
+                or request.user.first_name
+                or request.user.username
+            ),
+            'total_sales': float(total_sales),
+            'total_stores': stores.count(),
+            'active_boxes': active_boxes,
+            'inactive_packs': inactive_packs,
+            'daily_sales': daily_sales,
+            'store_wise': store_wise,
         })
 
 class ShiftReportListView(APIView):
