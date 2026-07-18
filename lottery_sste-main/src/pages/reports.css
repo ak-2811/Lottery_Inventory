@@ -4,6 +4,27 @@
   background: white;
 }
 
+.reports-admin-mode {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.reports-admin-mode > .main-content {
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+}
+
+.reports-back-btn {
+  background: linear-gradient(135deg, #1a7a6f 0%, #156055 100%);
+  color: white;
+}
+
+.reports-back-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(26, 122, 111, 0.3);
+}
+
 .reports-content {
   padding: 32px;
   flex: 1;

@@ -28,6 +28,7 @@ export default function Reports() {
   const [searchParams] = useSearchParams()
   const storeId = searchParams.get('store_id') || ''
   const storeName = searchParams.get('store_name') || ''
+  const isAdminStoreReport = Boolean(storeId)
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -466,133 +467,135 @@ export default function Reports() {
   }
 
   return (
-    <div className="app-container">
-      <div
-        className={`sidebar ${
-          sidebarOpen ? 'open' : 'closed'
-        }`}
-      >
-        <button
-          className="sidebar-toggle"
-          onClick={() =>
-            setSidebarOpen(!sidebarOpen)
-          }
+    <div className={`app-container ${isAdminStoreReport ? 'reports-admin-mode' : ''}`}>
+      {!isAdminStoreReport && (
+        <div
+          className={`sidebar ${
+            sidebarOpen ? 'open' : 'closed'
+          }`}
         >
-          ☰
-        </button>
-
-        <div className="sidebar-header">
-          <h1 className="logo">
-            The Lottery System
-          </h1>
-
-          <p className="logo-subtitle">
-            PREMIUM INVENTORY
-          </p>
-        </div>
-
-        <nav className="sidebar-nav">
           <button
-            className="nav-item"
-            onClick={() => navigate('/dashboard')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#666',
-            }}
-          >
-            <span className="nav-icon">🎯</span>
-            <span className="nav-label">
-              Dashboard
-            </span>
-          </button>
-
-          <button
-            className="nav-item"
-            onClick={() => navigate('/inventory')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#666',
-            }}
-          >
-            <span className="nav-icon">📦</span>
-            <span className="nav-label">
-              Inventory
-            </span>
-          </button>
-
-          <button
-            className="nav-item active-highlight"
-            onClick={() => navigate('/reports')}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#1a7a6f',
-            }}
-          >
-            <span className="nav-icon">📊</span>
-            <span className="nav-label">
-              Reports
-            </span>
-          </button>
-
-          <button
-            className="nav-item"
+            className="sidebar-toggle"
             onClick={() =>
-              navigate('/activate-packs')
+              setSidebarOpen(!sidebarOpen)
             }
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#666',
-            }}
           >
-            <span className="nav-icon">⏱️</span>
-            <span className="nav-label">
-              Activate Packs
-            </span>
+            ☰
           </button>
 
-          <button
-            className="nav-item"
-            onClick={() =>
-              window.open(
-                '/live-display',
-                '_blank'
-              )
-            }
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#666',
-            }}
-          >
-            <span className="nav-icon">📺</span>
-            <span className="nav-label">
-              Live Display
-            </span>
-          </button>
-        </nav>
+          <div className="sidebar-header">
+            <h1 className="logo">
+              The Lottery System
+            </h1>
 
-        <div className="sidebar-footer">
-          <button
-            className="sidebar-link"
-            onClick={handleLogout}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              textAlign: 'left',
-              cursor: 'pointer',
-            }}
-          >
-            🚪
-            <span className="link-label">
-              Logout
-            </span>
-          </button>
+            <p className="logo-subtitle">
+              PREMIUM INVENTORY
+            </p>
+          </div>
+
+          <nav className="sidebar-nav">
+            <button
+              className="nav-item"
+              onClick={() => navigate('/dashboard')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#666',
+              }}
+            >
+              <span className="nav-icon">🎯</span>
+              <span className="nav-label">
+                Dashboard
+              </span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() => navigate('/inventory')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#666',
+              }}
+            >
+              <span className="nav-icon">📦</span>
+              <span className="nav-label">
+                Inventory
+              </span>
+            </button>
+
+            <button
+              className="nav-item active-highlight"
+              onClick={() => navigate('/reports')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#1a7a6f',
+              }}
+            >
+              <span className="nav-icon">📊</span>
+              <span className="nav-label">
+                Reports
+              </span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() =>
+                navigate('/activate-packs')
+              }
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#666',
+              }}
+            >
+              <span className="nav-icon">⏱️</span>
+              <span className="nav-label">
+                Activate Packs
+              </span>
+            </button>
+
+            <button
+              className="nav-item"
+              onClick={() =>
+                window.open(
+                  '/live-display',
+                  '_blank'
+                )
+              }
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#666',
+              }}
+            >
+              <span className="nav-icon">📺</span>
+              <span className="nav-label">
+                Live Display
+              </span>
+            </button>
+          </nav>
+
+          <div className="sidebar-footer">
+            <button
+              className="sidebar-link"
+              onClick={handleLogout}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                textAlign: 'left',
+                cursor: 'pointer',
+              }}
+            >
+              🚪
+              <span className="link-label">
+                Logout
+              </span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="main-content">
         <div className="header">
@@ -601,6 +604,15 @@ export default function Reports() {
           </div>
 
           <div className="header-right">
+            {isAdminStoreReport && (
+              <button
+                className="header-btn reports-back-btn"
+                onClick={() => navigate('/admin-dashboard?tab=my-stores')}
+                type="button"
+              >
+                Back to Home
+              </button>
+            )}
             <button
               className="header-btn refresh-btn"
               title="Reload Screen"

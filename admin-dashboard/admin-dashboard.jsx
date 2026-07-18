@@ -297,7 +297,10 @@ function SalesDateRangePicker({
 export default function AdminDashboard() {
   const defaultSalesRange = useMemo(getDefaultSalesRange, [])
   const loggedInUser = readLoggedInUser()
-  const [activeNav, setActiveNav] = useState('Overview')
+  const [activeNav, setActiveNav] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('tab') === 'my-stores' ? 'My Stores' : 'Overview'
+  })
   const [selectedStore, setSelectedStore] = useState('all')
   const [search, setSearch] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
