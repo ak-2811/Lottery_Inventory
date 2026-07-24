@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import make_password, check_password, identify_hasher
 
 
 class LotteryGame(models.Model):
@@ -341,6 +341,31 @@ class Store(models.Model):
         blank=True,
         default=''
     )
+
+    def save(self, *args, **kwargs):
+        """
+        Automatically hash the manager PIN if a plain
+        8-digit PIN is entered.
+        """
+
+        pin = (self.manager_pin_hash or '').strip()
+
+        if pin:
+            try:
+                # If this succeeds, it's already a Django hash.
+                identify_hasher(pin)
+            except Exception:
+                # Not a hash yet.
+                if pin.isdigit() and len(pin) == 8:
+                    self.manager_pin_hash = make_password(pin)
+
+        super().save(*args, **kwargs)
+
+    def check_manager_pin(self, pin):
+        return check_password(
+            str(pin),
+            self.manager_pin_hash
+        )
 
     def set_manager_pin(self, raw_pin):
         raw_pin = str(raw_pin or '').strip()
