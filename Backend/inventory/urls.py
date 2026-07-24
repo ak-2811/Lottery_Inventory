@@ -33,6 +33,8 @@ from .views import (
     ShiftReportListView,
     ShiftReportDetailView,
     ShiftReportUpdateView,
+    VerifyManagerPinView,
+    OwnerSetStoreManagerPinView,
 )
 
 urlpatterns = [
@@ -75,4 +77,6 @@ urlpatterns = [
     path('shift-reports/<int:pk>/update/', ShiftReportUpdateView.as_view(), name='shift-report-update'),
     path('shift-reports/<int:pk>/download/',ShiftReportDownloadPDFView.as_view(),name='shift-report-download'),
     path('shift-reports/', ShiftReportListView.as_view(), name='shift-report-list'),
+    path('manager-pin/verify/', VerifyManagerPinView.as_view(), name='verify-manager-pin'),
+    path('owner/stores/<int:store_id>/manager-pin/',OwnerSetStoreManagerPinView.as_view(),name='owner-set-store-manager-pin'),
 ]

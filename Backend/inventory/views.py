@@ -1,5 +1,6 @@
 from decimal import Decimal
 from datetime import timedelta
+import secrets
 from rest_framework import status, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -362,6 +363,92 @@ def build_end_shift_preview(user):
 
         'boxDetails': preview_rows,
     }
+
+MANAGER_ACCESS_TIMEOUT_SECONDS = 10 * 60
+
+
+def get_user_store(user):
+    """
+    Returns the store associated with the logged-in store user.
+    """
+
+    return (
+        Store.objects
+        .filter(user=user)
+        .select_related('owner')
+        .first()
+    )
+
+
+def create_manager_access_token(user, store, scope):
+    """
+    Generates a short-lived random authorization token.
+
+    Scope values:
+    - reports
+    - activation
+    """
+
+    token = secrets.token_urlsafe(32)
+
+    cache.set(
+        f'manager_access:{token}',
+        {
+            'user_id': user.id,
+            'store_id': store.id,
+            'scope': scope,
+        },
+        timeout=MANAGER_ACCESS_TIMEOUT_SECONDS
+    )
+
+    return token
+
+
+def validate_manager_access_token(request, required_scope):
+    """
+    Validates the token sent through X-Manager-Access-Token.
+    """
+
+    token = str(
+        request.headers.get(
+            'X-Manager-Access-Token',
+            ''
+        )
+    ).strip()
+
+    if not token:
+        return False, 'Manager authorization is required.'
+
+    access_data = cache.get(
+        f'manager_access:{token}'
+    )
+
+    if not access_data:
+        return False, (
+            'Manager authorization has expired. '
+            'Please enter the PIN again.'
+        )
+
+    if access_data.get('user_id') != request.user.id:
+        return False, 'Invalid manager authorization.'
+
+    if access_data.get('scope') != required_scope:
+        return False, (
+            'This authorization cannot be used '
+            'for the requested section.'
+        )
+
+    store = get_user_store(request.user)
+
+    if not store:
+        return False, (
+            'No store is associated with this account.'
+        )
+
+    if access_data.get('store_id') != store.id:
+        return False, 'Invalid store authorization.'
+
+    return True, None
 
 class ShiftReportValidationError(Exception):
     def __init__(self, message, field_errors=None):
@@ -2087,6 +2174,44 @@ def roll_active_packs_to_next_day(user):
         pack.tomorrow_start = pack.current_count
         pack.save(update_fields=['today_start', 'tomorrow_start', 'updated_at'])
 
+class ManagerReportsAccessMixin:
+    manager_scope = 'reports'
+
+    def check_manager_access(self, request):
+        is_valid, error_message = (
+            validate_manager_access_token(
+                request,
+                self.manager_scope
+            )
+        )
+
+        if not is_valid:
+            return Response(
+                {'error': error_message},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return None
+
+class ManagerActivationAccessMixin:
+    manager_scope = 'activation'
+
+    def check_manager_access(self, request):
+        is_valid, error_message = (
+            validate_manager_access_token(
+                request,
+                self.manager_scope
+            )
+        )
+
+        if not is_valid:
+            return Response(
+                {'error': error_message},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return None
+
 class SignupView(APIView):
     permission_classes = [AllowAny]
 
@@ -2316,10 +2441,17 @@ class ActivatedInventoryBookListView(generics.ListAPIView):
 #         serializer = ActivatedPackSerializer(activated_pack, context={'request': request})
 #         return Response(serializer.data, status=status.HTTP_200_OK)
 
-class ActivateInventoryBookView(APIView):
+class ActivateInventoryBookView(ManagerActivationAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
+        
         raw_barcode = str(request.data.get('raw_barcode', '')).strip()
         reverse_mode = request.data.get('reverse_mode', False)
 
@@ -2884,7 +3016,7 @@ def can_access_report_user(request, report_user):
         user=report_user
     ).exists()
 
-class DailyReportListView(APIView):
+class DailyReportListView(APIView, ManagerReportsAccessMixin):
     """
     Returns one cumulative report row per date.
 
@@ -2895,6 +3027,13 @@ class DailyReportListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
+
         report_user = get_report_user_for_request(request)
 
         if report_user is None:
@@ -2975,10 +3114,16 @@ class DailyReportListView(APIView):
             status=status.HTTP_200_OK
         )
 
-class ShiftReportDetailView(APIView):
+class ShiftReportDetailView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
         try:
             report = (
                 ShiftReport.objects
@@ -3006,10 +3151,17 @@ class ShiftReportDetailView(APIView):
             status=status.HTTP_200_OK
         )
 
-class ShiftReportUpdateView(APIView):
+class ShiftReportUpdateView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
+
         try:
             report = ShiftReport.objects.get(pk=pk)
         except ShiftReport.DoesNotExist:
@@ -3433,10 +3585,17 @@ class TodayReportView(APIView):
         preview = build_end_shift_preview(request.user)
         return Response(preview, status=status.HTTP_200_OK)
 
-class DailyReportBoxDetailListView(APIView):
+class DailyReportBoxDetailListView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
+        
         details = DailyReportBoxDetail.objects.filter(
             user=request.user,
             report_id=pk
@@ -3544,10 +3703,16 @@ class SalesPerformanceView(APIView):
             'ticket_values': serialize_totals(value_totals),
         }, status=status.HTTP_200_OK)
 
-class DailyReportDownloadPDFView(APIView):
+class DailyReportDownloadPDFView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
         try:
             report = DailyReport.objects.get(pk=pk, user=request.user)
         except DailyReport.DoesNotExist:
@@ -4049,10 +4214,16 @@ class OwnerDashboardView(APIView):
             'store_wise': store_wise,
         })
 
-class ShiftReportListView(APIView):
+class ShiftReportListView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
         reports = ShiftReport.objects.filter(
             user=request.user
         ).order_by(
@@ -4078,10 +4249,16 @@ class ShiftReportListView(APIView):
 
         return Response(data, status=status.HTTP_200_OK)
 
-class ShiftReportDownloadPDFView(APIView):
+class ShiftReportDownloadPDFView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        access_error = self.check_manager_access(
+            request
+        )
+
+        if access_error:
+            return access_error
         try:
             report = ShiftReport.objects.get(pk=pk)
         except ShiftReport.DoesNotExist:
@@ -4113,4 +4290,168 @@ class ShiftReportDownloadPDFView(APIView):
             buffer,
             as_attachment=True,
             filename=filename
+        )
+
+class VerifyManagerPinView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    ALLOWED_SCOPES = {
+        'reports',
+        'activation',
+    }
+
+    def post(self, request):
+        pin = str(
+            request.data.get('pin', '')
+        ).strip()
+
+        scope = str(
+            request.data.get('scope', '')
+        ).strip().lower()
+
+        if scope not in self.ALLOWED_SCOPES:
+            return Response(
+                {'error': 'Invalid authorization scope.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not pin.isdigit() or len(pin) != 8:
+            return Response(
+                {
+                    'error': (
+                        'Manager PIN must contain '
+                        'exactly 8 digits.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        store = get_user_store(request.user)
+
+        if not store:
+            return Response(
+                {
+                    'error': (
+                        'No store is associated '
+                        'with this user account.'
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not store.has_manager_pin:
+            return Response(
+                {
+                    'error': (
+                        'A managerial PIN has not been '
+                        'configured for this store.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not store.check_manager_pin(pin):
+            return Response(
+                {'error': 'Incorrect managerial PIN.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        token = create_manager_access_token(
+            user=request.user,
+            store=store,
+            scope=scope
+        )
+
+        return Response(
+            {
+                'message': 'Manager PIN verified.',
+                'accessToken': token,
+                'scope': scope,
+                'expiresIn': (
+                    MANAGER_ACCESS_TIMEOUT_SECONDS
+                ),
+                'store': {
+                    'id': store.id,
+                    'name': store.name,
+                },
+            },
+            status=status.HTTP_200_OK
+        )
+
+class OwnerSetStoreManagerPinView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, store_id):
+        try:
+            owner = StoreOwner.objects.get(
+                user=request.user
+            )
+        except StoreOwner.DoesNotExist:
+            return Response(
+                {
+                    'error': (
+                        'Only a store owner can '
+                        'change the managerial PIN.'
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            store = Store.objects.get(
+                id=store_id,
+                owner=owner
+            )
+        except Store.DoesNotExist:
+            return Response(
+                {'error': 'Store not found.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        pin = str(
+            request.data.get('pin', '')
+        ).strip()
+
+        confirm_pin = str(
+            request.data.get('confirmPin', '')
+        ).strip()
+
+        if not pin.isdigit() or len(pin) != 8:
+            return Response(
+                {
+                    'error': (
+                        'Manager PIN must contain '
+                        'exactly 8 digits.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if pin != confirm_pin:
+            return Response(
+                {
+                    'error': (
+                        'PIN and confirmation PIN '
+                        'do not match.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        store.set_manager_pin(pin)
+
+        store.save(
+            update_fields=['manager_pin_hash']
+        )
+
+        return Response(
+            {
+                'message': (
+                    f'Managerial PIN updated for '
+                    f'{store.name}.'
+                ),
+                'storeId': store.id,
+                'storeName': store.name,
+            },
+            status=status.HTTP_200_OK
         )

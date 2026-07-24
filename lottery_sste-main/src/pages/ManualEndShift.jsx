@@ -3,9 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 import './endShift.css'
+import ManagerPinModal from './ManagerPinModal'
+import {
+  clearManagerAccessToken,
+} from '../utils/managerAccess'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -23,6 +27,8 @@ const getOnlyAuthHeader = () => {
 
 export default function EndShift() {
   const navigate = useNavigate()
+  const [showReportsPin, setShowReportsPin] =
+  useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [report, setReport] = useState(null)
   const [boxDetails, setBoxDetails] = useState([])
@@ -38,6 +44,11 @@ export default function EndShift() {
     onlineCancels: '',
   })
 
+  const handleOpenReports = () => {
+    clearManagerAccessToken('reports')
+    setShowReportsPin(true)
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
@@ -46,6 +57,7 @@ export default function EndShift() {
     localStorage.removeItem('newTicketsAnimation')
     localStorage.removeItem('endingTicketsAnimation')
     localStorage.removeItem('reloadLiveDisplay')
+    clearManagerAccessToken('reports')
 
     navigate('/login')
   }
@@ -241,7 +253,9 @@ export default function EndShift() {
           </button>
           <button
             className="nav-item"
-            onClick={() => navigate('/reports')}
+            onClick={
+              handleOpenReports
+            }
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
@@ -404,6 +418,17 @@ export default function EndShift() {
           </button>
         </div>
       </div>
+      <ManagerPinModal
+        open={showReportsPin}
+        scope="reports"
+        title="Reports Authorization"
+        description="Enter the store's 8-digit managerial PIN to open Reports."
+        onClose={() => setShowReportsPin(false)}
+        onAuthorized={() => {
+          setShowReportsPin(false)
+          navigate('/reports')
+        }}
+      />
     </div>
   )
 }

@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../App.css'
 import './inventory.css'
+import ManagerPinModal from './ManagerPinModal'
+import {clearManagerAccessToken} from '../utils/managerAccess'
 // import heroImg from '../assets/hero.png'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
 
@@ -13,98 +15,9 @@ const getAuthHeaders = () => {
     Authorization: `Bearer ${token}`,
   }
 }
-// const sampleRows = [
-//   {
-//     id: 1,
-//     image: heroImg,
-//     name: '50 X',
-//     subtitle: 'PREMIUM TIER',
-//     game: 'GM-8821',
-//     pack: 'PK-445',
-//     value: '$5.00',
-//     packSize: 60,
-//     date: 'Oct 24, 2023',
-//   },
-//   {
-//     id: 2,
-//     image: heroImg,
-//     name: 'EXTRA PLAY',
-//     subtitle: 'FLASH SALE',
-//     game: 'GM-9894',
-//     pack: 'PK-112',
-//     value: '$10.00',
-//     packSize: 30,
-//     date: 'Oct 22, 2023',
-//   },
-//   {
-//     id: 3,
-//     image: heroImg,
-//     name: 'LUCKY MATCH DOUBLE',
-//     subtitle: 'STANDARD',
-//     game: 'GM-7742',
-//     pack: 'PK-891',
-//     value: '$2.00',
-//     packSize: 100,
-//     date: 'Oct 20, 2023',
-//   },
-//   {
-//     id: 4,
-//     image: heroImg,
-//     name: 'GOLD RUSH 7s',
-//     subtitle: 'LOW STOCK',
-//     game: 'GM-1129',
-//     pack: 'PK-883',
-//     value: '$20.00',
-//     packSize: 15,
-//     date: 'Oct 19, 2023',
-//   },
-//   {
-//     id: 5,
-//     image: heroImg,
-//     name: 'MEGA FORTUNE',
-//     subtitle: 'EXCLUSIVE',
-//     game: 'GM-5521',
-//     pack: 'PK-234',
-//     value: '$15.00',
-//     packSize: 25,
-//     date: 'Oct 18, 2023',
-//   },
-//   {
-//     id: 6,
-//     image: heroImg,
-//     name: 'LUCKY 7s',
-//     subtitle: 'CLASSIC',
-//     game: 'GM-6634',
-//     pack: 'PK-567',
-//     value: '$5.00',
-//     packSize: 60,
-//     date: 'Oct 17, 2023',
-//   },
-//   {
-//     id: 7,
-//     image: heroImg,
-//     name: 'DIAMOND PRIZE',
-//     subtitle: 'PREMIUM',
-//     game: 'GM-7745',
-//     pack: 'PK-789',
-//     value: '$25.00',
-//     packSize: 10,
-//     date: 'Oct 16, 2023',
-//   },
-//   {
-//     id: 8,
-//     image: heroImg,
-//     name: 'JACKPOT PLUS',
-//     subtitle: 'HOT ITEM',
-//     game: 'GM-8856',
-//     pack: 'PK-901',
-//     value: '$10.00',
-//     packSize: 40,
-//     date: 'Oct 15, 2023',
-//   },
-// ]
 export default function Inventory() {
   const navigate = useNavigate()
+  const [showReportsPin, setShowReportsPin] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [modalItems, setModalItems] = useState([])
   const [ticketInput, setTicketInput] = useState('')
@@ -124,8 +37,14 @@ export default function Inventory() {
     localStorage.removeItem('newTicketsAnimation')
     localStorage.removeItem('endingTicketsAnimation')
     localStorage.removeItem('reloadLiveDisplay')
+    clearManagerAccessToken('reports')
 
     navigate('/login')
+  }
+
+  const handleOpenReports = () => {
+    clearManagerAccessToken('reports')
+    setShowReportsPin(true)
   }
 
   const playBeep = (type) => {
@@ -411,7 +330,7 @@ export default function Inventory() {
           </a>
           <button
             className="nav-item"
-            onClick={() => navigate('/reports')}
+            onClick={handleOpenReports}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
@@ -680,6 +599,17 @@ export default function Inventory() {
           </div>
         </div>
       )}
+      <ManagerPinModal
+        open={showReportsPin}
+        scope="reports"
+        title="Reports Authorization"
+        description="Enter the store's 8-digit managerial PIN to open Reports."
+        onClose={() => setShowReportsPin(false)}
+        onAuthorized={() => {
+          setShowReportsPin(false)
+          navigate('/reports')
+        }}
+      />
     </div>
   )
 }

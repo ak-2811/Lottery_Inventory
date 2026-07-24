@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.auth.hashers import make_password, check_password
 
 
 class LotteryGame(models.Model):
@@ -335,6 +336,36 @@ class Store(models.Model):
     owner = models.ForeignKey(StoreOwner, on_delete=models.CASCADE, related_name="stores")
     user = models.ForeignKey(User, on_delete=models.CASCADE)  # ✅ FIXED
     name = models.CharField(max_length=100)
+    manager_pin_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default=''
+    )
+
+    def set_manager_pin(self, raw_pin):
+        raw_pin = str(raw_pin or '').strip()
+
+        if not raw_pin.isdigit() or len(raw_pin) != 8:
+            raise ValueError(
+                'Manager PIN must contain exactly 8 digits.'
+            )
+
+        self.manager_pin_hash = make_password(raw_pin)
+
+    def check_manager_pin(self, raw_pin):
+        raw_pin = str(raw_pin or '').strip()
+
+        if not self.manager_pin_hash:
+            return False
+
+        return check_password(
+            raw_pin,
+            self.manager_pin_hash
+        )
+
+    @property
+    def has_manager_pin(self):
+        return bool(self.manager_pin_hash)
 
     def __str__(self):
         return self.name

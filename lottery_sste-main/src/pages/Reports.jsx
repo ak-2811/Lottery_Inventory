@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import '../App.css'
 import './reports.css'
+import ManagerPinModal from './ManagerPinModal'
+import { getManagerAccessToken, getManagerProtectedHeaders, clearManagerAccessToken } from '../utils/managerAccess'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
 // const API_BASE = 'https://lottery.bright-core-solutions.com/api'
@@ -29,6 +31,9 @@ export default function Reports() {
   const storeId = searchParams.get('store_id') || ''
   const storeName = searchParams.get('store_name') || ''
   const isAdminStoreReport = Boolean(storeId)
+  const [reportsAuthorized, setReportsAuthorized] = useState(
+    () => isAdminStoreReport || Boolean(getManagerAccessToken('reports'))
+  )
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -73,6 +78,7 @@ export default function Reports() {
     localStorage.removeItem('newTicketsAnimation')
     localStorage.removeItem('endingTicketsAnimation')
     localStorage.removeItem('reloadLiveDisplay')
+    clearManagerAccessToken('reports')
 
     navigate('/login')
   }
@@ -88,7 +94,9 @@ export default function Reports() {
         `${API_BASE}/shift-reports/${selectedShiftReport.id}/update/`,
         {
           method: 'PUT',
-          headers: getAuthHeaders(),
+          headers: isAdminStoreReport
+            ? getAuthHeaders()
+            : getManagerProtectedHeaders('reports'),
           body: JSON.stringify({
             instantCashes: detailFormData.instantCashes,
             onlineSales: detailFormData.onlineSales,
@@ -99,6 +107,10 @@ export default function Reports() {
       )
 
       const data = await response.json()
+
+      if (response.status === 403 && !isAdminStoreReport) {
+        setReportsAuthorized(false)
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -191,11 +203,17 @@ export default function Reports() {
       const response = await fetch(
         `${API_BASE}/reports/${params.toString() ? `?${params.toString()}` : ''}`,
         {
-          headers: getAuthHeaders(),
+          headers: isAdminStoreReport
+            ? getAuthHeaders()
+            : getManagerProtectedHeaders('reports'),
         }
       )
 
       const data = await response.json()
+
+      if (response.status === 403 && !isAdminStoreReport) {
+        setReportsAuthorized(false)
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -242,11 +260,17 @@ export default function Reports() {
       const response = await fetch(
         `${API_BASE}/shift-reports/${shiftId}/`,
         {
-          headers: getAuthHeaders(),
+          headers: isAdminStoreReport
+            ? getAuthHeaders()
+            : getManagerProtectedHeaders('reports'),
         }
       )
 
       const data = await response.json()
+
+      if (response.status === 403 && !isAdminStoreReport) {
+        setReportsAuthorized(false)
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -279,8 +303,16 @@ export default function Reports() {
   }
 
   useEffect(() => {
-    fetchReports()
-  }, [storeId])
+    if (isAdminStoreReport) {
+      setReportsAuthorized(true)
+    }
+  }, [isAdminStoreReport])
+
+  useEffect(() => {
+    if (reportsAuthorized) {
+      fetchReports()
+    }
+  }, [storeId, reportsAuthorized])
 
   const filteredReports = useMemo(() => {
     return reports.filter((report) => {
@@ -428,9 +460,15 @@ export default function Reports() {
       const response = await fetch(
         `${API_BASE}/shift-reports/${selectedShiftReport.id}/download/`,
         {
-          headers: getOnlyAuthHeader(),
+          headers: isAdminStoreReport
+            ? getOnlyAuthHeader()
+            : getManagerProtectedHeaders('reports', false),
         }
       )
+
+      if (response.status === 403 && !isAdminStoreReport) {
+        setReportsAuthorized(false)
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -464,6 +502,21 @@ export default function Reports() {
 
   const handleRefresh = async () => {
     await fetchReports()
+  }
+
+  if (!reportsAuthorized && !isAdminStoreReport) {
+    return (
+      <ManagerPinModal
+        open
+        scope="reports"
+        title="Reports Authorization"
+        description="Enter the store's 8-digit managerial PIN to view Reports."
+        onClose={() => navigate('/dashboard')}
+        onAuthorized={() => {
+          setReportsAuthorized(true)
+        }}
+      />
+    )
   }
 
   return (

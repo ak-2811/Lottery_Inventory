@@ -4,9 +4,11 @@ import '../App.css'
 import './inventory.css'
 import './activatePacks.css'
 import axios from 'axios'
+import ManagerPinModal from './ManagerPinModal'
+import {getManagerProtectedHeaders, clearManagerAccessToken } from '../utils/managerAccess'
 
-// const API_BASE = 'http://127.0.0.1:8000/api'
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+const API_BASE = 'http://127.0.0.1:8000/api'
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getBoxSortValue = (boxNum) => {
   const parsed = Number.parseInt(boxNum, 10)
   return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed
@@ -25,9 +27,12 @@ const getAuthHeaders = () => {
 }
 export default function ActivatePacks() {
   const navigate = useNavigate()
+  const [showReportsPin, setShowReportsPin] =
+  useState(false)
   const [searchText, setSearchText] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showActivateModal, setShowActivateModal] = useState(false)
+  const [showActivationPin, setShowActivationPin] = useState(false)
   const [scanBarcode, setScanBarcode] = useState('')
   const [reverseMode, setReverseMode] = useState(false)
   const [activatedItems, setActivatedItems] = useState([])
@@ -56,8 +61,14 @@ export default function ActivatePacks() {
     localStorage.removeItem('newTicketsAnimation')
     localStorage.removeItem('endingTicketsAnimation')
     localStorage.removeItem('reloadLiveDisplay')
+    clearManagerAccessToken('reports')
 
     navigate('/login')
+  }
+
+  const handleOpenReports = () => {
+    clearManagerAccessToken('reports')
+    setShowReportsPin(true)
   }
 
   const playBeep = (type) => {
@@ -225,43 +236,6 @@ export default function ActivatePacks() {
     }
   }
 
-//   useEffect(() => {
-//   let timeoutId = null
-
-//   const handleGlobalKeyDown = (e) => {
-//     const tag = document.activeElement?.tagName?.toLowerCase()
-//     const isTypingInInput =
-//       tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
-
-//     if (showActivateModal || isTypingInInput) return
-
-//     if (e.key === 'Enter') {
-//       const scannedValue = scannerBuffer.trim()
-
-//       if (/^\d{12,16}$/.test(scannedValue)) {
-//         handleTicketScan(scannedValue)
-//       }
-
-//       setScannerBuffer('')
-//       return
-//     }
-
-//     if (/^\d$/.test(e.key)) {
-//       setScannerBuffer((prev) => prev + e.key)
-
-//       clearTimeout(timeoutId)
-//       timeoutId = setTimeout(() => {
-//         setScannerBuffer('')
-//       }, 300)
-//     }
-//   }
-
-//   window.addEventListener('keydown', handleGlobalKeyDown)
-//   return () => {
-//     window.removeEventListener('keydown', handleGlobalKeyDown)
-//     clearTimeout(timeoutId)
-//   }
-// }, [scannerBuffer, showActivateModal, packs])
 useEffect(() => {
   let buffer = ''
   let timeoutId = null
@@ -315,7 +289,7 @@ useEffect(() => {
     fetchActivatedPacks()
   }, [])
 
-  const handleOpenModal = () => {
+  const openActivationForm = () => {
     setShowActivateModal(true)
     setScanBarcode('')
     setReverseMode(false)
@@ -323,7 +297,12 @@ useEffect(() => {
     setSelectedBox('')
   }
 
+  const handleOpenModal = () => {
+    setShowActivationPin(true)
+  }
+
   const handleCloseModal = () => {
+    clearManagerAccessToken('activation')
     setShowActivateModal(false)
     setScanBarcode('')
     setReverseMode(false)
@@ -360,7 +339,7 @@ useEffect(() => {
 
       const response = await fetch(`${API_BASE}/activated-books/activate/`, {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: getManagerProtectedHeaders('activation'),
         body: JSON.stringify({
           raw_barcode: barcodeValue,
           reverse_mode: reverseMode,
@@ -387,6 +366,7 @@ useEffect(() => {
         throw new Error(data.error || 'Failed to activate pack')
       }
 
+      // clearManagerAccessToken('activation')
       setScanBarcode('')
       setReverseMode(false)
       setSelectedBox('')
@@ -465,7 +445,9 @@ useEffect(() => {
           </button>
           <button
             className="nav-item"
-            onClick={() => navigate('/reports')}
+            onClick={
+              handleOpenReports
+            }
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
@@ -670,6 +652,35 @@ useEffect(() => {
           </div>
         </div>
       )}
+      <ManagerPinModal
+        open={showActivationPin}
+        scope="activation"
+        title="Ticket Activation Authorization"
+        description="Enter the store's 8-digit managerial PIN to activate a lottery pack."
+        onClose={() => {
+          setShowActivationPin(false)
+        }}
+        onAuthorized={() => {
+          setShowActivationPin(false)
+
+          setShowActivateModal(true)
+          setScanBarcode('')
+          setReverseMode(false)
+          setErrorMessage('')
+          setSelectedBox('')
+        }}
+      />
+      <ManagerPinModal
+        open={showReportsPin}
+        scope="reports"
+        title="Reports Authorization"
+        description="Enter the store's 8-digit managerial PIN to open Reports."
+        onClose={() => setShowReportsPin(false)}
+        onAuthorized={() => {
+          setShowReportsPin(false)
+          navigate('/reports')
+        }}
+        />
       {showActivateModal && (
         <div className="modal-overlay">
           <div className="modal">

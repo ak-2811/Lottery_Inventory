@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { Bar } from 'react-chartjs-2'
+import ManagerPinModal from './ManagerPinModal'
+import {clearManagerAccessToken} from '../utils/managerAccess'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -269,6 +271,7 @@ const getPackCreatedDate = (pack) => {
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const [showReportsPin, setShowReportsPin] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [ticketOnScreen, setTicketOnScreen] = useState([])
   const [scanMessage, setScanMessage] = useState('')
@@ -283,7 +286,11 @@ export default function Dashboard() {
   const [packPendingDelete, setPackPendingDelete] = useState(null)
   const [expandedPackIds, setExpandedPackIds] = useState({})
   const topSalesRows = topSalesMode === 'games' ? topSalesData.games : topSalesData.ticket_values
-  const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 128)
+  const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 128)/4
+  const handleOpenReports = () => {
+    clearManagerAccessToken('reports')
+    setShowReportsPin(true)
+  }
   const dashboardPackLists = useMemo(() => {
     const now = new Date()
     const todayKey = now.toDateString()
@@ -530,6 +537,7 @@ export default function Dashboard() {
     localStorage.removeItem('newTicketsAnimation')
     localStorage.removeItem('endingTicketsAnimation')
     localStorage.removeItem('reloadLiveDisplay')
+    clearManagerAccessToken('reports')
 
     navigate('/login')
   }
@@ -732,7 +740,8 @@ export default function Dashboard() {
           </button>
           <button
             className="nav-item"
-            onClick={() => navigate('/reports')}
+            onClick={
+              handleOpenReports}
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
@@ -798,7 +807,6 @@ export default function Dashboard() {
             {/* <button className="header-btn end-btn" onClick={handleEndShift} disabled={isEndShiftClosed}>End Shift</button> */}
           </div>
         </div>
-
         {scanMessage && (
           <div
             style={{
@@ -1133,6 +1141,17 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+      <ManagerPinModal
+          open={showReportsPin}
+          scope="reports"
+          title="Reports Authorization"
+          description="Enter the store's 8-digit managerial PIN to open Reports."
+          onClose={() => setShowReportsPin(false)}
+          onAuthorized={() => {
+            setShowReportsPin(false)
+            navigate('/reports')
+          }}
+        />
     </div>
   )
 }

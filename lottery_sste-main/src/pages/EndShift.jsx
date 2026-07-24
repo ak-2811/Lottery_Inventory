@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import '../App.css'
 import './endShift.css'
+import ManagerPinModal from './ManagerPinModal'
+import {
+  clearManagerAccessToken,
+} from '../utils/managerAccess'
 
 const API_BASE = 'http://127.0.0.1:8000/api'
 // const API_BASE = 'https://lottery.bright-core-solutions.com/api'
@@ -23,6 +27,7 @@ const getOnlyAuthHeader = () => {
 
 export default function EndShift() {
   const navigate = useNavigate()
+  const [showReportsPin, setShowReportsPin] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [report, setReport] = useState(null)
   const [boxDetails, setBoxDetails] = useState([])
@@ -55,6 +60,11 @@ export default function EndShift() {
     onlineCancels: '',
   })
 
+  const handleOpenReports = () => {
+    clearManagerAccessToken('reports')
+    setShowReportsPin(true)
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
@@ -63,6 +73,7 @@ export default function EndShift() {
     localStorage.removeItem('newTicketsAnimation')
     localStorage.removeItem('endingTicketsAnimation')
     localStorage.removeItem('reloadLiveDisplay')
+    clearManagerAccessToken('reports')
 
     navigate('/login')
   }
@@ -150,44 +161,6 @@ export default function EndShift() {
       setScanMessage(error.message || 'Invalid input')
     }
   }
-
-  // useEffect(() => {
-  //   let timeoutId = null
-
-  //   const handleGlobalKeyDown = (e) => {
-  //     const tag = document.activeElement?.tagName?.toLowerCase()
-  //     const isTypingInInput =
-  //       tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable
-
-  //     if (isTypingInInput) return
-
-  //     if (e.key === 'Enter') {
-  //       const scannedValue = scannerBuffer.trim()
-
-  //       if (/^\d{12,16}$/.test(scannedValue)) {
-  //         handleManualEndShiftScan(scannedValue)
-  //       }
-
-  //       setScannerBuffer('')
-  //       return
-  //     }
-
-  //     if (/^\d$/.test(e.key)) {
-  //       setScannerBuffer((prev) => prev + e.key)
-
-  //       clearTimeout(timeoutId)
-  //       timeoutId = setTimeout(() => {
-  //         setScannerBuffer('')
-  //       }, 300)
-  //     }
-  //   }
-
-  //   window.addEventListener('keydown', handleGlobalKeyDown)
-  //   return () => {
-  //     window.removeEventListener('keydown', handleGlobalKeyDown)
-  //     clearTimeout(timeoutId)
-  //   }
-  // }, [scannerBuffer])
   useEffect(() => {
   let buffer = ''
   let timeoutId = null
@@ -351,30 +324,30 @@ export default function EndShift() {
     }
   }
 
-  const handleDownloadReport = async () => {
-    if (!report) return
+  // const handleDownloadReport = async () => {
+  //   if (!report) return
 
-    try {
-      const response = await fetch(`${API_BASE}/reports/${report.id}/download/`, {
-        headers: getOnlyAuthHeader(),
-      })
-      if (!response.ok) {
-        throw new Error('Failed to download report')
-      }
+  //   try {
+  //     const response = await fetch(`${API_BASE}/reports/${report.id}/download/`, {
+  //       headers: getOnlyAuthHeader(),
+  //     })
+  //     if (!response.ok) {
+  //       throw new Error('Failed to download report')
+  //     }
 
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `reports_eod_${report.report_date}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      setMessage(error.message || 'Failed to download report')
-    }
-  }
+  //     const blob = await response.blob()
+  //     const url = window.URL.createObjectURL(blob)
+  //     const a = document.createElement('a')
+  //     a.href = url
+  //     a.download = `reports_eod_${report.report_date}.pdf`
+  //     document.body.appendChild(a)
+  //     a.click()
+  //     a.remove()
+  //     window.URL.revokeObjectURL(url)
+  //   } catch (error) {
+  //     setMessage(error.message || 'Failed to download report')
+  //   }
+  // }
 
   const handleCancel = () => {
     navigate('/dashboard')
@@ -436,7 +409,9 @@ export default function EndShift() {
           </button>
           <button
             className="nav-item"
-            onClick={() => navigate('/reports')}
+            onClick={
+              handleOpenReports
+            }
             style={{ background: 'transparent', border: 'none', color: '#666' }}
           >
             <span className="nav-icon">📊</span> <span className="nav-label">Reports</span>
@@ -614,6 +589,17 @@ export default function EndShift() {
             {saveLoading ? 'Saving...' : 'Save Shift Report'}
           </button>
         </div>
+        <ManagerPinModal
+          open={showReportsPin}
+          scope="reports"
+          title="Reports Authorization"
+          description="Enter the store's 8-digit managerial PIN to open Reports."
+          onClose={() => setShowReportsPin(false)}
+          onAuthorized={() => {
+            setShowReportsPin(false)
+            navigate('/reports')
+          }}
+        />
       </div>
     </div>
   )
