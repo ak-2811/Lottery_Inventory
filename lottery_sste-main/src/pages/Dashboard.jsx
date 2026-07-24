@@ -15,6 +15,7 @@ import {
 } from 'chart.js'
 import '../App.css'
 import './dashboard.css'
+import { API_BASE } from '../config/api.js'
 // import { useNavigate } from 'react-router-dom'
 
 // Register ChartJS components
@@ -26,9 +27,6 @@ ChartJS.register(
   Tooltip,
   Legend
 )
-
-const API_BASE = 'http://127.0.0.1:8000/api'
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 
 const formatDateInputValue = (date) => {
   const year = date.getFullYear()
