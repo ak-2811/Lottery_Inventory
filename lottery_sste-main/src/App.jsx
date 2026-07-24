@@ -10,7 +10,7 @@ import EndDay from './pages/EndDay.jsx'
 import LiveDisplay from './pages/LiveDisplay.jsx'
 import HorLiveDisplay from './pages/HorLiveDisplay.jsx'
 import ManualShift from './pages/ManualEndShift.jsx'
-import AdminDashboard from '../../admin-dashboard/admin-dashboard.jsx'
+import AdminDashboard from './pages/admin-dashboard/AdminDashboard.jsx'
 
 function App() {
   return (
