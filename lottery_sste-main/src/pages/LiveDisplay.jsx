@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import '../App.css'
 import './liveDisplay.css'
+import { API_BASE } from '../config/api.js'
 
 // ─── Ticket image ──────────────────────────────────────────────────────────
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
-const API_BASE = 'https://lottery.bright-core-solutions.com/api'
-// const API_BASE = 'http://127.0.0.1:8000/api'
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
