@@ -6,9 +6,8 @@ import './activatePacks.css'
 import axios from 'axios'
 import ManagerPinModal from './ManagerPinModal'
 import {getManagerProtectedHeaders, clearManagerAccessToken } from '../utils/managerAccess'
+import { API_BASE } from '../config/api.js'
 
-const API_BASE = 'http://127.0.0.1:8000/api'
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
 const getBoxSortValue = (boxNum) => {
   const parsed = Number.parseInt(boxNum, 10)
   return Number.isNaN(parsed) ? Number.MAX_SAFE_INTEGER : parsed

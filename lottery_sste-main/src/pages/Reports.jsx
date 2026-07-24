@@ -4,9 +4,7 @@ import '../App.css'
 import './reports.css'
 import ManagerPinModal from './ManagerPinModal'
 import { getManagerAccessToken, getManagerProtectedHeaders, clearManagerAccessToken } from '../utils/managerAccess'
-
-const API_BASE = 'http://127.0.0.1:8000/api'
-// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+import { API_BASE } from '../config/api.js'
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
