@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './auth.css'
+import { API_BASE_URL } from '../config/api.js'
 
-// const API_BASE_URL = 'http://127.0.0.1:8000/api'
-
-const API_BASE_URL = 'https://lottery.bright-core-solutions.com/api'
 export default function Login() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
