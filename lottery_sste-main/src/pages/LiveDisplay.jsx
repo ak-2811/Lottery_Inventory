@@ -739,7 +739,7 @@ useEffect(() => {
       width:               '100%',
       height:              '100%',
       boxSizing:           'border-box',
-      overflow:            'visible',
+       overflow: 'hidden',
     })
     
     // Log blinking state
