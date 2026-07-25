@@ -283,42 +283,63 @@ def build_end_shift_preview(user):
     )
 
     next_shift_number = (
-        cumulative_totals['last_shift_number'] + 1
+        cumulative_totals[
+            'last_shift_number'
+        ] + 1
     )
 
     preview_rows = []
 
-    # Sold and returned rows created during the current shift.
-    sold_rows = DailyReportBoxDetail.objects.filter(
-        user=user,
-        report_date=today,
-        report__isnull=True,
-        created_at__gte=shift_state.started_at,
-        closing_status__in=['Sold', 'Returned']
-    ).order_by('box_num', 'id')
+    # Temporary Sold rows not yet consumed.
+    sold_rows = list(
+        DailyReportBoxDetail.objects.filter(
+            user=user,
+            report_date=today,
+            report__isnull=True,
+            closing_status__iexact='Sold',
+        )
+    )
 
-    for row in sold_rows:
+    # Temporary Returned rows not yet consumed.
+    returned_rows = list(
+        DailyReportBoxDetail.objects.filter(
+            user=user,
+            report_date=today,
+            report__isnull=True,
+            closing_status__iexact='Returned',
+        )
+    )
+
+    for row in sold_rows + returned_rows:
         preview_rows.append({
             'id': f"closed-{row.id}",
-            'boxNum': row.box_num,
-            'game': f"{row.lottery_name} - {row.pack_num}",
+            'boxNum': str(row.box_num),
+            'game': (
+                f"{row.lottery_name} "
+                f"- {row.pack_num}"
+            ),
             'startNum': row.start_num,
             'endNum': row.current_num,
             'value': (
                 f"${row.ticket_value:.0f}"
-                if float(row.ticket_value).is_integer()
+                if float(
+                    row.ticket_value
+                ).is_integer()
                 else f"${row.ticket_value}"
             ),
-            'total': f"${row.total_amount:.2f}",
+            'total': (
+                f"${row.total_amount:.2f}"
+            ),
             'status': row.closing_status,
         })
 
-    # Current active packs.
-    active_packs = ActivatedPack.objects.select_related(
-        'inventory_book__game'
-    ).filter(
-        user=user
-    ).order_by('box_num', 'id')
+    active_packs = (
+        ActivatedPack.objects
+        .select_related(
+            'inventory_book__game'
+        )
+        .filter(user=user)
+    )
 
     for pack in active_packs:
         book = pack.inventory_book
@@ -332,7 +353,7 @@ def build_end_shift_preview(user):
 
         preview_rows.append({
             'id': f"active-{pack.id}",
-            'boxNum': pack.box_num,
+            'boxNum': str(pack.box_num),
             'game': (
                 f"{book.game.name or book.game.game_id} "
                 f"- {book.pack_id}"
@@ -341,26 +362,40 @@ def build_end_shift_preview(user):
             'endNum': pack.current_count,
             'value': (
                 f"${book.ticket_value:.0f}"
-                if float(book.ticket_value).is_integer()
+                if float(
+                    book.ticket_value
+                ).is_integer()
                 else f"${book.ticket_value}"
             ),
-            'total': f"${total_amount:.2f}",
+            'total': (
+                f"${total_amount:.2f}"
+            ),
             'status': 'Active',
         })
+
+    preview_rows.sort(
+        key=lambda row: (
+            get_numeric_box_sort_value(
+                row.get('boxNum')
+            ),
+            str(row.get('id', ''))
+        )
+    )
 
     return {
         'id': None,
         'report_date': str(today),
-
-        # Always calculated from today's saved ShiftReport records.
         'shiftNumber': next_shift_number,
-        'shiftStartedAt': shift_state.started_at,
-        'instantSales': f"{shift_state.instant_sales:.2f}",
+        'shiftStartedAt': (
+            shift_state.started_at
+        ),
+        'instantSales': (
+            f"{shift_state.instant_sales:.2f}"
+        ),
         'instantCashes': '0.00',
         'onlineSales': '0.00',
         'onlineCashes': '0.00',
         'onlineCancels': '0.00',
-
         'boxDetails': preview_rows,
     }
 
@@ -600,23 +635,32 @@ def calculate_shift_differences(user, report_date, extra_data):
 
 def create_shift_report_snapshot(user, extra_data):
     """
-    Creates one permanent report for the current shift.
+    Creates one permanent ShiftReport for the current shift.
 
-    The four manually entered values are cumulative daily totals.
-    Only the difference belonging to this shift is stored.
+    Temporary Sold and Returned DailyReportBoxDetail rows are:
+    1. Copied into ShiftReportBoxDetail.
+    2. Deleted after the copy succeeds.
+
+    This prevents Shift 1 closed packs from appearing again
+    in Shift 2.
     """
+
     today = get_business_date()
 
     with transaction.atomic():
-        shift_state = ShiftState.objects.select_for_update().filter(
-            user=user
-        ).first()
+        shift_state = (
+            ShiftState.objects
+            .select_for_update()
+            .filter(user=user)
+            .first()
+        )
 
         if not shift_state:
             shift_state = ShiftState.objects.create(
                 user=user,
                 shift_number=1,
-                instant_sales=Decimal('0.00')
+                instant_sales=Decimal('0.00'),
+                started_at=timezone.now(),
             )
 
         shift_started_at = shift_state.started_at
@@ -628,10 +672,14 @@ def create_shift_report_snapshot(user, extra_data):
             extra_data=extra_data
         )
 
-        shift_number = calculated_values['shift_number']
-        differences = calculated_values['differences']
+        shift_number = calculated_values[
+            'shift_number'
+        ]
 
-        # Prevent duplicate report creation for the same date and shift.
+        differences = calculated_values[
+            'differences'
+        ]
+
         existing_report = ShiftReport.objects.filter(
             user=user,
             report_date=today,
@@ -647,25 +695,55 @@ def create_shift_report_snapshot(user, extra_data):
             shift_number=shift_number,
             shift_started_at=shift_started_at,
             shift_ended_at=shift_ended_at,
-
-            # Instant sales is already specific to this shift.
             instant_sales=shift_state.instant_sales,
-
-            # Store only this shift's calculated difference.
-            instant_cashes=differences['instant_cashes'],
-            online_sales=differences['online_sales'],
-            online_cashes=differences['online_cashes'],
-            online_cancels=differences['online_cancels'],
+            instant_cashes=differences[
+                'instant_cashes'
+            ],
+            online_sales=differences[
+                'online_sales'
+            ],
+            online_cashes=differences[
+                'online_cashes'
+            ],
+            online_cancels=differences[
+                'online_cancels'
+            ],
         )
 
-        # Closed packs from the current shift.
-        closed_rows = DailyReportBoxDetail.objects.filter(
-            user=user,
-            report_date=today,
-            report__isnull=True,
-            created_at__gte=shift_started_at,
-            closing_status__in=['Sold', 'Returned']
-        ).order_by('box_num', 'id')
+        # ==============================================
+        # TEMPORARY CLOSED PACK ROWS
+        #
+        # Do not use created_at here. report=None means
+        # the row has not yet been consumed by a shift.
+        # ==============================================
+        sold_rows = list(
+            DailyReportBoxDetail.objects.filter(
+                user=user,
+                report_date=today,
+                report__isnull=True,
+                closing_status__iexact='Sold',
+            )
+        )
+
+        returned_rows = list(
+            DailyReportBoxDetail.objects.filter(
+                user=user,
+                report_date=today,
+                report__isnull=True,
+                closing_status__iexact='Returned',
+            )
+        )
+
+        closed_rows = sold_rows + returned_rows
+
+        closed_rows.sort(
+            key=lambda row: (
+                get_numeric_box_sort_value(
+                    row.box_num
+                ),
+                row.id
+            )
+        )
 
         for row in closed_rows:
             ShiftReportBoxDetail.objects.create(
@@ -685,12 +763,38 @@ def create_shift_report_snapshot(user, extra_data):
                 closing_status=row.closing_status,
             )
 
-        # Current active packs.
-        active_packs = ActivatedPack.objects.select_related(
-            'inventory_book__game'
-        ).filter(
-            user=user
-        ).order_by('box_num', 'id')
+        # Delete only after all rows were successfully copied.
+        closed_row_ids = [
+            row.id
+            for row in closed_rows
+        ]
+
+        if closed_row_ids:
+            DailyReportBoxDetail.objects.filter(
+                id__in=closed_row_ids,
+                user=user,
+            ).delete()
+
+        # ==============================================
+        # CURRENT ACTIVE PACK SNAPSHOT
+        # ==============================================
+        active_packs = (
+            ActivatedPack.objects
+            .select_related(
+                'inventory_book__game'
+            )
+            .filter(user=user)
+        )
+
+        active_packs = sorted(
+            active_packs,
+            key=lambda pack: (
+                get_numeric_box_sort_value(
+                    pack.box_num
+                ),
+                pack.id
+            )
+        )
 
         for pack in active_packs:
             book = pack.inventory_book
@@ -710,7 +814,8 @@ def create_shift_report_snapshot(user, extra_data):
                 box_num=pack.box_num,
                 inventory_book=book,
                 lottery_name=(
-                    book.game.name or book.game.game_id
+                    book.game.name
+                    or book.game.game_id
                 ),
                 game_num=book.game.game_id,
                 pack_num=book.pack_id,
@@ -721,15 +826,15 @@ def create_shift_report_snapshot(user, extra_data):
                 closing_status='Active',
             )
 
-        # The next shift starts from current ticket positions.
+        # Prepare active boxes for the next shift.
         roll_active_packs_to_next_day(user)
 
-        # Reset only the shift-specific instant sales.
-        shift_state.instant_sales = Decimal('0.00')
-
-        # This value is informational only.
-        # Actual next shift number is calculated from today's reports.
-        shift_state.shift_number = shift_number + 1
+        shift_state.instant_sales = Decimal(
+            '0.00'
+        )
+        shift_state.shift_number = (
+            shift_number + 1
+        )
         shift_state.started_at = shift_ended_at
 
         shift_state.save(
@@ -1443,7 +1548,10 @@ def build_shift_report_pdf_bytes(report, user):
         )
 
         box_table_data.append([
-            str(detail.box_num),
+            Paragraph(
+                str(detail.box_num),
+                small_style
+            ),
             str(detail.game_num),
             str(detail.pack_num),
             Paragraph(
@@ -1488,17 +1596,17 @@ def build_shift_report_pdf_bytes(report, user):
     box_table = build_pdf_table(
         box_table_data,
         col_widths=[
-            0.42 * inch,
-            0.58 * inch,
-            0.72 * inch,
-            2.15 * inch,
-            0.55 * inch,
-            0.57 * inch,
-            0.62 * inch,
-            0.53 * inch,
-            0.72 * inch,
+            0.82 * inch,   # Box / Direct Sale / Inventory Return
+            0.55 * inch,   # Ticket ID
+            0.68 * inch,   # Pack #
+            1.78 * inch,   # Ticket Name
+            0.52 * inch,   # Open #
+            0.54 * inch,   # Close #
+            0.60 * inch,   # Value
+            0.50 * inch,   # Count
+            0.72 * inch,   # Total
         ],
-        font_size=7,
+        font_size=6.8,
         alignments={
             3: 'LEFT',
             8: 'RIGHT',
@@ -1886,7 +1994,10 @@ def build_shift_report_pdf_bytes(report, user):
             )
 
             status_data.append([
-                str(detail.box_num),
+                Paragraph(
+                    str(detail.box_num),
+                    small_style
+                ),
                 str(detail.game_num),
                 str(detail.pack_num),
                 Paragraph(
@@ -1918,18 +2029,18 @@ def build_shift_report_pdf_bytes(report, user):
         status_table = build_pdf_table(
             status_data,
             col_widths=[
-                0.4 * inch,
-                0.55 * inch,
-                0.7 * inch,
-                1.8 * inch,
-                0.48 * inch,
-                0.5 * inch,
-                0.58 * inch,
-                0.47 * inch,
-                0.68 * inch,
-                0.62 * inch,
+                0.85 * inch,   # Box label
+                0.52 * inch,   # Ticket ID
+                0.66 * inch,   # Pack #
+                1.36 * inch,   # Ticket Name
+                0.45 * inch,   # Open #
+                0.47 * inch,   # Close #
+                0.55 * inch,   # Value
+                0.44 * inch,   # Count
+                0.64 * inch,   # Total
+                0.64 * inch,   # Status
             ],
-            font_size=6.5,
+            font_size=6.2,
             alignments={
                 3: 'LEFT',
                 8: 'RIGHT',
@@ -2021,21 +2132,39 @@ def send_report_email(report, user):
 
 def send_shift_report_email(report, user):
     if not user.email:
-        return
+        raise ValueError(
+            'The store user has no email address.'
+        )
+
+    if not settings.RESEND_API_KEY:
+        raise ValueError(
+            'RESEND_API_KEY is not configured.'
+        )
 
     resend.api_key = settings.RESEND_API_KEY
 
-    pdf_bytes = build_shift_report_pdf_bytes(report, user)
+    pdf_bytes = build_shift_report_pdf_bytes(
+        report,
+        user
+    )
 
-    resend.Emails.send({
-        "from": "admin@bright-core-solutions.com",
+    if not pdf_bytes:
+        raise ValueError(
+            'Shift report PDF generation returned no data.'
+        )
+
+    response = resend.Emails.send({
+        "from": (
+            "admin@bright-core-solutions.com"
+        ),
         "to": [user.email],
         "subject": (
             f"Shift {report.shift_number} Report - "
             f"{report.report_date}"
         ),
         "text": (
-            f"Hello {user.first_name or user.username},\n\n"
+            f"Hello "
+            f"{user.first_name or user.username},\n\n"
             f"Please find attached the report for "
             f"shift {report.shift_number} on "
             f"{report.report_date}.\n\n"
@@ -2054,6 +2183,49 @@ def send_shift_report_email(report, user):
             ).decode("utf-8"),
         }],
     })
+
+    return response
+
+def send_shift_report_email_safely(
+    report_id,
+    user_id
+):
+    """
+    Runs inside the background thread and prints the
+    actual email/PDF error instead of failing silently.
+    """
+
+    try:
+        report = ShiftReport.objects.get(
+            id=report_id
+        )
+
+        user = User.objects.get(
+            id=user_id
+        )
+
+        send_shift_report_email(
+            report,
+            user
+        )
+
+        print(
+            f"[SHIFT EMAIL SUCCESS] "
+            f"Report ID: {report_id}, "
+            f"To: {user.email}"
+        )
+
+    except Exception as error:
+        import traceback
+
+        print(
+            f"[SHIFT EMAIL FAILED] "
+            f"Report ID: {report_id}, "
+            f"User ID: {user_id}, "
+            f"Error: {error}"
+        )
+
+        traceback.print_exc()
 
 def get_business_date():
     return timezone.localtime().date()
@@ -2331,8 +2503,13 @@ class InventoryBookCreateView(APIView):
         if len(raw_barcode) < 5:
             return Response({'error': 'Invalid barcode.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        game_id = raw_barcode[:4]
-        pack_id = raw_barcode[4:-4]
+        if (len(raw_barcode)) > 14:
+            raw_barcode=raw_barcode[:14]
+            game_id = raw_barcode[:4]
+            pack_id = raw_barcode[4:-3]
+        else:
+            game_id = raw_barcode[:4]
+            pack_id = raw_barcode[4:-4]
 
         if not pack_id:
             return Response({'error': 'Pack id is missing.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2466,8 +2643,13 @@ class ActivateInventoryBookView(ManagerActivationAccessMixin, APIView):
         if len(raw_barcode) < 5:
             return Response({'error': 'Invalid barcode.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        game_id = raw_barcode[:4]
-        pack_id = raw_barcode[4:-4]
+        if len(raw_barcode) > 14:
+            raw_barcode=raw_barcode[:14]
+            game_id = raw_barcode[:4]
+            pack_id = raw_barcode[4:-3]
+        else:    
+            game_id = raw_barcode[:4]
+            pack_id = raw_barcode[4:-4]
 
         if not pack_id:
             return Response({'error': 'Pack id is missing.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -2618,10 +2800,16 @@ class ScanSoldTicketView(APIView):
 
         if len(barcode) < 11:
             raise ValueError("Invalid input")
-
-        game_id = barcode[:4]
-        pack_id = barcode[4:-4]
-        ticket_number = barcode[-4:-1]
+        
+        if len(barcode) > 14:
+            barcode=barcode[:14] 
+            game_id = barcode[:4]
+            pack_id = barcode[4:-3]
+            ticket_number = barcode[-3:]
+        else:
+            game_id = barcode[:4]
+            pack_id = barcode[4:-4]
+            ticket_number = barcode[-4:-1]
 
         if not pack_id or len(ticket_number) != 3:
             raise ValueError("Invalid input")
@@ -2755,76 +2943,269 @@ class MarkInventoryBookSoldView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            inventory_book = InventoryBook.objects.select_related('game').get(
-                pk=pk,
-                user=request.user
-            )
-        except InventoryBook.DoesNotExist:
-            return Response({'error': 'Inventory book not found.'}, status=status.HTTP_404_NOT_FOUND)
+        today = get_business_date()
 
-        if inventory_book.is_sold:
-            return Response({'error': 'Pack is already sold.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # CASE 1: not activated -> treat like returned / do not count in sales
-        if not inventory_book.is_activated:
-            inventory_book.is_sold = True
-            inventory_book.is_activated = False
-            inventory_book.is_returned = True
-            inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned', 'updated_at'])
-
-            return Response({
-                'message': 'Pack marked as sold successfully.'
-            }, status=status.HTTP_200_OK)
-
-        # CASE 2: activated -> count remaining tickets in sales and show in report
-        try:
-            activated_pack = ActivatedPack.objects.get(
-                inventory_book=inventory_book,
-                user=request.user
-            )
-        except ActivatedPack.DoesNotExist:
-            inventory_book.is_sold = True
-            inventory_book.is_activated = False
-            inventory_book.save(update_fields=['is_sold', 'is_activated', 'updated_at'])
-
-            return Response({
-                'message': 'Pack marked as sold successfully.'
-            }, status=status.HTTP_200_OK)
-
-        previous_count = activated_pack.current_count
-        final_ticket_number = inventory_book.total_tickets
-
-        remaining_count = inventory_book.total_tickets - previous_count
-
-        if remaining_count > 0:
-            SoldTicket.objects.create(
-                user=request.user,
-                inventory_book=inventory_book,
-                ticket_number=final_ticket_number,
-                delta_count=remaining_count,
-                is_reversal=False,
-                scanned_code='MARK_SOLD'
+        with transaction.atomic():
+            # Lock/create the current shift first so the returned row
+            # definitely belongs to the active shift.
+            shift_state = (
+                ShiftState.objects
+                .select_for_update()
+                .filter(user=request.user)
+                .first()
             )
 
-            add_to_shift_sales(
-                user=request.user,
-                delta_count=remaining_count,
-                ticket_value=inventory_book.ticket_value
+            if not shift_state:
+                shift_state = ShiftState.objects.create(
+                    user=request.user,
+                    shift_number=1,
+                    instant_sales=Decimal('0.00'),
+                    started_at=timezone.now(),
+                )
+
+            try:
+                inventory_book = (
+                    InventoryBook.objects
+                    .select_for_update()
+                    .select_related('game')
+                    .get(
+                        pk=pk,
+                        user=request.user
+                    )
+                )
+            except InventoryBook.DoesNotExist:
+                return Response(
+                    {
+                        'error': 'Inventory book not found.'
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            if inventory_book.is_sold:
+                return Response(
+                    {
+                        'error': (
+                            'Pack is already sold or returned.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # ==================================================
+            # INACTIVE INVENTORY PACK
+            # Mark it returned without counting any sale.
+            # ==================================================
+            if not inventory_book.is_activated:
+                returned_detail = (
+                    DailyReportBoxDetail.objects
+                    .filter(
+                        user=request.user,
+                        report_date=today,
+                        inventory_book=inventory_book,
+                        report__isnull=True,
+                        closing_status__iexact='Returned',
+                        created_at__gte=shift_state.started_at,
+                    )
+                    .order_by('-id')
+                    .first()
+                )
+
+                if returned_detail:
+                    returned_detail.box_num = 'Inventory Return'
+                    returned_detail.lottery_name = (
+                        inventory_book.game.name
+                        or inventory_book.game.game_id
+                    )
+                    returned_detail.game_num = (
+                        inventory_book.game.game_id
+                    )
+                    returned_detail.pack_num = (
+                        inventory_book.pack_id
+                    )
+                    returned_detail.start_num = 0
+                    returned_detail.current_num = 0
+                    returned_detail.ticket_value = (
+                        inventory_book.ticket_value
+                    )
+                    returned_detail.total_amount = (
+                        Decimal('0.00')
+                    )
+                    returned_detail.closing_status = (
+                        'Returned'
+                    )
+
+                    returned_detail.save(
+                        update_fields=[
+                            'box_num',
+                            'lottery_name',
+                            'game_num',
+                            'pack_num',
+                            'start_num',
+                            'current_num',
+                            'ticket_value',
+                            'total_amount',
+                            'closing_status',
+                        ]
+                    )
+                else:
+                    returned_detail = (
+                        DailyReportBoxDetail.objects.create(
+                            user=request.user,
+                            report=None,
+                            report_date=today,
+                            box_num='Inventory Return',
+                            inventory_book=inventory_book,
+                            lottery_name=(
+                                inventory_book.game.name
+                                or inventory_book.game.game_id
+                            ),
+                            game_num=(
+                                inventory_book.game.game_id
+                            ),
+                            pack_num=inventory_book.pack_id,
+                            start_num=0,
+                            current_num=0,
+                            ticket_value=(
+                                inventory_book.ticket_value
+                            ),
+                            total_amount=Decimal('0.00'),
+                            closing_status='Returned',
+                        )
+                    )
+
+                inventory_book.is_sold = True
+                inventory_book.is_returned = True
+                inventory_book.is_activated = False
+
+                inventory_book.save(
+                    update_fields=[
+                        'is_sold',
+                        'is_returned',
+                        'is_activated',
+                        'updated_at',
+                    ]
+                )
+
+                return Response(
+                    {
+                        'message': (
+                            'Inventory pack returned successfully.'
+                        ),
+                        'pack_id': inventory_book.pack_id,
+                        'closing_status': 'Returned',
+                        'report_detail_id': returned_detail.id,
+                        'report_date': str(today),
+                        'shift_started_at': (
+                            shift_state.started_at
+                        ),
+                    },
+                    status=status.HTTP_200_OK
+                )
+
+            # ==================================================
+            # ACTIVATED PACK
+            # Mark all remaining tickets as sold.
+            # ==================================================
+            try:
+                activated_pack = (
+                    ActivatedPack.objects
+                    .select_for_update()
+                    .select_related(
+                        'inventory_book',
+                        'inventory_book__game'
+                    )
+                    .get(
+                        inventory_book=inventory_book,
+                        user=request.user
+                    )
+                )
+            except ActivatedPack.DoesNotExist:
+                return Response(
+                    {
+                        'error': (
+                            'This pack is marked activated, but '
+                            'its activated-box record was not found.'
+                        )
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            previous_count = int(
+                activated_pack.current_count or 0
             )
 
-        activated_pack.last_ticket = previous_count
-        activated_pack.current_count = final_ticket_number
-        activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
+            final_ticket_number = int(
+                inventory_book.total_tickets or 0
+            )
 
-        create_sold_box_detail(activated_pack, report_date=get_business_date())
-        finalize_sold_pack(inventory_book, activated_pack)
+            remaining_count = max(
+                final_ticket_number - previous_count,
+                0
+            )
 
-        return Response({
-            'message': 'Pack marked as sold successfully.',
-            'final_ticket_number': final_ticket_number,
-            'counted_tickets': remaining_count,
-        }, status=status.HTTP_200_OK)
+            if remaining_count > 0:
+                SoldTicket.objects.create(
+                    user=request.user,
+                    inventory_book=inventory_book,
+                    ticket_number=final_ticket_number,
+                    delta_count=remaining_count,
+                    is_reversal=False,
+                    scanned_code='MARK_SOLD',
+                )
+
+                add_to_shift_sales(
+                    user=request.user,
+                    delta_count=remaining_count,
+                    ticket_value=(
+                        inventory_book.ticket_value
+                    ),
+                )
+
+            activated_pack.last_ticket = previous_count
+            activated_pack.current_count = (
+                final_ticket_number
+            )
+
+            activated_pack.save(
+                update_fields=[
+                    'last_ticket',
+                    'current_count',
+                    'updated_at',
+                ]
+            )
+
+            sold_detail = create_sold_box_detail(
+                activated_pack,
+                report_date=today
+            )
+
+            inventory_book.is_returned = False
+            inventory_book.save(
+                update_fields=[
+                    'is_returned',
+                    'updated_at',
+                ]
+            )
+
+            finalize_sold_pack(
+                inventory_book,
+                activated_pack
+            )
+
+            return Response(
+                {
+                    'message': (
+                        'Pack marked as sold successfully.'
+                    ),
+                    'final_ticket_number': (
+                        final_ticket_number
+                    ),
+                    'counted_tickets': remaining_count,
+                    'closing_status': 'Sold',
+                    'report_detail_id': sold_detail.id,
+                },
+                status=status.HTTP_200_OK
+            )
     
 class DashboardStatsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -3277,80 +3658,6 @@ class DailyReportUpdateView(APIView):
             'report': serializer.data
         }, status=status.HTTP_200_OK)
 
-        # try:
-        #     send_report_email(report, request.user)
-        # except Exception as e:
-        #     serializer = DailyReportSerializer(report)
-        #     return Response({
-        #         'message': 'Report saved, but email failed to send.',
-        #         'email_error': str(e),
-        #         'report': serializer.data
-        #     }, status=status.HTTP_200_OK)
-
-        # serializer = DailyReportSerializer(report)
-        # return Response({
-        #     'message': 'Report saved and emailed successfully.',
-        #     'report': serializer.data
-        # }, status=status.HTTP_200_OK)
-
-# class EndShiftView(APIView):
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         today = get_business_date()
-
-#         existing_report = DailyReport.objects.filter(
-#             user=request.user,
-#             report_date=today
-#         ).first()
-
-#         if existing_report:
-#             serializer = DailyReportSerializer(existing_report)
-#             return Response({
-#                 'error': 'End shift already completed for today.',
-#                 'report': serializer.data
-#             }, status=status.HTTP_400_BAD_REQUEST)
-
-#         instant_sales_today = Decimal('0.00')
-
-#         today_scans = SoldTicket.objects.filter(
-#             user=request.user,
-#             sold_at__date=today
-#         ).select_related('inventory_book__game')
-
-#         for row in today_scans:
-#             instant_sales_today += Decimal(row.delta_count) * row.inventory_book.game.ticket_value
-
-#         report = DailyReport.objects.create(
-#             user=request.user,
-#             report_date=today,
-#             instant_sales=instant_sales_today,
-#             instant_cashes=Decimal('0.00'),
-#             online_sales=Decimal('0.00'),
-#             online_cashes=Decimal('0.00'),
-#             online_cancels=Decimal('0.00'),
-#         )
-
-#         DailyReportBoxDetail.objects.filter(
-#             user=request.user,
-#             report_date=today,
-#             closing_status='Active'
-#         ).delete()
-
-#         active_packs = ActivatedPack.objects.select_related('inventory_book__game').filter(user=request.user)
-#         for pack in active_packs:
-#             create_active_box_detail(pack, report_date=today)
-
-#         DailyReportBoxDetail.objects.filter(
-#             user=request.user,
-#             report_date=today
-#         ).update(report=report)
-
-#         roll_active_packs_to_next_day(request.user)
-
-#         serializer = DailyReportSerializer(report)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-
 class EndShiftView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -3393,8 +3700,13 @@ class EndShiftSaveView(APIView):
 
         if created:
             threading.Thread(
-                target=send_shift_report_email,
-                args=(report, request.user),
+                target=(
+                    send_shift_report_email_safely
+                ),
+                args=(
+                    report.id,
+                    request.user.id,
+                ),
                 daemon=True
             ).start()
 
@@ -3451,15 +3763,25 @@ class EndShiftManualScanView(APIView):
 
     def parse_scanned_ticket(self, barcode: str):
         barcode = str(barcode).strip()
+        print(barcode)
+        print(len(barcode))
 
         if len(barcode) < 11:
+            # print(barcode)
             raise ValueError("Invalid input")
-
-        game_id = barcode[:4]
-        pack_id = barcode[4:-4]
-        ticket_number = barcode[-4:-1]
+        
+        if len(barcode) > 14:
+            barcode=barcode[:14]
+            game_id = barcode[:4]
+            pack_id = barcode[4:-3]
+            ticket_number = barcode[-3:]
+        else:
+            game_id = barcode[:4]
+            pack_id = barcode[4:-4]
+            ticket_number = barcode[-4:-1]
 
         if not pack_id or len(ticket_number) != 3:
+            print(ticket_number)
             raise ValueError("Invalid input")
 
         return {
@@ -3470,14 +3792,15 @@ class EndShiftManualScanView(APIView):
 
     def post(self, request):
         raw_barcode = str(request.data.get('raw_barcode', '')).strip()
+        print(raw_barcode)
 
         if not raw_barcode:
-            return Response({'error': 'Invalid input'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Barcode error in input'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             parsed = self.parse_scanned_ticket(raw_barcode)
         except ValueError:
-            return Response({'error': 'Invalid input'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Parsing error in input'}, status=status.HTTP_400_BAD_REQUEST)
 
         game_id = parsed['game_id']
         pack_id = parsed['pack_id']
@@ -3873,50 +4196,155 @@ class PauseActivatedPackView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            activated_pack = ActivatedPack.objects.select_related('inventory_book').get(
-                pk=pk,
-                user=request.user
-            )
-        except ActivatedPack.DoesNotExist:
-            return Response({'error': 'Activated pack not found.'}, status=404)
-
-        inventory_book = activated_pack.inventory_book
-
-        DailyReportBoxDetail.objects.create(
-            user=request.user,
-            report_date=get_business_date(),
-            box_num=activated_pack.box_num,
-            inventory_book=inventory_book,
-            lottery_name=inventory_book.game.name or inventory_book.game.game_id,
-            game_num=inventory_book.game.game_id,
-            pack_num=inventory_book.pack_id,
-            start_num=activated_pack.today_start,
-            current_num=activated_pack.current_count,
-            ticket_value=inventory_book.ticket_value,
-            total_amount=calculate_box_total(
-                activated_pack.today_start,
-                activated_pack.current_count,
-                inventory_book.ticket_value,
-                'Returned'
-            ),
-            closing_status='Returned'
+        # IMPORTANT:
+        # Ensure the current shift exists BEFORE creating
+        # the returned-ticket detail.
+        shift_state = get_or_create_shift_state(
+            request.user
         )
 
-        # mark as returned (IMPORTANT)
+        try:
+            activated_pack = (
+                ActivatedPack.objects
+                .select_related(
+                    'inventory_book',
+                    'inventory_book__game'
+                )
+                .get(
+                    pk=pk,
+                    user=request.user
+                )
+            )
+        except ActivatedPack.DoesNotExist:
+            return Response(
+                {
+                    'error': (
+                        'Activated pack not found.'
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        inventory_book = (
+            activated_pack.inventory_book
+        )
+
+        # Save values before deleting the ActivatedPack.
+        box_num = activated_pack.box_num
+        current_count = (
+            activated_pack.current_count
+        )
+        today_start = activated_pack.today_start
+
+        report_date = get_business_date()
+
+        total_amount = calculate_box_total(
+            today_start,
+            current_count,
+            inventory_book.ticket_value,
+            'Returned'
+        )
+
+        # Avoid creating duplicate Returned rows if the
+        # request is accidentally submitted more than once.
+        returned_detail = (
+            DailyReportBoxDetail.objects
+            .filter(
+                user=request.user,
+                report_date=report_date,
+                inventory_book=inventory_book,
+                box_num=box_num,
+                closing_status='Returned',
+                report__isnull=True,
+                created_at__gte=(
+                    shift_state.started_at
+                )
+            )
+            .order_by('-id')
+            .first()
+        )
+
+        if returned_detail:
+            returned_detail.start_num = today_start
+            returned_detail.current_num = (
+                current_count
+            )
+            returned_detail.ticket_value = (
+                inventory_book.ticket_value
+            )
+            returned_detail.total_amount = (
+                total_amount
+            )
+
+            returned_detail.save(
+                update_fields=[
+                    'start_num',
+                    'current_num',
+                    'ticket_value',
+                    'total_amount',
+                ]
+            )
+        else:
+            returned_detail = (
+                DailyReportBoxDetail.objects.create(
+                    user=request.user,
+                    report_date=report_date,
+                    box_num=box_num,
+                    inventory_book=inventory_book,
+                    lottery_name=(
+                        inventory_book.game.name
+                        or
+                        inventory_book.game.game_id
+                    ),
+                    game_num=(
+                        inventory_book.game.game_id
+                    ),
+                    pack_num=(
+                        inventory_book.pack_id
+                    ),
+                    start_num=today_start,
+                    current_num=current_count,
+                    ticket_value=(
+                        inventory_book.ticket_value
+                    ),
+                    total_amount=total_amount,
+                    closing_status='Returned'
+                )
+            )
+
+        # Mark the inventory pack as returned.
         inventory_book.is_returned = True
         inventory_book.is_activated = False
-        inventory_book.is_sold = False
-        inventory_book.save(update_fields=['is_returned', 'is_activated', 'is_sold', 'updated_at'])
+        inventory_book.is_sold = True
 
-        # remove from activated packs
+        inventory_book.save(
+            update_fields=[
+                'is_returned',
+                'is_activated',
+                'is_sold',
+                'updated_at',
+            ]
+        )
+
+        # Remove it from currently active display boxes.
         activated_pack.delete()
 
-        return Response({
-            'message': 'Pack paused and returned successfully.',
-            'pack_id': inventory_book.pack_id,
-            'current_number': activated_pack.current_count
-        }, status=200)
+        return Response(
+            {
+                'message': (
+                    'Pack paused and returned '
+                    'successfully.'
+                ),
+                'pack_id': inventory_book.pack_id,
+                'current_number': current_count,
+                'box_num': box_num,
+                'closing_status': 'Returned',
+                'report_detail_id': (
+                    returned_detail.id
+                ),
+            },
+            status=status.HTTP_200_OK
+        )
     
 class OwnerDashboardView(APIView):
     permission_classes = [IsAuthenticated]

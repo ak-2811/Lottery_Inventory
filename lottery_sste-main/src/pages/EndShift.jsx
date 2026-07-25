@@ -175,7 +175,7 @@ export default function EndShift() {
       clearTimeout(timeoutId)
       const scannedValue = buffer.trim()
       console.log('Enter triggered, buffer:', scannedValue)
-      if (/^\d{12,16}$/.test(scannedValue)) {
+      if (/^\d{12,30}$/.test(scannedValue)) {
         handleManualEndShiftScan(scannedValue)
       }
       buffer = ''
@@ -191,7 +191,7 @@ export default function EndShift() {
       timeoutId = setTimeout(() => {
         const scannedValue = buffer.trim()
         console.log('Timeout triggered, buffer:', scannedValue)
-        if (/^\d{12,16}$/.test(scannedValue)) {
+        if (/^\d{12,30}$/.test(scannedValue)) {
           handleManualEndShiftScan(scannedValue)
         } else if (scannedValue.length > 0) {
           setScanMessage(`Unrecognized format: "${scannedValue}" (${scannedValue.length} chars)`)

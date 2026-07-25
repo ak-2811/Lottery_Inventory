@@ -7,6 +7,9 @@ import { API_BASE } from '../config/api.js'
 // import MILLIONAIRE_BONUS from '../assets/Millionaire_Bonus.png'
 
 // ─── API Configuration ────────────────────────────────────────────────────
+// const API_BASE = 'https://lottery.bright-core-solutions.com/api'
+// const API_BASE = 'http://127.0.0.1:8000/api'
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('access_token')
   return {
@@ -579,7 +582,7 @@ useEffect(() => {
       clearTimeout(timeoutId)
       const scannedValue = buffer.trim()
       console.log('Enter triggered, buffer:', scannedValue)
-      if (/^\d{10,20}$/.test(scannedValue)) {
+      if (/^\d{10,30}$/.test(scannedValue)) {
         handleTicketScan(scannedValue)
       }
       buffer = ''
@@ -595,7 +598,7 @@ useEffect(() => {
       timeoutId = setTimeout(() => {
         const scannedValue = buffer.trim()
         console.log('Timeout triggered, buffer:', scannedValue)
-        if (/^\d{10,20}$/.test(scannedValue)) {
+        if (/^\d{10,30}$/.test(scannedValue)) {
           handleTicketScan(scannedValue)
         }
         buffer = ''
