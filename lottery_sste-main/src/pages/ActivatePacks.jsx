@@ -691,18 +691,7 @@ useEffect(() => {
               <div className="activate-modal-content">
                 <div className="activate-form-row">
                   <div className="activate-form-group">
-                    <label>Scan Barcode</label>
-                    <input
-                      ref={scanInputRef}
-                      type="text"
-                      placeholder="eg. Scan the barcode"
-                      value={scanBarcode}
-                      onChange={(e) => setScanBarcode(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleActivatePack()}
-                      className="activate-input"
-                      autoFocus
-                    />
-                    <label>Box Number</label>
+                      <label>Box Number</label>
                     <select
                       value={selectedBox}
                       onChange={(e) => setSelectedBox(e.target.value)}
@@ -715,6 +704,30 @@ useEffect(() => {
                         </option>
                       ))}
                     </select>
+                    <label>Scan Barcode</label>
+                    <input
+                      ref={scanInputRef}
+                      type="text"
+                      placeholder="eg. Scan the barcode"
+                      value={scanBarcode}
+                      onChange={(e) => setScanBarcode(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleActivatePack()}
+                      className="activate-input"
+                      autoFocus
+                    />
+                    {/* <label>Box Number</label>
+                    <select
+                      value={selectedBox}
+                      onChange={(e) => setSelectedBox(e.target.value)}
+                      className="activate-input"
+                    >
+                      <option value="">Select Box</option>
+                      {availableBoxes.map((box) => (
+                        <option key={box} value={box}>
+                          Box {box}
+                        </option>
+                      ))}
+                    </select> */}
                   </div>
 
                   <div className="activate-form-group">
