@@ -86,17 +86,53 @@ export default function Inventory() {
   useEffect(() => {
     fetchInventoryRows()
 
-    const handleFocus = async () => {
-      if (localStorage.getItem('inventoryNeedsRefresh') === '1') {
+    const refreshInventoryIfNeeded = async () => {
+      if (
+        localStorage.getItem(
+          'inventoryNeedsRefresh'
+        ) === '1'
+      ) {
         await fetchInventoryRows()
-        localStorage.removeItem('inventoryNeedsRefresh')
+
+        localStorage.removeItem(
+          'inventoryNeedsRefresh'
+        )
       }
     }
 
-    window.addEventListener('focus', handleFocus)
+    const handleFocus = () => {
+      refreshInventoryIfNeeded()
+    }
+
+    const handleStorage = (event) => {
+      if (
+        event.key === 'inventoryNeedsRefresh' &&
+        event.newValue === '1'
+      ) {
+        refreshInventoryIfNeeded()
+      }
+    }
+
+    window.addEventListener(
+      'focus',
+      handleFocus
+    )
+
+    window.addEventListener(
+      'storage',
+      handleStorage
+    )
 
     return () => {
-      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener(
+        'focus',
+        handleFocus
+      )
+
+      window.removeEventListener(
+        'storage',
+        handleStorage
+      )
     }
   }, [])
   
@@ -350,7 +386,7 @@ export default function Inventory() {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>
+          {/* <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a> */}
           <button
             className="sidebar-link"
             onClick={handleLogout}
@@ -498,7 +534,7 @@ export default function Inventory() {
                       >
                         Mark Sold
                       </button>
-                      <button className="delete-btn" onClick={() => handleDeleteMainItem(r.id)}>🗑️</button>
+                      {/* <button className="delete-btn" onClick={() => handleDeleteMainItem(r.id)}>🗑️</button> */}
                     </td>
                   </tr>
                 ))

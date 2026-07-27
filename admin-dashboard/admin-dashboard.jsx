@@ -7,7 +7,7 @@ const SALES_REFRESH_INTERVAL = 5000
 const navItems = [
   ['Overview', '▦'],
   ['My Stores', '⌂'],
-  ['Inventory', '◇'],
+  ['Activations', '◇'],
   ['Sales', '▥'],
 ]
 
@@ -890,13 +890,13 @@ export default function AdminDashboard() {
               <h1>
                 {activeNav === 'Overview' && `Good morning, ${firstName}.`}
                 {activeNav === 'My Stores' && 'My stores'}
-                {activeNav === 'Inventory' && 'Activated packs'}
+                {activeNav === 'Activations' && 'Activated packs'}
                 {activeNav === 'Sales' && 'Store-wise sales'}
               </h1>
               <p>
                 {activeNav === 'Overview' && 'Here is what is happening across your stores today.'}
-                {activeNav === 'My Stores' && 'View sales, users, and inventory status for each location.'}
-                {activeNav === 'Inventory' && 'Review activated lottery packs grouped by store.'}
+                {activeNav === 'My Stores' && 'View sales, users, and activation status for each location.'}
+                {activeNav === 'Activations' && 'Review activated lottery packs grouped by store.'}
                 {activeNav === 'Sales' && 'Compare sales performance across all of your store locations.'}
               </p>
             </div>
@@ -1029,7 +1029,7 @@ export default function AdminDashboard() {
           )}
 
           {!loading && !error && activeNav === 'My Stores' && renderStoreRows(visibleStores)}
-          {!loading && !error && activeNav === 'Inventory' && renderActivatedPacks()}
+          {!loading && !error && activeNav === 'Activations' && renderActivatedPacks()}
           {!loading && !error && activeNav === 'Sales' && renderSales()}
         </main>
       </div>
