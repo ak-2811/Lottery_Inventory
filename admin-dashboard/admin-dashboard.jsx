@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import './styles.css'
-
-const API_BASE_URL = 'http://127.0.0.1:8000/api'
+import { API_BASE_URL } from '../lottery_sste-main/src/config/api.js'
 const SALES_REFRESH_INTERVAL = 5000
 
 const navItems = [
   ['Overview', '▦'],
   ['My Stores', '⌂'],
-  ['Activations', '◇'],
+  ['Activated', '◇'],
   ['Sales', '▥'],
 ]
 
@@ -525,6 +524,20 @@ export default function AdminDashboard() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleLogout = () => {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('user')
+    localStorage.removeItem('is_owner')
+    localStorage.removeItem('blinkingTicketPrice')
+    localStorage.removeItem('luckyTicketsAnimation')
+    localStorage.removeItem('newTicketsAnimation')
+    localStorage.removeItem('endingTicketsAnimation')
+    localStorage.removeItem('reloadLiveDisplay')
+
+    window.location.href = '/login'
+  }
+
   const openStore = (store) => {
     const params = new URLSearchParams({
       store_id: String(store.id),
@@ -835,6 +848,11 @@ export default function AdminDashboard() {
           <div><strong>Need help?</strong><span>View owner guide</span></div>
           <span aria-hidden="true">↗</span>
         </div>
+
+        <button className="sidebar-logout" onClick={handleLogout} type="button">
+          <span aria-hidden="true">↪</span>
+          <span>Logout</span>
+        </button>
       </aside>
 
       <div className="page">
@@ -890,13 +908,13 @@ export default function AdminDashboard() {
               <h1>
                 {activeNav === 'Overview' && `Good morning, ${firstName}.`}
                 {activeNav === 'My Stores' && 'My stores'}
-                {activeNav === 'Activations' && 'Activated packs'}
+                {activeNav === 'Activated' && 'Activated packs'}
                 {activeNav === 'Sales' && 'Store-wise sales'}
               </h1>
               <p>
                 {activeNav === 'Overview' && 'Here is what is happening across your stores today.'}
                 {activeNav === 'My Stores' && 'View sales, users, and activation status for each location.'}
-                {activeNav === 'Activations' && 'Review activated lottery packs grouped by store.'}
+                {activeNav === 'Activated' && 'Review activated lottery packs grouped by store.'}
                 {activeNav === 'Sales' && 'Compare sales performance across all of your store locations.'}
               </p>
             </div>
@@ -1029,7 +1047,7 @@ export default function AdminDashboard() {
           )}
 
           {!loading && !error && activeNav === 'My Stores' && renderStoreRows(visibleStores)}
-          {!loading && !error && activeNav === 'Activations' && renderActivatedPacks()}
+          {!loading && !error && activeNav === 'Activated' && renderActivatedPacks()}
           {!loading && !error && activeNav === 'Sales' && renderSales()}
         </main>
       </div>
