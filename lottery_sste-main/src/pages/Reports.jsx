@@ -29,6 +29,7 @@ export default function Reports() {
   const storeId = searchParams.get('store_id') || ''
   const storeName = searchParams.get('store_name') || ''
   const isAdminStoreReport = Boolean(storeId)
+  const storeQuery = storeId ? `?store_id=${encodeURIComponent(storeId)}` : ''
   const [reportsAuthorized, setReportsAuthorized] = useState(
     () => isAdminStoreReport || Boolean(getManagerAccessToken('reports'))
   )
@@ -89,7 +90,7 @@ export default function Reports() {
       setPageMessage('')
 
       const response = await fetch(
-        `${API_BASE}/shift-reports/${selectedShiftReport.id}/update/`,
+        `${API_BASE}/shift-reports/${selectedShiftReport.id}/update/${storeQuery}`,
         {
           method: 'PUT',
           headers: isAdminStoreReport
@@ -199,11 +200,17 @@ export default function Reports() {
       if (storeId) params.set('store_id', storeId)
 
       const response = await fetch(
-        `${API_BASE}/reports/${params.toString() ? `?${params.toString()}` : ''}`,
+        `${API_BASE}/reports/${
+          params.toString()
+            ? `?${params.toString()}`
+            : ''
+        }`,
         {
           headers: isAdminStoreReport
             ? getAuthHeaders()
-            : getManagerProtectedHeaders('reports'),
+            : getManagerProtectedHeaders(
+                'reports'
+              ),
         }
       )
 
@@ -256,7 +263,7 @@ export default function Reports() {
       setPageMessage('')
 
       const response = await fetch(
-        `${API_BASE}/shift-reports/${shiftId}/`,
+        `${API_BASE}/shift-reports/${shiftId}/${storeQuery}`,
         {
           headers: isAdminStoreReport
             ? getAuthHeaders()
@@ -456,7 +463,7 @@ export default function Reports() {
 
     try {
       const response = await fetch(
-        `${API_BASE}/shift-reports/${selectedShiftReport.id}/download/`,
+        `${API_BASE}/shift-reports/${selectedShiftReport.id}/download/${storeQuery}`,
         {
           headers: isAdminStoreReport
             ? getOnlyAuthHeader()

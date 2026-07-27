@@ -431,7 +431,7 @@ export default function EndShift() {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>
+          {/* <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a> */}
           <button
             className="sidebar-link"
             onClick={handleLogout}

@@ -134,15 +134,47 @@ export default function ActivatePacks() {
 
   const handlePause = async (packId) => {
     try {
-      await axios.post(`${API_BASE}/pause-pack/${packId}/`, {}, {
-        headers: getAuthHeaders()
-      })
+      const response = await axios.post(
+        `${API_BASE}/pause-pack/${packId}/`,
+        {},
+        {
+          headers: getAuthHeaders(),
+        }
+      )
 
-      // refresh activated packs
-      fetchActivatedPacks()
+      // Tell the Inventory page that its data changed.
+      localStorage.setItem(
+        'inventoryNeedsRefresh',
+        '1'
+      )
 
+      setScanMessage(
+        response.data?.message ||
+        'Pack paused and returned successfully.'
+      )
+
+      // Remove immediately from Activate Packs page.
+      setPacks((previousPacks) =>
+        previousPacks.filter(
+          (pack) => pack.id !== packId
+        )
+      )
+
+      setActivatedItems((previousItems) =>
+        previousItems.filter(
+          (pack) => pack.id !== packId
+        )
+      )
+
+      // Confirm the latest backend state.
+      await fetchActivatedPacks()
     } catch (error) {
-      console.error("Pause failed", error)
+      console.error('Pause failed', error)
+
+      setScanMessage(
+        error.response?.data?.error ||
+        'Failed to pause pack.'
+      )
     }
   }
 
@@ -467,7 +499,7 @@ useEffect(() => {
           </button>
         </nav>
         <div className="sidebar-footer">
-          <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>
+          {/* <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a> */}
           <button
             className="sidebar-link"
             onClick={handleLogout}

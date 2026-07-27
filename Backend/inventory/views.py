@@ -438,6 +438,69 @@ def create_manager_access_token(user, store, scope):
 
     return token
 
+def get_reports_target_user(request):
+    """
+    Determines whose reports are being accessed.
+
+    Normal store user:
+        target user = request.user
+        managerial PIN is required
+
+    Store owner opening reports using ?store_id=<id>:
+        target user = selected store.user
+        managerial PIN is bypassed
+    """
+
+    store_id = str(
+        request.query_params.get('store_id', '')
+    ).strip()
+
+    if not store_id:
+        return request.user, False, None
+
+    try:
+        owner = StoreOwner.objects.get(
+            user=request.user
+        )
+    except StoreOwner.DoesNotExist:
+        return (
+            None,
+            False,
+            Response(
+                {
+                    'error': (
+                        'You are not authorized to access '
+                        'another store’s reports.'
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN
+            )
+        )
+
+    try:
+        store = Store.objects.select_related(
+            'user'
+        ).get(
+            id=store_id,
+            owner=owner
+        )
+    except Store.DoesNotExist:
+        return (
+            None,
+            False,
+            Response(
+                {
+                    'error': (
+                        'Store not found or it does not '
+                        'belong to this owner.'
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        )
+
+    return store.user, True, None
+
 
 def validate_manager_access_token(request, required_scope):
     """
@@ -2349,7 +2412,30 @@ def roll_active_packs_to_next_day(user):
 class ManagerReportsAccessMixin:
     manager_scope = 'reports'
 
-    def check_manager_access(self, request):
+    def get_reports_access(self, request):
+        """
+        Returns:
+
+        target_user:
+            The store user whose reports should be loaded.
+
+        access_error:
+            Response when access should be denied.
+        """
+
+        target_user, is_owner_access, context_error = (
+            get_reports_target_user(request)
+        )
+
+        if context_error:
+            return None, context_error
+
+        # Store owners accessing their own linked store
+        # do not need the managerial PIN.
+        if is_owner_access:
+            return target_user, None
+
+        # Normal store employee access still requires PIN.
         is_valid, error_message = (
             validate_manager_access_token(
                 request,
@@ -2358,12 +2444,15 @@ class ManagerReportsAccessMixin:
         )
 
         if not is_valid:
-            return Response(
-                {'error': error_message},
-                status=status.HTTP_403_FORBIDDEN
+            return (
+                None,
+                Response(
+                    {'error': error_message},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             )
 
-        return None
+        return target_user, None
 
 class ManagerActivationAccessMixin:
     manager_scope = 'activation'
@@ -3408,24 +3497,24 @@ class DailyReportListView(APIView, ManagerReportsAccessMixin):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        access_error = self.check_manager_access(
-            request
+        target_user, access_error = (
+            self.get_reports_access(request)
         )
 
         if access_error:
             return access_error
 
-        report_user = get_report_user_for_request(request)
+        # report_user = get_report_user_for_request(request)
 
-        if report_user is None:
-            return Response(
-                {'error': 'Store not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        # if report_user is None:
+        #     return Response(
+        #         {'error': 'Store not found.'},
+        #         status=status.HTTP_404_NOT_FOUND
+        #     )
 
         grouped_reports = (
             ShiftReport.objects
-            .filter(user=report_user)
+            .filter(user=target_user)
             .values('report_date')
             .annotate(
                 instant_sales_total=Sum('instant_sales'),
@@ -3444,7 +3533,7 @@ class DailyReportListView(APIView, ManagerReportsAccessMixin):
             report_date = daily_group['report_date']
 
             shifts = ShiftReport.objects.filter(
-                user=report_user,
+                user=target_user,
                 report_date=report_date
             ).order_by('shift_number')
 
@@ -3499,33 +3588,31 @@ class ShiftReportDetailView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        access_error = self.check_manager_access(
-            request
+        target_user, access_error = (
+            self.get_reports_access(request)
         )
 
         if access_error:
             return access_error
+
         try:
             report = (
                 ShiftReport.objects
                 .prefetch_related('box_details')
-                .get(pk=pk)
+                .get(
+                    pk=pk,
+                    user=target_user
+                )
             )
         except ShiftReport.DoesNotExist:
-            return Response(
-                {
-                    'error': 'Shift report not found.'
-                },
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        if not can_access_report_user(request, report.user):
             return Response(
                 {'error': 'Shift report not found.'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        serializer = ShiftReportDetailSerializer(report)
+        serializer = ShiftReportDetailSerializer(
+            report
+        )
 
         return Response(
             serializer.data,
@@ -3536,15 +3623,15 @@ class ShiftReportUpdateView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
-        access_error = self.check_manager_access(
-            request
+        target_user, access_error = (
+            self.get_reports_access(request)
         )
 
         if access_error:
             return access_error
 
         try:
-            report = ShiftReport.objects.get(pk=pk)
+            report = ShiftReport.objects.get(pk=pk, user=target_user)
         except ShiftReport.DoesNotExist:
             return Response(
                 {'error': 'Shift report not found.'},
@@ -4681,21 +4768,19 @@ class ShiftReportDownloadPDFView(ManagerReportsAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        access_error = self.check_manager_access(
-            request
+        target_user, access_error = (
+            self.get_reports_access(request)
         )
 
         if access_error:
             return access_error
-        try:
-            report = ShiftReport.objects.get(pk=pk)
-        except ShiftReport.DoesNotExist:
-            return Response(
-                {'error': 'Shift report not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
 
-        if not can_access_report_user(request, report.user):
+        try:
+            report = ShiftReport.objects.get(
+                pk=pk,
+                user=target_user
+            )
+        except ShiftReport.DoesNotExist:
             return Response(
                 {'error': 'Shift report not found.'},
                 status=status.HTTP_404_NOT_FOUND
@@ -4703,7 +4788,7 @@ class ShiftReportDownloadPDFView(ManagerReportsAccessMixin, APIView):
 
         pdf_bytes = build_shift_report_pdf_bytes(
             report,
-            report.user
+            target_user
         )
 
         buffer = BytesIO(pdf_bytes)
