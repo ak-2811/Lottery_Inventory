@@ -439,6 +439,19 @@ useEffect(() => {
     return total.toFixed(2)
   }, [packs])
 
+  const activatedItemsTotalValue = useMemo(() => {
+    const total = activatedItems.reduce((sum, item) => {
+      const ticketValue = parseCurrency(item.value)
+      const totalTickets = Number(item.totalTickets) || 0
+      const currentCount = Number(item.currentNum) || 0
+      const remainingTickets = Math.max(totalTickets - currentCount, 0)
+
+      return sum + (remainingTickets * ticketValue)
+    }, 0)
+
+    return total.toFixed(2)
+  }, [activatedItems])
+
   const availableBoxes = useMemo(() => {
     const usedBoxes = new Set(
       packs.map((pack) => String(pack.boxNum))
@@ -784,14 +797,13 @@ useEffect(() => {
 
                 <div className="activate-summary">
                   <div className="activate-price">
-                    <span className="price-label">${totalPackValue}</span>
+                    <span className="price-label">${activatedItemsTotalValue}</span>
                     <span className="price-text">Total pack : {activatedItems.length}</span>
                   </div>
                   <button
                     className="activate-clear-btn"
                     onClick={() => {
-                      setScanBarcode('')
-                      setReverseMode(false)
+                      setActivatedItems([])
                       setErrorMessage('')
                     }}
                   >
@@ -808,13 +820,12 @@ useEffect(() => {
                         <th>Pack #</th>
                         <th>Reversed</th>
                         <th>Value</th>
-                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {activatedItems.length === 0 ? (
                         <tr>
-                          <td colSpan="6" className="no-data">
+                          <td colSpan="5" className="no-data">
                             <div className="no-data-icon">📁</div>
                             <div>No data</div>
                           </td>
@@ -827,9 +838,6 @@ useEffect(() => {
                             <td>{item.packNum}</td>
                             <td>{item.reversed ? 'Yes' : 'No'}</td>
                             <td>{item.value}</td>
-                            <td>
-                              <button className="activate-delete-btn">✕</button>
-                            </td>
                           </tr>
                         ))
                       )}
