@@ -3,6 +3,7 @@ import './styles.css'
 import { API_BASE_URL } from '../../config/api.js'
 
 const SALES_REFRESH_INTERVAL = 5000
+const GEORGIA_TIME_ZONE = 'America/New_York'
 
 const navItems = [
   ['Overview', '▦'],
@@ -52,6 +53,27 @@ const formatDateDisplayValue = (value) => {
   })
 }
 
+const getGeorgiaNow = () => new Date(
+  new Date().toLocaleString('en-US', {
+    timeZone: GEORGIA_TIME_ZONE,
+  })
+)
+
+const getGeorgiaGreeting = () => {
+  const hour = getGeorgiaNow().getHours()
+
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+const getGeorgiaDateLabel = () =>
+  getGeorgiaNow().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  })
+
 const addDays = (value, days) => {
   const date = new Date(`${value || getDateInputValue()}T00:00:00`)
   date.setDate(date.getDate() + days)
@@ -72,6 +94,21 @@ const getDateRange = (fromDate, toDate) => {
   }
 
   return dates
+}
+
+const getChartTickInterval = (pointCount) => {
+  if (pointCount <= 10) return 1
+  if (pointCount <= 31) return 7
+  if (pointCount <= 93) return 14
+  return 30
+}
+
+const getChartTickLabel = (date, pointCount) => {
+  const options = pointCount > 31
+    ? { month: 'short', day: 'numeric' }
+    : { day: 'numeric' }
+
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', options)
 }
 
 const getStoreSalesForDate = (store, date) => {
@@ -502,6 +539,12 @@ export default function AdminDashboard() {
   const areaPath = `${currentPath} L700,220 L0,220 Z`
   const rangeStartDate = salesFromDate <= salesToDate ? salesFromDate : salesToDate
   const rangeEndDate = salesFromDate <= salesToDate ? salesToDate : salesFromDate
+  const chartTickInterval = getChartTickInterval(salesChartData.length)
+  const chartAxisLabels = salesChartData.filter((day, index) => (
+    index === 0 ||
+    index === salesChartData.length - 1 ||
+    index % chartTickInterval === 0
+  ))
 
   const normalizedSearch = search.trim().toLowerCase()
   const visibleStores = selectedStores.filter((store) =>
@@ -844,12 +887,6 @@ export default function AdminDashboard() {
           ))}
         </nav>
 
-        <div className="sidebar-help">
-          <div className="help-icon">?</div>
-          <div><strong>Need help?</strong><span>View owner guide</span></div>
-          <span aria-hidden="true">↗</span>
-        </div>
-
         <button className="sidebar-logout" onClick={handleLogout} type="button">
           <span aria-hidden="true">↪</span>
           <span>Logout</span>
@@ -900,14 +937,10 @@ export default function AdminDashboard() {
           <section className="welcome-row">
             <div>
               <p className="eyebrow">
-                {new Date().toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+                {getGeorgiaDateLabel()}
               </p>
               <h1>
-                {activeNav === 'Overview' && `Good morning, ${firstName}.`}
+                {activeNav === 'Overview' && `${getGeorgiaGreeting()}, ${firstName}.`}
                 {activeNav === 'My Stores' && 'My stores'}
                 {activeNav === 'Activated' && 'Activated packs'}
                 {activeNav === 'Sales' && 'Store-wise sales'}
@@ -1030,7 +1063,9 @@ export default function AdminDashboard() {
                         <path className="current-path" d={currentPath} />
                       </svg>
                       <div className="x-axis">
-                        {salesChartData.map((day) => <span key={day.date}>{day.label}</span>)}
+                        {chartAxisLabels.map((day) => (
+                          <span key={day.date}>{getChartTickLabel(day.date, salesChartData.length)}</span>
+                        ))}
                       </div>
                     </div>
                   </div>
