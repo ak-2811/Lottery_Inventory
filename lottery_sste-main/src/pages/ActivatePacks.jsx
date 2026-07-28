@@ -801,6 +801,7 @@ useEffect(() => {
                     <span className="price-text">Total pack : {activatedItems.length}</span>
                   </div>
                   <button
+                    type="button"
                     className="activate-clear-btn"
                     onClick={() => {
                       setActivatedItems([])
@@ -847,8 +848,8 @@ useEffect(() => {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="modal-cancel-btn" onClick={handleCloseModal}>Cancel</button>
-              <button className="modal-ok-btn" onClick={handleActivatePack} disabled={loading}>
+              <button type="button" className="modal-cancel-btn" onClick={handleCloseModal}>Cancel</button>
+              <button type="button" className="modal-ok-btn" onClick={handleActivatePack} disabled={loading}>
                 {loading ? 'Saving...' : 'OK'}
               </button>
             </div>
