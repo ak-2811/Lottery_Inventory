@@ -11,9 +11,9 @@
   position: relative;
   inset: auto;
   z-index: 100;
-  width: 220px;
+  width: 250px;
   height: 100vh;
-  flex: 0 0 220px;
+  flex: 0 0 250px;
   overflow: hidden;
   background: white;
   transition: width 0.3s ease, flex-basis 0.3s ease, padding 0.3s ease;
@@ -25,8 +25,8 @@
 }
 
 .dashboard-app > .sidebar.open {
-  width: 220px;
-  flex-basis: 220px;
+  width: 250px;
+  flex-basis: 250px;
 }
 
 .dashboard-app > .main-content {
