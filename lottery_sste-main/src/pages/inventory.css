@@ -478,12 +478,12 @@ body {
 .modal-table-wrap::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 6px; }
 .modal-table-wrap::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-.modal-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.modal-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13.5px; }
 .modal-table th,
-.modal-table td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--border-light); }
+.modal-table td { padding: 14px 16px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-light); }
 .modal-table thead th {
   background: #f8fafc; font-weight: 600; font-size: 10.5px;
-  letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-muted);
+  letter-spacing: 0.8px; line-height: 1.25; text-transform: uppercase; color: var(--text-muted);
   position: sticky; top: 0; z-index: 1;
 }
 .modal-table tbody tr:last-child td { border-bottom: none; }

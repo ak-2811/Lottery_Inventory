@@ -593,6 +593,16 @@ export default function Inventory() {
 
               <div className="modal-table-wrap">
                 <table className="modal-table">
+                  <colgroup>{[
+                    '64px',
+                    '160px',
+                    '140px',
+                    '120px',
+                    '170px',
+                    '110px',
+                  ].map((width, idx) => (
+                    <col key={`add-inventory-col-${idx}`} style={{ width }} />
+                  ))}</colgroup>
                   <thead>
                     <tr>
                       <th>#</th>
