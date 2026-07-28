@@ -582,6 +582,18 @@ useEffect(() => {
         )}
         <div className="table-container">
           <table className="inventory-table">
+            <colgroup>{[
+              '90px',
+              '120px',
+              '260px',
+              '130px',
+              '120px',
+              '130px',
+              '180px',
+              '170px',
+            ].map((width, idx) => (
+              <col key={`activate-pack-col-${idx}`} style={{ width }} />
+            ))}</colgroup>
             <thead>
               <tr>
                 <th>Box #</th>
