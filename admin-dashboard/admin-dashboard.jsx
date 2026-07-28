@@ -110,6 +110,19 @@ const getChartTickLabel = (date, pointCount) => {
   return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', options)
 }
 
+const getStoreInitials = (store) => {
+  const label = String(store?.store_name || store?.name || store?.store_user || `Store ${store?.store_id || store?.id || ''}`).trim()
+  const initials = label
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
+  return initials || 'S'
+}
+
 const getStoreSalesForDate = (store, date) => {
   const dailyReport = (store.daily_sales || []).find((report) => report.date === date)
   return Number(dailyReport?.total || 0)
@@ -434,12 +447,7 @@ export default function AdminDashboard() {
         ...store,
         id: store.store_id,
         name: store.store_name,
-        initials: store.store_name
-          .split(' ')
-          .map((word) => word[0])
-          .join('')
-          .slice(0, 2)
-          .toUpperCase(),
+        initials: getStoreInitials(store),
         color: ['forest', 'navy', 'rust', 'amber'][index % 4],
       })),
     [apiData],
