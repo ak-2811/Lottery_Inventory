@@ -231,7 +231,10 @@ body {
 .table-container {
   flex: 0 0 auto;
   min-height: auto;
-  overflow: visible;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
   background: var(--white);
   padding: 16px 24px 0;
 }
@@ -246,6 +249,7 @@ body {
 /* ── Table ── */
 .inventory-table {
   width: 100%;
+  min-width: 980px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -299,8 +303,8 @@ body {
 .inventory-table .value { font-weight: 700; color: var(--teal); font-family: 'DM Mono', monospace; }
 .inventory-table td.actions {
   white-space: nowrap;
-  width: 270px;
-  min-width: 270px;
+  width: 220px;
+  min-width: 220px;
 }
 
 .inventory-table .actions {
