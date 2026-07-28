@@ -247,19 +247,22 @@ body {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  table-layout: fixed;
   font-size: 13px;
   margin: 0;
 }
 
 .inventory-table thead tr th {
-  padding: 0 14px;
+  padding: 14px 16px;
   height: 42px;
-  vertical-align: middle;
+  vertical-align: top;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.7px;
   font-size: 10.5px;
+  line-height: 1.25;
+  text-align: left;
   background: #f8fafc;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -272,12 +275,14 @@ body {
 .inventory-table thead tr th:last-child { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; }
 
 .inventory-table td {
-  padding: 0 16px;
-  height: 58px;
+  padding: 18px 16px;
+  min-height: 58px;
   border-bottom: 1px solid var(--border-light);
   color: var(--text-primary);
-  vertical-align: middle;
+  vertical-align: top;
   font-size: 13.5px;
+  line-height: 1.25;
+  text-align: left;
   background: var(--white);
   transition: background 0.12s;
 }
@@ -289,7 +294,7 @@ body {
 .inventory-table .preview { width: 60px; }
 .inventory-table .preview img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; display: block; box-shadow: var(--shadow-sm); }
 .inventory-table .item-title { font-weight: 600; color: var(--text-primary); font-size: 13.5px; }
-.inventory-table .item-subtitle { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; font-weight: 500; }
+.inventory-table .item-subtitle { font-size: 11.5px; color: var(--text-muted); margin-top: 8px; font-weight: 500; }
 .inventory-table .value { font-weight: 700; color: var(--teal); font-family: 'DM Mono', monospace; }
 .inventory-table td.actions {
   white-space: nowrap;
