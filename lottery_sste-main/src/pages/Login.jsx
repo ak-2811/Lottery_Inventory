@@ -74,9 +74,9 @@ export default function Login() {
     }
   }
 
-  const handleSignupRedirect = () => {
-    navigate('/signup')
-  }
+  // const handleSignupRedirect = () => {
+  //   navigate('/signup')
+  // }
 
   return (
     <div className="auth-container">
@@ -126,7 +126,7 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="auth-footer">
+          {/* <div className="auth-footer">
             <p>
               Don't have an account?{' '}
               <button
@@ -138,7 +138,7 @@ export default function Login() {
                 Sign up here
               </button>
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
