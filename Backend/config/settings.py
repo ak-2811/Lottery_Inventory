@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
-import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -22,10 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-local-development-key",
-)
+SECRET_KEY = "django-insecure-i!o&fmxex=5ti*sh&oh193zawu!=v=#sk5^2-x8g5dd@@es2k$"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -100,10 +96,10 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtppro.zoho.in'
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'admin@bright-core-solutions.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+EMAIL_HOST_USER = 'admin@bright-core-solutions.com'
+EMAIL_HOST_PASSWORD = 'wUwqDHR4TBJ6'
+DEFAULT_FROM_EMAIL = 'admin@bright-core-solutions.com'
+RESEND_API_KEY = 're_Zrvrzs8N_8HW2bZFCtn2G2uAraGhgCnyJ'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
@@ -135,7 +131,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "America/New_York"
+TIME_ZONE = "America/Chicago"
 
 USE_I18N = True
 
