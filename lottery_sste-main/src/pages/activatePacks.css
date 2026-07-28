@@ -315,10 +315,25 @@
   justify-content: flex-start;
 }
 
-.pack-image {
-  font-size: 24px;
+.inventory-table th:nth-child(2),
+.inventory-table td:nth-child(2) {
   text-align: center;
 }
+
+.pack-image {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  vertical-align: top;
+}
+
+.pack-image img {
+  display: block;
+}
+
 .inventory-table th:last-child {
   text-align: left;
 }
