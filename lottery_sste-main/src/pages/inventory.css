@@ -296,8 +296,27 @@ body {
 .inventory-table tbody td { background: var(--teal-light); }
 
 .inventory-table .num { color: var(--text-muted); font-weight: 600; font-size: 12px; width: 44px; font-family: 'DM Mono', monospace; }
+.inventory-table th:nth-child(2),
+.inventory-table td.preview {
+  text-align: center;
+}
 .inventory-table .preview { width: 60px; }
-.inventory-table .preview img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; display: block; box-shadow: var(--shadow-sm); }
+.inventory-table .preview img {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: var(--shadow-sm);
+  vertical-align: top;
+}
+.inventory-table .no-img {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+}
 .inventory-table .item-title { font-weight: 600; color: var(--text-primary); font-size: 13.5px; }
 .inventory-table .item-subtitle { font-size: 11.5px; color: var(--text-muted); margin-top: 8px; font-weight: 500; }
 .inventory-table .value { font-weight: 700; color: var(--teal); font-family: 'DM Mono', monospace; }
