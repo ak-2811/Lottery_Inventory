@@ -2813,7 +2813,9 @@ class ActivateInventoryBookView(ManagerActivationAccessMixin, APIView):
             inventory_book.is_sold = False
             inventory_book.is_activated = True
             inventory_book.is_returned = False
-            inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned', 'updated_at'])
+            if not inventory_book.activated_at:
+                inventory_book.activated_at = timezone.now()
+            inventory_book.save(update_fields=['is_sold', 'is_activated', 'is_returned', 'updated_at', 'activated_at'])
 
             activated_pack = ActivatedPack.objects.create(
                 user=request.user,
@@ -2890,7 +2892,10 @@ class ActivateInventoryBookView(ManagerActivationAccessMixin, APIView):
             )
 
         inventory_book.is_activated = True
-        inventory_book.save(update_fields=['is_activated', 'updated_at'])
+        if not inventory_book.activated_at:
+            inventory_book.activated_at = timezone.now()
+
+        inventory_book.save(update_fields=['is_activated', 'updated_at','activated_at'])
 
         activated_pack = ActivatedPack.objects.create(
             user=request.user,
@@ -3321,51 +3326,122 @@ class MarkInventoryBookSoldView(APIView):
                 status=status.HTTP_200_OK
             )
     
+# class DashboardStatsView(APIView):
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request):
+#         # auto_save_yesterday_report_if_missing(request.user)
+#         now = timezone.localtime()
+#         today = now.date()
+
+#         active_boxes = ActivatedPack.objects.filter(user=request.user).count()
+
+#         activated_today = ActivatedPack.objects.filter(
+#             user=request.user,
+#             created_at__date=today
+#         ).count()
+
+#         activated_this_week = ActivatedPack.objects.filter(
+#             user=request.user,
+#             created_at__year=now.year,
+#             created_at__week=now.isocalendar()[1]
+#         ).count()
+
+#         activated_this_month = ActivatedPack.objects.filter(
+#             user=request.user,
+#             created_at__year=now.year,
+#             created_at__month=now.month
+#         ).count()
+
+#         inactive_packs = InventoryBook.objects.filter(
+#             user=request.user,
+#             is_activated=False,
+#             is_sold=False
+#         ).count()
+
+#         shift_state = get_or_create_shift_state(request.user)
+#         instant_sales_today = shift_state.instant_sales
+
+#         return Response({
+#             "instant_sales_today": f"{instant_sales_today:.2f}",
+#             "active_boxes": active_boxes,
+#             "activated_today": activated_today,
+#             "activated_this_week": activated_this_week,
+#             "activated_this_month": activated_this_month,
+#             "inactive_packs": inactive_packs,
+#         })
+    
 class DashboardStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # auto_save_yesterday_report_if_missing(request.user)
         now = timezone.localtime()
         today = now.date()
 
-        active_boxes = ActivatedPack.objects.filter(user=request.user).count()
-
-        activated_today = ActivatedPack.objects.filter(
-            user=request.user,
-            created_at__date=today
+        # Only packs currently active in display boxes.
+        active_boxes = ActivatedPack.objects.filter(
+            user=request.user
         ).count()
 
-        activated_this_week = ActivatedPack.objects.filter(
-            user=request.user,
-            created_at__year=now.year,
-            created_at__week=now.isocalendar()[1]
-        ).count()
+        # Historical activation counts.
+        # These remain even after a pack is sold or returned.
+        activated_today = (
+            InventoryBook.objects
+            .filter(
+                user=request.user,
+                activated_at__date=today,
+            )
+            .count()
+        )
 
-        activated_this_month = ActivatedPack.objects.filter(
-            user=request.user,
-            created_at__year=now.year,
-            created_at__month=now.month
-        ).count()
+        activated_this_week = (
+            InventoryBook.objects
+            .filter(
+                user=request.user,
+                activated_at__year=now.year,
+                activated_at__week=now.isocalendar()[1],
+            )
+            .count()
+        )
+
+        activated_this_month = (
+            InventoryBook.objects
+            .filter(
+                user=request.user,
+                activated_at__year=now.year,
+                activated_at__month=now.month,
+            )
+            .count()
+        )
 
         inactive_packs = InventoryBook.objects.filter(
             user=request.user,
             is_activated=False,
-            is_sold=False
+            is_sold=False,
         ).count()
 
-        shift_state = get_or_create_shift_state(request.user)
-        instant_sales_today = shift_state.instant_sales
+        shift_state = get_or_create_shift_state(
+            request.user
+        )
+
+        instant_sales_today = (
+            shift_state.instant_sales
+        )
 
         return Response({
-            "instant_sales_today": f"{instant_sales_today:.2f}",
-            "active_boxes": active_boxes,
-            "activated_today": activated_today,
-            "activated_this_week": activated_this_week,
-            "activated_this_month": activated_this_month,
-            "inactive_packs": inactive_packs,
+            'instant_sales_today': (
+                f'{instant_sales_today:.2f}'
+            ),
+            'active_boxes': active_boxes,
+            'activated_today': activated_today,
+            'activated_this_week': (
+                activated_this_week
+            ),
+            'activated_this_month': (
+                activated_this_month
+            ),
+            'inactive_packs': inactive_packs,
         })
-    
 class TicketValuesView(APIView):
     def get(self, request):
         values = (
