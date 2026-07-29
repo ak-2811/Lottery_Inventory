@@ -182,7 +182,7 @@
 .dashboard-pack-table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 900px;
+  min-width: 760px;
   table-layout: fixed;
 }
 
@@ -217,7 +217,7 @@
 
 .dashboard-pack-table th:nth-child(3),
 .dashboard-pack-table td:nth-child(3) {
-  width: 220px;
+  width: 240px;
 }
 
 .dashboard-pack-table th:nth-child(4),
@@ -232,16 +232,11 @@
 
 .dashboard-pack-table th:nth-child(6),
 .dashboard-pack-table td:nth-child(6) {
-  width: 132px;
+  width: 176px;
 }
 
 .dashboard-pack-table th:nth-child(7),
 .dashboard-pack-table td:nth-child(7) {
-  width: 176px;
-}
-
-.dashboard-pack-table th:nth-child(8),
-.dashboard-pack-table td:nth-child(8) {
   width: 78px;
 }
 
@@ -275,9 +270,9 @@
   cursor: pointer;
   display: block;
   font: inherit;
-  font-size: 15px;
-  font-weight: 600;
-  max-width: 132px;
+  font-size: 14px;
+  font-weight: 400;
+  max-width: 176px;
   overflow: hidden;
   padding: 0;
   text-align: left;
@@ -298,7 +293,7 @@
   border-radius: 6px;
   font-size: 14px;
   line-height: 1.35;
-  max-width: 132px;
+  max-width: 176px;
   overflow-wrap: anywhere;
   padding: 6px 8px;
   text-decoration: none;

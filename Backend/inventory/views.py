@@ -3389,10 +3389,14 @@ class DashboardStatsView(APIView):
                 'inventory_book',
                 'inventory_book__game'
             )
-            .filter(user=request.user)
+            .filter(inventory_book__user=request.user)
         )
 
         active_boxes = active_packs.count()
+        active_packs_by_book_id = {
+            pack.inventory_book_id: pack
+            for pack in active_packs
+        }
 
         # Historical activation records.
         activated_today_books = (
@@ -3448,13 +3452,8 @@ class DashboardStatsView(APIView):
             the Dashboard popup table.
             """
 
-            active_pack = (
-                ActivatedPack.objects
-                .filter(
-                    user=request.user,
-                    inventory_book=book
-                )
-                .first()
+            active_pack = active_packs_by_book_id.get(
+                book.id
             )
 
             game = book.game

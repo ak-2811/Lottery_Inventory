@@ -1175,7 +1175,6 @@ const [
                     <th>Current #</th>
                     <th>Game #</th>
                     <th>Pack #</th>
-                    <th>Date Updated</th>
                     {selectedStatList.key === 'inactive_packs' && <th>Action</th>}
                   </tr>
                 </thead>
@@ -1206,7 +1205,6 @@ const [
                             {pack.packNum || '-'}
                           </button>
                         </td>
-                        <td className="dashboard-pack-date">{pack.dateUpdated || '-'}</td>
                         {selectedStatList.key === 'inactive_packs' && (
                           <td>
                             <button
@@ -1224,7 +1222,7 @@ const [
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={selectedStatList.key === 'inactive_packs' ? 8 : 7} className="dashboard-no-data">No packs found</td>
+                      <td colSpan={selectedStatList.key === 'inactive_packs' ? 7 : 6} className="dashboard-no-data">No packs found</td>
                     </tr>
                   )}
                 </tbody>
