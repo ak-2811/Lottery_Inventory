@@ -117,6 +117,12 @@
   padding: 14px;
   border-bottom: 1px solid #f0f0f0;
   color: #333;
+  vertical-align: middle;
+}
+
+.details-table td:last-child {
+  text-align: center;
+  white-space: nowrap;
 }
 
 .details-table tbody tr {
@@ -148,13 +154,19 @@
 }
 
 .status-badge {
-  display: inline-block;
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 34px;
+  min-width: 92px;
   padding: 6px 12px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 .status-badge.active {
