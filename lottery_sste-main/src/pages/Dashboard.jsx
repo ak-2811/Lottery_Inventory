@@ -280,6 +280,18 @@ export default function Dashboard() {
   const [topSalesData, setTopSalesData] = useState({ games: [], ticket_values: [] })
   const [activePackRows, setActivePackRows] = useState([])
   const [inactivePackRows, setInactivePackRows] = useState([])
+  const [activatedTodayRows, setActivatedTodayRows] =
+  useState([])
+
+const [
+  activatedThisWeekRows,
+  setActivatedThisWeekRows,
+] = useState([])
+
+const [
+  activatedThisMonthRows,
+  setActivatedThisMonthRows,
+] = useState([])
   const [selectedStatList, setSelectedStatList] = useState(null)
   const [packPendingDelete, setPackPendingDelete] = useState(null)
   const [expandedPackIds, setExpandedPackIds] = useState({})
@@ -289,24 +301,42 @@ export default function Dashboard() {
     clearManagerAccessToken('reports')
     setShowReportsPin(true)
   }
-  const dashboardPackLists = useMemo(() => {
-    const now = new Date()
-    const todayKey = now.toDateString()
-    const currentWeekKey = getIsoWeekKey(now)
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
+  // const dashboardPackLists = useMemo(() => {
+  //   const now = new Date()
+  //   const todayKey = now.toDateString()
+  //   const currentWeekKey = getIsoWeekKey(now)
+  //   const currentMonth = now.getMonth()
+  //   const currentYear = now.getFullYear()
 
-    return {
-      active_boxes: activePackRows,
-      activated_today: activePackRows.filter((pack) => getPackCreatedDate(pack)?.toDateString() === todayKey),
-      activated_this_week: activePackRows.filter((pack) => getIsoWeekKey(getPackCreatedDate(pack)) === currentWeekKey),
-      activated_this_month: activePackRows.filter((pack) => {
-        const createdDate = getPackCreatedDate(pack)
-        return createdDate?.getFullYear() === currentYear && createdDate.getMonth() === currentMonth
-      }),
-      inactive_packs: inactivePackRows,
-    }
-  }, [activePackRows, inactivePackRows])
+  //   return {
+  //     active_boxes: activePackRows,
+  //     activated_today: activePackRows.filter((pack) => getPackCreatedDate(pack)?.toDateString() === todayKey),
+  //     activated_this_week: activePackRows.filter((pack) => getIsoWeekKey(getPackCreatedDate(pack)) === currentWeekKey),
+  //     activated_this_month: activePackRows.filter((pack) => {
+  //       const createdDate = getPackCreatedDate(pack)
+  //       return createdDate?.getFullYear() === currentYear && createdDate.getMonth() === currentMonth
+  //     }),
+  //     inactive_packs: inactivePackRows,
+  //   }
+  // }, [activePackRows, inactivePackRows])
+  const dashboardPackLists = useMemo(
+  () => ({
+    active_boxes: activePackRows,
+    activated_today: activatedTodayRows,
+    activated_this_week:
+      activatedThisWeekRows,
+    activated_this_month:
+      activatedThisMonthRows,
+    inactive_packs: inactivePackRows,
+  }),
+  [
+    activePackRows,
+    activatedTodayRows,
+    activatedThisWeekRows,
+    activatedThisMonthRows,
+    inactivePackRows,
+  ]
+)
   const selectedPackRows = selectedStatList ? dashboardPackLists[selectedStatList.key] || [] : []
   const toggleExpandedPack = (rowKey) => {
     setExpandedPackIds((current) => ({
@@ -384,37 +414,83 @@ export default function Dashboard() {
     }
   }
 
+  // const fetchDashboardPackLists = async () => {
+  //   try {
+  //     const [activeRes, inventoryRes] = await Promise.all([
+  //       axios.get(`${API_BASE}/activated-books/`, {
+  //         headers: getAuthHeaders(),
+  //       }),
+  //       axios.get(`${API_BASE}/books/`, {
+  //         headers: getAuthHeaders(),
+  //       }),
+  //     ])
+
+  //     setActivePackRows(activeRes.data || [])
+  //     setInactivePackRows(
+  //       (inventoryRes.data || [])
+  //         .filter((book) => !book.is_activated && !book.is_sold)
+  //         .map((book) => ({
+  //           id: book.id,
+  //           boxNum: '-',
+  //           image: book.image,
+  //           name: book.name,
+  //           currentNum: '-',
+  //           gameNum: book.game,
+  //           packNum: book.pack || book.pack_id,
+  //           dateUpdated: book.date,
+  //           created_at: book.created_at,
+  //         }))
+  //     )
+  //   } catch (error) {
+  //     console.error('Error fetching dashboard pack lists:', error)
+  //   }
+  // }
   const fetchDashboardPackLists = async () => {
-    try {
-      const [activeRes, inventoryRes] = await Promise.all([
-        axios.get(`${API_BASE}/activated-books/`, {
-          headers: getAuthHeaders(),
-        }),
+  try {
+    const [activeRes, inventoryRes] =
+      await Promise.all([
+        axios.get(
+          `${API_BASE}/activated-books/`,
+          {
+            headers: getAuthHeaders(),
+          }
+        ),
         axios.get(`${API_BASE}/books/`, {
           headers: getAuthHeaders(),
         }),
       ])
 
-      setActivePackRows(activeRes.data || [])
-      setInactivePackRows(
-        (inventoryRes.data || [])
-          .filter((book) => !book.is_activated && !book.is_sold)
-          .map((book) => ({
-            id: book.id,
-            boxNum: '-',
-            image: book.image,
-            name: book.name,
-            currentNum: '-',
-            gameNum: book.game,
-            packNum: book.pack || book.pack_id,
-            dateUpdated: book.date,
-            created_at: book.created_at,
-          }))
-      )
-    } catch (error) {
-      console.error('Error fetching dashboard pack lists:', error)
-    }
+    setActivePackRows(
+      activeRes.data || []
+    )
+
+    setInactivePackRows(
+      (inventoryRes.data || [])
+        .filter(
+          (book) =>
+            !book.is_activated &&
+            !book.is_sold
+        )
+        .map((book) => ({
+          id: book.id,
+          boxNum: '-',
+          image: book.image,
+          name: book.name,
+          currentNum: '-',
+          gameNum: book.game,
+          packNum:
+            book.pack || book.pack_id,
+          dateUpdated: book.date,
+          created_at: book.created_at,
+        }))
+    )
+  } catch (error) {
+    console.error(
+      'Error fetching dashboard pack lists:',
+      error
+    )
   }
+}
 
   const handleDeleteInactivePack = async (pack) => {
     try {
@@ -563,16 +639,68 @@ export default function Dashboard() {
     setActiveTopSalesCalendar(null)
   }
 
+  // const fetchDashboardStats = async () => {
+  //   try {
+  //     const res = await axios.get(`${API_BASE}/dashboard-stats/`, {
+  //       headers: getAuthHeaders(),
+  //     })
+  //     setStats(res.data)
+  //   } catch (error) {
+  //     console.error('Error fetching dashboard stats:', error)
+  //   }
+  // }
   const fetchDashboardStats = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/dashboard-stats/`, {
+  try {
+    const res = await axios.get(
+      `${API_BASE}/dashboard-stats/`,
+      {
         headers: getAuthHeaders(),
-      })
-      setStats(res.data)
-    } catch (error) {
-      console.error('Error fetching dashboard stats:', error)
-    }
+      }
+    )
+
+    const data = res.data || {}
+
+    setStats({
+      instant_sales_today:
+        data.instant_sales_today || '0.00',
+      active_boxes:
+        Number(data.active_boxes) || 0,
+      activated_today:
+        Number(data.activated_today) || 0,
+      activated_this_week:
+        Number(data.activated_this_week) || 0,
+      activated_this_month:
+        Number(data.activated_this_month) || 0,
+      inactive_packs:
+        Number(data.inactive_packs) || 0,
+    })
+
+    setActivePackRows(
+      data.active_box_list || []
+    )
+
+    setActivatedTodayRows(
+      data.activated_today_list || []
+    )
+
+    setActivatedThisWeekRows(
+      data.activated_this_week_list || []
+    )
+
+    setActivatedThisMonthRows(
+      data.activated_this_month_list || []
+    )
+  } catch (error) {
+    console.error(
+      'Error fetching dashboard stats:',
+      error
+    )
+
+    setActivatedTodayRows([])
+    setActivatedThisWeekRows([])
+    setActivatedThisMonthRows([])
   }
+}
 
   const handleTicketScan = async (rawBarcode) => {
     try {
