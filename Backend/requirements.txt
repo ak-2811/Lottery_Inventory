@@ -1,5 +1,6 @@
 Django>=4.2,<5.0
 djangorestframework>=3.14
+djangorestframework-simplejwt>=5.3
 django-cors-headers>=4.0
 gunicorn>=21.2
 psycopg2-binary>=2.9
@@ -7,3 +8,5 @@ python-dotenv>=1.0
 whitenoise>=6.6
 Pillow>=10.0
 reportlab>=4.0
+resend>=2.0
+requests>=2.31

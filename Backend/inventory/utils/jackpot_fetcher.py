@@ -2,9 +2,7 @@ import re
 import signal
 import time
 from contextlib import contextmanager
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
+import requests
 
 
 class CleanupTimeout(Exception):
@@ -48,6 +46,9 @@ def parse_amount_to_number(text):
 
 
 def get_driver():
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
@@ -77,8 +78,39 @@ def extract_money_after_label(text, label):
     return m.group(1).strip() if m else None
 
 
+def extract_first_money_amount(text):
+    m = re.search(r"\$\s*[\d.,]+\s*(?:Million|Billion)", text or "", re.I)
+    return re.sub(r"\s+", " ", m.group(0)).strip() if m else None
+
+
 def fetch_powerball():
     url = "https://www.powerball.com/"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+        )
+    }
+
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        jackpot = extract_money_after_label(response.text, "Estimated Jackpot")
+        if not jackpot:
+            jackpot = extract_first_money_amount(response.text)
+
+        if jackpot:
+            return {
+                "game_name": "Powerball",
+                "amount_text": jackpot,
+                "amount_number": parse_amount_to_number(jackpot),
+                "source_url": url,
+            }
+    except requests.RequestException:
+        pass
+
+    from selenium.webdriver.common.by import By
+
     driver = get_driver()
 
     try:
@@ -99,6 +131,8 @@ def fetch_powerball():
 
 
 def fetch_mega_millions():
+    from selenium.webdriver.common.by import By
+
     url = "https://www.megamillions.com/"
     driver = get_driver()
 
