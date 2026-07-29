@@ -1,8 +1,32 @@
 import re
+import signal
 import time
+from contextlib import contextmanager
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+
+
+class CleanupTimeout(Exception):
+    pass
+
+
+@contextmanager
+def timeout_after(seconds):
+    if not hasattr(signal, "SIGALRM"):
+        yield
+        return
+
+    def handle_timeout(signum, frame):
+        raise CleanupTimeout(f"Timed out after {seconds} seconds")
+
+    previous_handler = signal.signal(signal.SIGALRM, handle_timeout)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 
 def parse_amount_to_number(text):
@@ -30,9 +54,21 @@ def get_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-background-networking")
 
     driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(25)
+    driver.set_script_timeout(10)
     return driver
+
+
+def safe_quit(driver):
+    try:
+        with timeout_after(5):
+            driver.quit()
+    except Exception:
+        pass
 
 
 def extract_money_after_label(text, label):
@@ -59,7 +95,7 @@ def fetch_powerball():
             "source_url": url,
         }
     finally:
-        driver.quit()
+        safe_quit(driver)
 
 
 def fetch_mega_millions():
@@ -80,4 +116,4 @@ def fetch_mega_millions():
             "source_url": url,
         }
     finally:
-        driver.quit()
+        safe_quit(driver)
