@@ -131,10 +131,11 @@ html, body, #root {
   width: 100%;
   height: 100%;
   container-type: inline-size;
-  background: white;
-  border-radius: 2px 2px 4px 4px;
- overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.28);
+  background: #ffffff;
+  border: 1px solid rgba(15, 71, 62, 0.45);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.26);
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
@@ -259,71 +260,75 @@ html, body, #root {
   min-height: 0;
   position: relative;
   overflow: hidden;
-  margin-top: -1px;
-  background: #2d8a5f;
-  border: 1px solid #2d8a5f;
-  border-top: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,250,252,0.98));
+  border-bottom: 1px solid rgba(15, 71, 62, 0.18);
+  padding: clamp(2px, 1.2cqi, 6px);
 }
 
 /* Colour swatch fallback (when no image imported yet) */
 .ld-swatch-fill {
   position: absolute;
   inset: 0;
-  background: var(--swatch, #166534);
-  opacity: 0.92;
+  background: #ffffff;
+  opacity: 1;
 }
 
 /* Real ticket image */
 .ld-img {
-  position: absolute;
-  inset: 0;
+  position: relative;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center;
   z-index: 1;
+  filter: saturate(1.08) contrast(1.05);
 }
 
 /* Price tag — top-left corner */
 .ld-price-tag {
   position: absolute;
-  top: 3px;
-  left: 3px;
+  top: 4px;
+  left: 4px;
   background: white;
   color: #222;
-  font-size: 9px;
+  font-size: clamp(8px, 7cqi, 12px);
   font-weight: 900;
-  padding: 1px 4px;
-  border-radius: 2px;
-  border: 1px solid #e55;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(15, 25, 35, 0.35);
   box-shadow: 0 1px 3px rgba(0,0,0,0.35);
   z-index: 4;
-  line-height: 1.3;
+  line-height: 1.15;
 }
 
-/* BOX badge — centred circle */
+/* BOX badge */
 .ld-box-badge {
   position: absolute;
-  bottom: 50%;
-  left: 50%;
-  transform: translate(-50%, 50%);
-  background: rgba(0,0,0,0.88);
+  right: 4px;
+  bottom: 4px;
+  background: rgba(0,0,0,0.82);
   color: #fff;
-  font-size: 6px;
+  font-size: clamp(6px, 5.2cqi, 10px);
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
+  letter-spacing: 0.15px;
+  min-width: clamp(28px, 25cqi, 46px);
+  min-height: clamp(18px, 14cqi, 24px);
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   line-height: 1.1;
-  padding: 2px;
+  padding: 3px 6px;
   z-index: 3;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.55);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.45);
 }
 
 /* ── Card footer ─────────────────────────────────────────── */
