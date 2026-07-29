@@ -195,6 +195,11 @@
   vertical-align: middle;
 }
 
+.dashboard-pack-table td {
+  font-size: 16px;
+  font-weight: 500;
+}
+
 .dashboard-pack-table th {
   background: #f7fbfb;
   color: #5c6c69;
@@ -270,8 +275,8 @@
   cursor: pointer;
   display: block;
   font: inherit;
-  font-size: 14px;
-  font-weight: 400;
+  font-size: 16px;
+  font-weight: 500;
   max-width: 176px;
   overflow: hidden;
   padding: 0;
@@ -291,7 +296,7 @@
   background: #f7fbfb;
   border: 1px solid #c9d8d6;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.35;
   max-width: 176px;
   overflow-wrap: anywhere;
