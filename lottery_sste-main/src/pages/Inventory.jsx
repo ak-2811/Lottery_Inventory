@@ -613,8 +613,8 @@ export default function Inventory() {
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>Game <span className="sort-icon">⇅</span></th>
-                      <th>Pack # <span className="sort-icon">⇅</span></th>
+                      <th>Game <span className="sort-icon"></span></th>
+                      <th>Pack # <span className="sort-icon"></span></th>
                       <th>Value</th>
                       <th>Total Value</th>
                       <th>Action</th>
