@@ -1016,14 +1016,38 @@ def pdf_money(value, negative_parentheses=False):
     return f"${amount:,.2f}"
 
 
+# def pdf_datetime(value):
+#     if not value:
+#         return '-'
+
+#     return timezone.localtime(value).strftime(
+#         '%m-%d-%Y %I:%M:%S %p'
+#     )
+NEW_YORK_TIMEZONE = ZoneInfo(
+    'America/New_York'
+)
+
+
 def pdf_datetime(value):
+    """
+    Formats report timestamps explicitly in
+    New York Eastern Time.
+    """
+
     if not value:
         return '-'
 
-    return timezone.localtime(value).strftime(
-        '%m-%d-%Y %I:%M:%S %p'
+    # Django stores timezone-aware values in UTC.
+    # Convert them explicitly to New York time
+    # before placing them in the PDF.
+    local_value = timezone.localtime(
+        value,
+        NEW_YORK_TIMEZONE
     )
 
+    return local_value.strftime(
+        '%m-%d-%Y %I:%M:%S %p'
+    )
 
 def safe_ticket_count(start_num, current_num):
     try:
