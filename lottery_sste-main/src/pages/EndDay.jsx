@@ -182,6 +182,13 @@ export default function EndDay() {
           >
             <span className="nav-icon">📺</span> <span className="nav-label">Live Display</span>
           </button>
+          <button
+            className="nav-item"
+            onClick={() => window.open('/hor-live-display', '_blank')}
+            style={{ background: 'transparent', color: '#666', border: 'none' }}
+          >
+            <span className="nav-icon">🖥️</span> <span className="nav-label">Horizontal Live Display</span>
+          </button>
         </nav>
         <div className="sidebar-footer">
           <a href="#" className="sidebar-link">❓ <span className="link-label">Help</span></a>

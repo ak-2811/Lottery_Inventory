@@ -633,6 +633,25 @@ export default function Reports() {
                 Live Display
               </span>
             </button>
+            <button
+              className="nav-item"
+              onClick={() =>
+                window.open(
+                  '/hor-live-display',
+                  '_blank'
+                )
+              }
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#666',
+              }}
+            >
+              <span className="nav-icon">🖥️</span>
+              <span className="nav-label">
+                Horizontal Live Display
+              </span>
+            </button>
           </nav>
 
           <div className="sidebar-footer">
