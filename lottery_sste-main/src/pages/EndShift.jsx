@@ -771,43 +771,21 @@ export default function EndShift() {
             </div>
           </div>
 
-          <div
-            style={{
-              marginBottom: '24px',
-              padding: '20px',
-              background: '#fff',
-              borderRadius: '14px',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: '16px',
-                flexWrap: 'wrap',
-              }}
-            >
+          <div className="verification-panel">
+            <div className="verification-header">
               <div>
-                <h3 style={{ margin: '0 0 6px' }}>
+                <h3>
                   Verify All Active Tickets
                 </h3>
-                <div style={{ color: '#666' }}>
+                <p>
                   Start at Box 1 and scan every active ticket through the last active box.
-                </div>
+                </p>
               </div>
 
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '10px',
-                  flexWrap: 'wrap',
-                }}
-              >
+              <div className="verification-actions">
                 <button
                   type="button"
-                  className="btn btn-cancel"
+                  className="verification-btn verification-btn-secondary"
                   disabled={verificationLoading || verificationActive}
                   onClick={handleStartVerification}
                 >
@@ -821,7 +799,7 @@ export default function EndShift() {
                 {verificationActive && (
                   <button
                     type="button"
-                    className="btn btn-save"
+                    className="verification-btn verification-btn-primary"
                     disabled={verificationLoading}
                     onClick={handleCompleteVerification}
                   >
@@ -834,62 +812,38 @@ export default function EndShift() {
             </div>
 
             {(verificationActive || verificationComplete) && (
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '24px',
-                  marginTop: '18px',
-                  flexWrap: 'wrap',
-                  fontWeight: 'bold',
-                }}
-              >
-                <span>
-                  Total Boxes: {verificationSummary.totalBoxes}
+              <div className="verification-metrics">
+                <span className="verification-metric">
+                  <small>Total Boxes</small>
+                  <strong>{verificationSummary.totalBoxes}</strong>
                 </span>
-                <span style={{ color: '#16856f' }}>
-                  Verified: {verificationSummary.verifiedBoxes}
+                <span className="verification-metric verified">
+                  <small>Verified</small>
+                  <strong>{verificationSummary.verifiedBoxes}</strong>
                 </span>
                 <span
-                  style={{
-                    color:
-                      verificationSummary.remainingBoxes > 0
-                        ? '#c62828'
-                        : '#16856f',
-                  }}
+                  className={`verification-metric ${verificationSummary.remainingBoxes > 0 ? 'remaining' : 'verified'}`}
                 >
-                  Remaining: {verificationSummary.remainingBoxes}
+                  <small>Remaining</small>
+                  <strong>{verificationSummary.remainingBoxes}</strong>
                 </span>
               </div>
             )}
 
             {verificationComplete && (
-              <div
-                style={{
-                  marginTop: '16px',
-                  padding: '12px 14px',
-                  borderRadius: '8px',
-                  background: '#e8f5e9',
-                  color: '#1b5e20',
-                  fontWeight: 'bold',
-                }}
-              >
-                ✓ Verification complete. The shift report can now be saved.
+              <div className="verification-success">
+                Verification complete. The shift report can now be saved.
               </div>
             )}
 
             {missingBoxes.length > 0 && (
-              <div style={{ marginTop: '20px' }}>
-                <h4
-                  style={{
-                    color: '#c62828',
-                    marginBottom: '10px',
-                  }}
-                >
+              <div className="verification-missing">
+                <h4>
                   Boxes Not Yet Verified
                 </h4>
 
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="details-table">
+                <div className="verification-table-wrap">
+                  <table className="details-table verification-table">
                     <thead>
                       <tr>
                         <th>Box #</th>
@@ -908,18 +862,11 @@ export default function EndShift() {
                           <td>{missingBox.packNum}</td>
                           <td>{missingBox.currentNum}</td>
                           <td>
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                flexWrap: 'wrap',
-                              }}
-                            >
+                            <div className="verification-required-action">
                               <span>Scan this ticket or</span>
                               <button
                                 type="button"
-                                className="btn btn-cancel"
+                                className="verification-btn verification-btn-small"
                                 disabled={verificationLoading}
                                 onClick={() =>
                                   handleVerificationMarkSold(missingBox)

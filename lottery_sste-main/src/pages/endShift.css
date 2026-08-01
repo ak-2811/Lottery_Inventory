@@ -292,6 +292,197 @@
   cursor: not-allowed;
 }
 
+.verification-panel {
+  background: #ffffff;
+  border: 1px solid #edf2f2;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  margin-bottom: 32px;
+  overflow: hidden;
+  padding: 26px 28px;
+}
+
+.verification-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+
+.verification-header h3 {
+  color: #1a1a1a;
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
+.verification-header p {
+  color: #667875;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.verification-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.verification-btn {
+  align-items: center;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  justify-content: center;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  min-height: 44px;
+  padding: 0 24px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.verification-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.verification-btn-secondary {
+  background: #ffffff;
+  border: 1px solid #a9d5ce;
+  color: #1a7a6f;
+}
+
+.verification-btn-secondary:hover:not(:disabled),
+.verification-btn-small:hover:not(:disabled) {
+  background: #f0f7f5;
+  box-shadow: 0 2px 8px rgba(26, 122, 111, 0.1);
+}
+
+.verification-btn-primary {
+  background: linear-gradient(135deg, #1a7a6f 0%, #156055 100%);
+  border: 1px solid #156055;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(26, 122, 111, 0.18);
+}
+
+.verification-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(26, 122, 111, 0.24);
+}
+
+.verification-metrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(130px, 1fr));
+  margin-top: 22px;
+  max-width: 560px;
+}
+
+.verification-metric {
+  background: #f8fbfb;
+  border: 1px solid #edf2f2;
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+}
+
+.verification-metric small {
+  color: #7b8b88;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.verification-metric strong {
+  color: #1a1a1a;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.verification-metric.verified strong {
+  color: #1a7a6f;
+}
+
+.verification-metric.remaining strong {
+  color: #d63219;
+}
+
+.verification-success {
+  background: #e9f6f4;
+  border: 1px solid #cce8e4;
+  border-radius: 8px;
+  color: #156055;
+  font-size: 14px;
+  font-weight: 800;
+  margin-top: 18px;
+  padding: 12px 14px;
+}
+
+.verification-missing {
+  margin-top: 24px;
+}
+
+.verification-missing h4 {
+  color: #d63219;
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0 0 14px;
+  text-align: center;
+}
+
+.verification-table-wrap {
+  overflow-x: auto;
+}
+
+.verification-table {
+  border: 1px solid #edf2f2;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.verification-table th,
+.verification-table td {
+  font-size: 15px;
+  vertical-align: middle;
+}
+
+.verification-table th:last-child,
+.verification-table td:last-child {
+  text-align: center;
+}
+
+.verification-required-action {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.verification-required-action span {
+  color: #4f5d5a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.verification-btn-small {
+  background: #ffffff;
+  border: 1px solid #a9d5ce;
+  color: #1a7a6f;
+  min-height: 38px;
+  padding: 0 18px;
+}
+
 /* End Day */
 .end-day-content {
   margin-bottom: 0;
@@ -507,6 +698,27 @@
   .details-table th,
   .details-table td {
     padding: 8px;
+  }
+
+  .verification-panel {
+    padding: 20px;
+  }
+
+  .verification-header,
+  .verification-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .verification-metrics {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+
+  .verification-required-action {
+    align-items: flex-start;
+    flex-direction: column;
+    white-space: normal;
   }
 
   .end-shift-actions {
