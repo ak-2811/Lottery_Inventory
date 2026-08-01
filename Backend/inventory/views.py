@@ -28,6 +28,7 @@ from django.db.models import IntegerField, Sum, Max, F, Count
 from django.db.models.functions import Cast
 from django.http import JsonResponse
 from .models import JackpotValue, StoreOwner, Store
+from zoneinfo import ZoneInfo
 import threading
 import time
 from django.db import transaction
@@ -275,12 +276,28 @@ def auto_save_yesterday_report_if_missing(user):
     return report, created
 
 def build_end_shift_preview(user):
-    today = get_business_date()
-    shift_state = get_or_create_shift_state(user)
+    """
+    Builds the current End Shift page data.
 
-    cumulative_totals = get_shift_cumulative_totals(
-        user=user,
-        report_date=today
+    Includes:
+    - Sold packs not yet consumed by a shift report
+    - Returned packs not yet consumed by a shift report
+    - Currently active packs
+    - InventoryBook and ActivatedPack IDs for verification
+    - Current verification progress
+    """
+
+    today = get_business_date()
+
+    shift_state = get_or_create_shift_state(
+        user
+    )
+
+    cumulative_totals = (
+        get_shift_cumulative_totals(
+            user=user,
+            report_date=today
+        )
     )
 
     next_shift_number = (
@@ -291,9 +308,19 @@ def build_end_shift_preview(user):
 
     preview_rows = []
 
-    # Temporary Sold rows not yet consumed.
+    # ==================================================
+    # TEMPORARY SOLD ROWS
+    #
+    # These rows have not yet been copied into a
+    # completed ShiftReport.
+    # ==================================================
     sold_rows = list(
-        DailyReportBoxDetail.objects.filter(
+        DailyReportBoxDetail.objects
+        .select_related(
+            'inventory_book',
+            'inventory_book__game'
+        )
+        .filter(
             user=user,
             report_date=today,
             report__isnull=True,
@@ -301,9 +328,16 @@ def build_end_shift_preview(user):
         )
     )
 
-    # Temporary Returned rows not yet consumed.
+    # ==================================================
+    # TEMPORARY RETURNED ROWS
+    # ==================================================
     returned_rows = list(
-        DailyReportBoxDetail.objects.filter(
+        DailyReportBoxDetail.objects
+        .select_related(
+            'inventory_book',
+            'inventory_book__game'
+        )
+        .filter(
             user=user,
             report_date=today,
             report__isnull=True,
@@ -311,16 +345,49 @@ def build_end_shift_preview(user):
         )
     )
 
-    for row in sold_rows + returned_rows:
+    closed_rows = (
+        sold_rows + returned_rows
+    )
+
+    # Add Sold and Returned rows.
+    for row in closed_rows:
+        inventory_book = (
+            row.inventory_book
+        )
+
         preview_rows.append({
             'id': f"closed-{row.id}",
-            'boxNum': str(row.box_num),
+
+            # Closed rows no longer have an active
+            # ActivatedPack record.
+            'activatedPackId': None,
+
+            'inventoryBookId': (
+                inventory_book.id
+                if inventory_book
+                else None
+            ),
+
+            'boxNum': str(
+                row.box_num
+            ),
+
             'game': (
                 f"{row.lottery_name} "
                 f"- {row.pack_num}"
             ),
-            'startNum': row.start_num,
-            'endNum': row.current_num,
+
+            'gameNum': row.game_num,
+            'packNum': row.pack_num,
+
+            'startNum': (
+                row.start_num
+            ),
+
+            'endNum': (
+                row.current_num
+            ),
+
             'value': (
                 f"${row.ticket_value:.0f}"
                 if float(
@@ -328,19 +395,58 @@ def build_end_shift_preview(user):
                 ).is_integer()
                 else f"${row.ticket_value}"
             ),
+
             'total': (
                 f"${row.total_amount:.2f}"
             ),
-            'status': row.closing_status,
+
+            'status': (
+                row.closing_status
+            ),
+
+            # Sold and returned records are already
+            # resolved for verification.
+            'verificationResolved': True,
         })
 
-    active_packs = (
+    # ==================================================
+    # CURRENT ACTIVE PACKS
+    # ==================================================
+    active_packs = list(
         ActivatedPack.objects
         .select_related(
+            'inventory_book',
             'inventory_book__game'
         )
-        .filter(user=user)
+        .filter(
+            user=user,
+            inventory_book__is_activated=True,
+            inventory_book__is_sold=False,
+        )
     )
+
+    active_packs.sort(
+        key=lambda pack: (
+            get_numeric_box_sort_value(
+                pack.box_num
+            ),
+            pack.id
+        )
+    )
+
+    verification = (
+        get_end_shift_verification(user)
+    )
+
+    verified_inventory_book_ids = set()
+
+    if verification:
+        verified_inventory_book_ids = set(
+            verification.get(
+                'verified_inventory_book_ids',
+                []
+            )
+        )
 
     for pack in active_packs:
         book = pack.inventory_book
@@ -352,15 +458,42 @@ def build_end_shift_preview(user):
             'Active'
         )
 
+        is_verified = (
+            book.id
+            in verified_inventory_book_ids
+        )
+
         preview_rows.append({
             'id': f"active-{pack.id}",
-            'boxNum': str(pack.box_num),
+
+            'activatedPackId': pack.id,
+            'inventoryBookId': book.id,
+
+            'boxNum': str(
+                pack.box_num
+            ),
+
             'game': (
                 f"{book.game.name or book.game.game_id} "
                 f"- {book.pack_id}"
             ),
-            'startNum': pack.today_start,
-            'endNum': pack.current_count,
+
+            'gameNum': (
+                book.game.game_id
+            ),
+
+            'packNum': (
+                book.pack_id
+            ),
+
+            'startNum': (
+                pack.today_start
+            ),
+
+            'endNum': (
+                pack.current_count
+            ),
+
             'value': (
                 f"${book.ticket_value:.0f}"
                 if float(
@@ -368,12 +501,27 @@ def build_end_shift_preview(user):
                 ).is_integer()
                 else f"${book.ticket_value}"
             ),
+
             'total': (
                 f"${total_amount:.2f}"
             ),
+
             'status': 'Active',
+
+            'verificationResolved': (
+                is_verified
+            ),
         })
 
+    # ==================================================
+    # SORT ALL ROWS TOGETHER
+    #
+    # Numeric boxes:
+    # 1, 2, 3, 4...
+    #
+    # Text rows:
+    # Direct Sale, Inventory Return...
+    # ==================================================
     preview_rows.sort(
         key=lambda row: (
             get_numeric_box_sort_value(
@@ -383,21 +531,100 @@ def build_end_shift_preview(user):
         )
     )
 
+    # ==================================================
+    # VERIFICATION STATUS
+    # ==================================================
+    verification_active = bool(
+        verification
+    )
+
+    missing_boxes = []
+
+    expected_boxes = []
+
+    verification_complete = False
+
+    if verification:
+        expected_boxes = (
+            verification.get(
+                'expected_boxes',
+                []
+            )
+        )
+
+        missing_boxes = (
+            build_missing_verification_boxes(
+                user
+            )
+        )
+
+        verification_complete = (
+            len(missing_boxes) == 0
+        )
+
+    total_verification_boxes = len(
+        expected_boxes
+    )
+
+    remaining_verification_boxes = len(
+        missing_boxes
+    )
+
+    verified_verification_boxes = max(
+        total_verification_boxes
+        - remaining_verification_boxes,
+        0
+    )
+
     return {
         'id': None,
+
         'report_date': str(today),
-        'shiftNumber': next_shift_number,
+
+        'shiftNumber': (
+            next_shift_number
+        ),
+
         'shiftStartedAt': (
             shift_state.started_at
         ),
+
         'instantSales': (
             f"{shift_state.instant_sales:.2f}"
         ),
+
+        # Manual fields must always start empty/zero.
         'instantCashes': '0.00',
         'onlineSales': '0.00',
         'onlineCashes': '0.00',
         'onlineCancels': '0.00',
+
         'boxDetails': preview_rows,
+
+        # Verification information.
+        'verificationActive': (
+            verification_active
+        ),
+
+        'verificationComplete': (
+            verification_complete
+        ),
+
+        'totalVerificationBoxes': (
+            total_verification_boxes
+        ),
+
+        'verifiedVerificationBoxes': (
+            verified_verification_boxes
+        ),
+
+        'remainingVerificationBoxes': (
+            remaining_verification_boxes
+        ),
+
+        'missingBoxes': (
+            missing_boxes
+        ),
     }
 
 MANAGER_ACCESS_TIMEOUT_SECONDS = 10 * 60
@@ -1017,13 +1244,6 @@ def pdf_money(value, negative_parentheses=False):
     return f"${amount:,.2f}"
 
 
-# def pdf_datetime(value):
-#     if not value:
-#         return '-'
-
-#     return timezone.localtime(value).strftime(
-#         '%m-%d-%Y %I:%M:%S %p'
-#     )
 NEW_YORK_TIMEZONE = ZoneInfo(
     'America/New_York'
 )
@@ -1045,6 +1265,17 @@ def pdf_datetime(value):
         value,
         NEW_YORK_TIMEZONE
     )
+
+    return local_value.strftime(
+        '%m-%d-%Y %I:%M:%S %p'
+    )
+# def pdf_datetime(value):
+#     if not value:
+#         return '-'
+
+#     return timezone.localtime(value).strftime(
+#         '%m-%d-%Y %I:%M:%S %p'
+#     )
 
     return local_value.strftime(
         '%m-%d-%Y %I:%M:%S %p'
@@ -1141,6 +1372,182 @@ def build_pdf_table(
 
     table.setStyle(TableStyle(table_style))
     return table
+
+END_SHIFT_VERIFICATION_TIMEOUT = 60 * 60
+
+
+def get_end_shift_verification_key(user):
+    return (
+        f'end_shift_verification:{user.id}'
+    )
+
+
+def get_end_shift_verification(user):
+    return cache.get(
+        get_end_shift_verification_key(user)
+    )
+
+
+def save_end_shift_verification(user, verification):
+    cache.set(
+        get_end_shift_verification_key(user),
+        verification,
+        timeout=END_SHIFT_VERIFICATION_TIMEOUT
+    )
+
+
+def clear_end_shift_verification(user):
+    cache.delete(
+        get_end_shift_verification_key(user)
+    )
+
+
+def mark_box_verified(
+    user,
+    activated_pack
+):
+    """
+    Marks one activated box as scanned during
+    the current verification session.
+    """
+
+    verification = get_end_shift_verification(
+        user
+    )
+
+    if not verification:
+        return None
+
+    verified_ids = set(
+        verification.get(
+            'verified_inventory_book_ids',
+            []
+        )
+    )
+
+    verified_ids.add(
+        activated_pack.inventory_book_id
+    )
+
+    verification[
+        'verified_inventory_book_ids'
+    ] = list(verified_ids)
+
+    save_end_shift_verification(
+        user,
+        verification
+    )
+
+    return verification
+
+
+def build_missing_verification_boxes(user):
+    verification = get_end_shift_verification(
+        user
+    )
+
+    if not verification:
+        return []
+
+    expected_boxes = verification.get(
+        'expected_boxes',
+        []
+    )
+
+    verified_ids = set(
+        verification.get(
+            'verified_inventory_book_ids',
+            []
+        )
+    )
+
+    missing_boxes = []
+
+    for expected in expected_boxes:
+        inventory_book_id = expected[
+            'inventoryBookId'
+        ]
+
+        if inventory_book_id in verified_ids:
+            continue
+
+        try:
+            inventory_book = (
+                InventoryBook.objects
+                .select_related('game')
+                .get(
+                    id=inventory_book_id,
+                    user=user
+                )
+            )
+        except InventoryBook.DoesNotExist:
+            # Deleted records are no longer actionable.
+            continue
+
+        # A pack marked sold or returned during
+        # verification is considered resolved.
+        if (
+            inventory_book.is_sold
+            or inventory_book.is_returned
+        ):
+            continue
+
+        active_pack = (
+            ActivatedPack.objects
+            .filter(
+                user=user,
+                inventory_book=inventory_book
+            )
+            .first()
+        )
+
+        # If it is no longer active but was not sold,
+        # do not silently treat it as verified.
+        current_box = (
+            active_pack.box_num
+            if active_pack
+            else expected['boxNum']
+        )
+
+        missing_boxes.append({
+            'activatedPackId': (
+                active_pack.id
+                if active_pack
+                else expected.get(
+                    'activatedPackId'
+                )
+            ),
+            'inventoryBookId': (
+                inventory_book.id
+            ),
+            'boxNum': str(current_box),
+            'gameNum': (
+                inventory_book.game.game_id
+            ),
+            'game': (
+                inventory_book.game.name
+                or inventory_book.game.game_id
+            ),
+            'packNum': (
+                inventory_book.pack_id
+            ),
+            'currentNum': (
+                active_pack.current_count
+                if active_pack
+                else '-'
+            ),
+        })
+
+    missing_boxes.sort(
+        key=lambda item: (
+            get_numeric_box_sort_value(
+                item['boxNum']
+            ),
+            item['inventoryBookId']
+        )
+    )
+
+    return missing_boxes
 
 def build_shift_report_pdf_bytes(report, user):
     """
@@ -4100,116 +4507,717 @@ class EndShiftSaveView(APIView):
             )
         )
 
-class EndShiftManualScanView(APIView):
+class StartEndShiftVerificationView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def parse_scanned_ticket(self, barcode: str):
-        barcode = str(barcode).strip()
-        print(barcode)
-        print(len(barcode))
+    def post(self, request):
+        active_packs = list(
+            ActivatedPack.objects
+            .select_related(
+                'inventory_book',
+                'inventory_book__game'
+            )
+            .filter(user=request.user)
+        )
 
-        if len(barcode) < 11:
-            # print(barcode)
-            raise ValueError("Invalid input")
-        
-        if len(barcode) > 14:
-            barcode=barcode[:14]
-            game_id = barcode[:4]
-            pack_id = barcode[4:-3]
-            ticket_number = barcode[-3:]
-        else:
-            game_id = barcode[:4]
-            pack_id = barcode[4:-4]
-            ticket_number = barcode[-4:-1]
+        active_packs.sort(
+            key=lambda pack: (
+                get_numeric_box_sort_value(
+                    pack.box_num
+                ),
+                pack.id
+            )
+        )
 
-        if not pack_id or len(ticket_number) != 3:
-            print(ticket_number)
-            raise ValueError("Invalid input")
+        expected_boxes = [
+            {
+                'activatedPackId': pack.id,
+                'inventoryBookId': (
+                    pack.inventory_book_id
+                ),
+                'boxNum': str(pack.box_num),
+                'gameNum': (
+                    pack.inventory_book.game.game_id
+                ),
+                'game': (
+                    pack.inventory_book.game.name
+                    or
+                    pack.inventory_book.game.game_id
+                ),
+                'packNum': (
+                    pack.inventory_book.pack_id
+                ),
+                'currentNum': (
+                    pack.current_count
+                ),
+            }
+            for pack in active_packs
+        ]
 
-        return {
-            "game_id": game_id,
-            "pack_id": pack_id,
-            "ticket_number": int(ticket_number),
+        verification = {
+            'started_at': (
+                timezone.now().isoformat()
+            ),
+            'expected_boxes': expected_boxes,
+            'verified_inventory_book_ids': [],
         }
 
-    def post(self, request):
-        raw_barcode = str(request.data.get('raw_barcode', '')).strip()
-        print(raw_barcode)
+        save_end_shift_verification(
+            request.user,
+            verification
+        )
 
-        if not raw_barcode:
-            return Response({'error': 'Barcode error in input'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {
+                'message': (
+                    'Ticket verification started. '
+                    'Begin scanning from the first '
+                    'active box.'
+                ),
+                'verificationActive': True,
+                'totalBoxes': len(expected_boxes),
+                'verifiedBoxes': 0,
+                'remainingBoxes': len(
+                    expected_boxes
+                ),
+                'expectedBoxes': expected_boxes,
+            },
+            status=status.HTTP_200_OK
+        )
 
-        try:
-            parsed = self.parse_scanned_ticket(raw_barcode)
-        except ValueError:
-            return Response({'error': 'Parsing error in input'}, status=status.HTTP_400_BAD_REQUEST)
 
-        game_id = parsed['game_id']
-        pack_id = parsed['pack_id']
-        ticket_number = parsed['ticket_number']
+class EndShiftVerificationStatusView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        try:
-            activated_pack = ActivatedPack.objects.select_related('inventory_book__game').get(
-                user=request.user,
-                inventory_book__game__game_id=game_id,
-                inventory_book__pack_id=pack_id,
-                inventory_book__is_activated=True
+    def get(self, request):
+        verification = (
+            get_end_shift_verification(
+                request.user
             )
-        except ActivatedPack.DoesNotExist:
+        )
+
+        if not verification:
             return Response(
-                {'error': 'Pack not activated or not found'},
+                {
+                    'verificationActive': False,
+                    'totalBoxes': 0,
+                    'verifiedBoxes': 0,
+                    'remainingBoxes': 0,
+                    'missingBoxes': [],
+                    'complete': False,
+                },
+                status=status.HTTP_200_OK
+            )
+
+        missing_boxes = (
+            build_missing_verification_boxes(
+                request.user
+            )
+        )
+
+        expected_boxes = verification.get(
+            'expected_boxes',
+            []
+        )
+
+        resolved_count = (
+            len(expected_boxes)
+            - len(missing_boxes)
+        )
+
+        return Response(
+            {
+                'verificationActive': True,
+                'totalBoxes': len(
+                    expected_boxes
+                ),
+                'verifiedBoxes': resolved_count,
+                'remainingBoxes': len(
+                    missing_boxes
+                ),
+                'missingBoxes': missing_boxes,
+                'complete': (
+                    len(missing_boxes) == 0
+                ),
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+class CompleteEndShiftVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        verification = (
+            get_end_shift_verification(
+                request.user
+            )
+        )
+
+        if not verification:
+            return Response(
+                {
+                    'error': (
+                        'Verification has not been '
+                        'started.'
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        book = activated_pack.inventory_book
-
-        if ticket_number >= book.total_tickets:
-            return Response({'error': 'Invalid ticket number'}, status=status.HTTP_400_BAD_REQUEST)
-
-        previous_current = activated_pack.current_count
-        delta_count = ticket_number - previous_current
-
-        if delta_count == 0:
-            preview = build_end_shift_preview(request.user)
-            return Response({
-                'message': 'No change. Current number already matches scanned ticket.',
-                'ticket_number': ticket_number,
-                'current_count': activated_pack.current_count,
-                'delta_count': 0,
-                'instantSales': preview['instantSales'],
-                'boxDetails': preview['boxDetails'],
-            }, status=status.HTTP_200_OK)
-
-        SoldTicket.objects.create(
-            user=request.user,
-            inventory_book=book,
-            ticket_number=ticket_number,
-            scanned_code=raw_barcode,
-            delta_count=delta_count,
-            is_reversal=delta_count < 0
+        missing_boxes = (
+            build_missing_verification_boxes(
+                request.user
+            )
         )
 
-        add_to_shift_sales(
-            user=request.user,
-            delta_count=delta_count,
-            ticket_value=book.ticket_value
+        if missing_boxes:
+            return Response(
+                {
+                    'message': (
+                        'Some active boxes have not '
+                        'been verified. Scan them or '
+                        'mark the packs sold.'
+                    ),
+                    'complete': False,
+                    'missingBoxes': missing_boxes,
+                    'remainingBoxes': len(
+                        missing_boxes
+                    ),
+                },
+                status=status.HTTP_200_OK
+            )
+
+        clear_end_shift_verification(
+            request.user
         )
 
-        activated_pack.last_ticket = previous_current
-        activated_pack.current_count = ticket_number
-        activated_pack.save(update_fields=['last_ticket', 'current_count', 'updated_at'])
+        return Response(
+            {
+                'message': (
+                    'All active tickets have been '
+                    'verified successfully.'
+                ),
+                'complete': True,
+                'missingBoxes': [],
+                'remainingBoxes': 0,
+            },
+            status=status.HTTP_200_OK
+        )
 
-        preview = build_end_shift_preview(request.user)
+class EndShiftManualScanView(APIView):
+    permission_classes = [
+        IsAuthenticated
+    ]
 
-        return Response({
-            'message': 'End shift scan updated successfully.',
-            'ticket_number': ticket_number,
-            'current_count': activated_pack.current_count,
-            'last_ticket': previous_current,
-            'delta_count': delta_count,
-            'instantSales': preview['instantSales'],
-            'boxDetails': preview['boxDetails'],
-        }, status=status.HTTP_200_OK)
+    def parse_scanned_ticket(
+        self,
+        barcode: str
+    ):
+        """
+        Parses the ticket barcode using the
+        existing barcode rules.
+
+        More than 14 digits:
+            Keep only the first 14 digits.
+            First 4 = game ID
+            Last 3 = ticket number
+            Middle = pack ID
+
+        14 digits or fewer:
+            Keep the existing check-digit format.
+            First 4 = game ID
+            Last 3 before final check digit
+            = ticket number
+        """
+
+        barcode = str(
+            barcode or ''
+        ).strip()
+
+        # Keep digits only.
+        barcode = ''.join(
+            character
+            for character in barcode
+            if character.isdigit()
+        )
+
+        if len(barcode) < 11:
+            raise ValueError(
+                'Invalid input'
+            )
+
+        if len(barcode) > 14:
+            barcode = barcode[:14]
+
+            game_id = barcode[:4]
+            pack_id = barcode[4:-3]
+
+            ticket_number_text = (
+                barcode[-3:]
+            )
+        else:
+            game_id = barcode[:4]
+            pack_id = barcode[4:-4]
+
+            ticket_number_text = (
+                barcode[-4:-1]
+            )
+
+        if (
+            not pack_id
+            or len(
+                ticket_number_text
+            ) != 3
+        ):
+            raise ValueError(
+                'Invalid input'
+            )
+
+        return {
+            'normalized_barcode': (
+                barcode
+            ),
+            'game_id': game_id,
+            'pack_id': pack_id,
+            'ticket_number': int(
+                ticket_number_text
+            ),
+        }
+
+    def post(self, request):
+        raw_barcode = str(
+            request.data.get(
+                'raw_barcode',
+                ''
+            )
+        ).strip()
+
+        if not raw_barcode:
+            return Response(
+                {
+                    'error': (
+                        'Barcode is required.'
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                )
+            )
+
+        try:
+            parsed = (
+                self.parse_scanned_ticket(
+                    raw_barcode
+                )
+            )
+        except (
+            ValueError,
+            TypeError
+        ):
+            return Response(
+                {
+                    'error': (
+                        'Invalid ticket barcode.'
+                    )
+                },
+                status=(
+                    status.HTTP_400_BAD_REQUEST
+                )
+            )
+
+        game_id = parsed[
+            'game_id'
+        ]
+
+        pack_id = parsed[
+            'pack_id'
+        ]
+
+        ticket_number = parsed[
+            'ticket_number'
+        ]
+
+        normalized_barcode = parsed[
+            'normalized_barcode'
+        ]
+
+        with transaction.atomic():
+            try:
+                activated_pack = (
+                    ActivatedPack.objects
+                    .select_for_update()
+                    .select_related(
+                        'inventory_book',
+                        'inventory_book__game'
+                    )
+                    .get(
+                        user=request.user,
+                        inventory_book__game__game_id=(
+                            game_id
+                        ),
+                        inventory_book__pack_id=(
+                            pack_id
+                        ),
+                        inventory_book__is_activated=True,
+                        inventory_book__is_sold=False,
+                    )
+                )
+            except (
+                ActivatedPack.DoesNotExist
+            ):
+                return Response(
+                    {
+                        'error': (
+                            'Pack is not activated '
+                            'or was not found.'
+                        )
+                    },
+                    status=(
+                        status.HTTP_400_BAD_REQUEST
+                    )
+                )
+
+            book = (
+                activated_pack
+                .inventory_book
+            )
+
+            # Ticket numbering is zero-based in
+            # the current scan workflow.
+            if (
+                ticket_number < 0
+                or ticket_number
+                >= int(
+                    book.total_tickets
+                    or 0
+                )
+            ):
+                return Response(
+                    {
+                        'error': (
+                            'Invalid ticket number.'
+                        )
+                    },
+                    status=(
+                        status.HTTP_400_BAD_REQUEST
+                    )
+                )
+
+            previous_current = int(
+                activated_pack.current_count
+                or 0
+            )
+
+            delta_count = (
+                ticket_number
+                - previous_current
+            )
+
+            # Mark the box verified even if its
+            # current number already matches.
+            verification = mark_box_verified(
+                request.user,
+                activated_pack
+            )
+
+            # ==================================================
+            # NO NUMBER CHANGE
+            #
+            # The scan still counts as verification.
+            # ==================================================
+            if delta_count == 0:
+                preview = (
+                    build_end_shift_preview(
+                        request.user
+                    )
+                )
+
+                missing_boxes = (
+                    build_missing_verification_boxes(
+                        request.user
+                    )
+                    if verification
+                    else []
+                )
+
+                return Response(
+                    {
+                        'message': (
+                            f'Box '
+                            f'{activated_pack.box_num} '
+                            f'verified. Current number '
+                            f'already matches the '
+                            f'scanned ticket.'
+                        ),
+
+                        'ticket_number': (
+                            ticket_number
+                        ),
+
+                        'current_count': (
+                            activated_pack
+                            .current_count
+                        ),
+
+                        'last_ticket': (
+                            previous_current
+                        ),
+
+                        'delta_count': 0,
+
+                        'scannedBoxNum': str(
+                            activated_pack
+                            .box_num
+                        ),
+
+                        'activatedPackId': (
+                            activated_pack.id
+                        ),
+
+                        'inventoryBookId': (
+                            book.id
+                        ),
+
+                        'verificationActive': (
+                            bool(verification)
+                        ),
+
+                        'verificationComplete': (
+                            bool(verification)
+                            and len(
+                                missing_boxes
+                            ) == 0
+                        ),
+
+                        'remainingVerificationBoxes': (
+                            len(missing_boxes)
+                        ),
+
+                        'missingBoxes': (
+                            missing_boxes
+                        ),
+
+                        'instantSales': (
+                            preview[
+                                'instantSales'
+                            ]
+                        ),
+
+                        'boxDetails': (
+                            preview[
+                                'boxDetails'
+                            ]
+                        ),
+                    },
+                    status=(
+                        status.HTTP_200_OK
+                    )
+                )
+
+            # ==================================================
+            # NUMBER CHANGED
+            # ==================================================
+            SoldTicket.objects.create(
+                user=request.user,
+                inventory_book=book,
+                ticket_number=(
+                    ticket_number
+                ),
+                scanned_code=(
+                    normalized_barcode
+                ),
+                delta_count=(
+                    delta_count
+                ),
+                is_reversal=(
+                    delta_count < 0
+                ),
+            )
+
+            add_to_shift_sales(
+                user=request.user,
+                delta_count=(
+                    delta_count
+                ),
+                ticket_value=(
+                    book.ticket_value
+                ),
+            )
+
+            activated_pack.last_ticket = (
+                previous_current
+            )
+
+            activated_pack.current_count = (
+                ticket_number
+            )
+
+            activated_pack.save(
+                update_fields=[
+                    'last_ticket',
+                    'current_count',
+                    'updated_at',
+                ]
+            )
+
+            # Refresh or create the temporary
+            # active report detail.
+            existing_active_detail = (
+                DailyReportBoxDetail.objects
+                .filter(
+                    user=request.user,
+                    report_date=(
+                        get_business_date()
+                    ),
+                    report__isnull=True,
+                    inventory_book=book,
+                    box_num=(
+                        activated_pack
+                        .box_num
+                    ),
+                    closing_status__iexact=(
+                        'Active'
+                    ),
+                )
+                .order_by('-id')
+                .first()
+            )
+
+            total_amount = (
+                calculate_box_total(
+                    activated_pack
+                    .today_start,
+                    activated_pack
+                    .current_count,
+                    book.ticket_value,
+                    'Active'
+                )
+            )
+
+            if existing_active_detail:
+                existing_active_detail.start_num = (
+                    activated_pack
+                    .today_start
+                )
+
+                existing_active_detail.current_num = (
+                    activated_pack
+                    .current_count
+                )
+
+                existing_active_detail.ticket_value = (
+                    book.ticket_value
+                )
+
+                existing_active_detail.total_amount = (
+                    total_amount
+                )
+
+                existing_active_detail.save(
+                    update_fields=[
+                        'start_num',
+                        'current_num',
+                        'ticket_value',
+                        'total_amount',
+                    ]
+                )
+
+            # The current build_end_shift_preview()
+            # reads active packs directly, so creating
+            # another Active detail is not required here.
+
+            preview = build_end_shift_preview(
+                request.user
+            )
+
+            missing_boxes = (
+                build_missing_verification_boxes(
+                    request.user
+                )
+                if verification
+                else []
+            )
+
+            return Response(
+                {
+                    'message': (
+                        f'Box '
+                        f'{activated_pack.box_num} '
+                        f'verified successfully. '
+                        f'Current number updated to '
+                        f'{ticket_number}.'
+                    ),
+
+                    'ticket_number': (
+                        ticket_number
+                    ),
+
+                    'current_count': (
+                        activated_pack
+                        .current_count
+                    ),
+
+                    'last_ticket': (
+                        previous_current
+                    ),
+
+                    'delta_count': (
+                        delta_count
+                    ),
+
+                    'is_reversal': (
+                        delta_count < 0
+                    ),
+
+                    'scannedBoxNum': str(
+                        activated_pack
+                        .box_num
+                    ),
+
+                    'activatedPackId': (
+                        activated_pack.id
+                    ),
+
+                    'inventoryBookId': (
+                        book.id
+                    ),
+
+                    'verificationActive': (
+                        bool(verification)
+                    ),
+
+                    'verificationComplete': (
+                        bool(verification)
+                        and len(
+                            missing_boxes
+                        ) == 0
+                    ),
+
+                    'remainingVerificationBoxes': (
+                        len(missing_boxes)
+                    ),
+
+                    'missingBoxes': (
+                        missing_boxes
+                    ),
+
+                    'instantSales': (
+                        preview[
+                            'instantSales'
+                        ]
+                    ),
+
+                    'boxDetails': (
+                        preview[
+                            'boxDetails'
+                        ]
+                    ),
+                },
+                status=(
+                    status.HTTP_200_OK
+                )
+            )
 
 class TodayEndShiftStatusView(APIView):
     permission_classes = [IsAuthenticated]

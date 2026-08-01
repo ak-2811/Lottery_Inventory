@@ -35,6 +35,9 @@ from .views import (
     ShiftReportUpdateView,
     VerifyManagerPinView,
     OwnerSetStoreManagerPinView,
+    StartEndShiftVerificationView,
+    EndShiftVerificationStatusView,
+    CompleteEndShiftVerificationView,
 )
 
 urlpatterns = [
@@ -79,4 +82,7 @@ urlpatterns = [
     path('shift-reports/', ShiftReportListView.as_view(), name='shift-report-list'),
     path('manager-pin/verify/', VerifyManagerPinView.as_view(), name='verify-manager-pin'),
     path('owner/stores/<int:store_id>/manager-pin/',OwnerSetStoreManagerPinView.as_view(),name='owner-set-store-manager-pin'),
+    path('end-shift/verification/start/', StartEndShiftVerificationView.as_view(), name='end-shift-verification-start'),
+    path('end-shift/verification/status/', EndShiftVerificationStatusView.as_view(), name='end-shift-verification-status'),
+    path('end-shift/verification/complete/', CompleteEndShiftVerificationView.as_view(), name='end-shift-verification-complete'),
 ]
