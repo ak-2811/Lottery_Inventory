@@ -101,7 +101,7 @@ const isDateOutsideBounds = (date, min, max) => {
 
 const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
-const shortenChartLabel = (label, maxLength = 16) => {
+const shortenChartLabel = (label, maxLength = 10) => {
   if (!label || label.length <= maxLength) return label
   return `${label.slice(0, maxLength - 1)}…`
 }
@@ -296,7 +296,7 @@ const [
   const [packPendingDelete, setPackPendingDelete] = useState(null)
   const [expandedPackIds, setExpandedPackIds] = useState({})
   const topSalesRows = topSalesMode === 'games' ? topSalesData.games : topSalesData.ticket_values
-  const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 128)/4
+  const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 86)
   const handleOpenReports = () => {
     clearManagerAccessToken('reports')
     setShowReportsPin(true)
@@ -1006,7 +1006,7 @@ const [
                           borderColor: '#1a7a6f',
                           borderWidth: 1,
                           borderRadius: 8,
-                          maxBarThickness: 58,
+                          maxBarThickness: 44,
                         },
                       ],
                     }}
@@ -1056,10 +1056,12 @@ const [
                         x: {
                           ticks: {
                             color: '#666',
-                            autoSkip: false,
+                            autoSkip: topSalesRows.length > 22,
+                            maxTicksLimit: 22,
                             maxRotation: 0,
+                            minRotation: 0,
                             font: {
-                              size: 11,
+                              size: 10,
                               weight: '600',
                             },
                           },

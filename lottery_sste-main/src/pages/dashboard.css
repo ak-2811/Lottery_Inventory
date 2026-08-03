@@ -1173,6 +1173,22 @@
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 6px;
+  scrollbar-color: #9ccdc6 #eef7f5;
+  scrollbar-width: thin;
+}
+
+.sales-chart-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.sales-chart-scroll::-webkit-scrollbar-track {
+  background: #eef7f5;
+  border-radius: 999px;
+}
+
+.sales-chart-scroll::-webkit-scrollbar-thumb {
+  background: #9ccdc6;
+  border-radius: 999px;
 }
 
 .sales-chart-inner {
@@ -1185,7 +1201,7 @@
 }
 
 .top-sales-chart-container {
-  height: 430px;
+  height: 460px;
 }
 
 .top-sales-chart-header {
