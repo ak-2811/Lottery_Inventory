@@ -101,28 +101,11 @@ const isDateOutsideBounds = (date, min, max) => {
 
 const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
-const wrapChartLabel = (label, maxLineLength = 12, maxLines = 3) => {
+const shortenChartAxisLabel = (label, maxLength = 18) => {
   if (!label) return ''
-
-  const words = String(label).split(/\s+/).filter(Boolean)
-  const lines = []
-
-  words.forEach((word) => {
-    const currentLine = lines[lines.length - 1] || ''
-    const nextLine = currentLine ? `${currentLine} ${word}` : word
-
-    if (!currentLine || nextLine.length <= maxLineLength) {
-      lines[lines.length - 1] = nextLine
-    } else {
-      lines.push(word)
-    }
-  })
-
-  if (lines.length <= maxLines) return lines
-
-  const visibleLines = lines.slice(0, maxLines)
-  visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1]}...`
-  return visibleLines
+  const normalizedLabel = String(label).replace(/\s+/g, ' ').trim()
+  if (normalizedLabel.length <= maxLength) return normalizedLabel
+  return `${normalizedLabel.slice(0, maxLength - 3)}...`
 }
 
 function SalesCalendar({ value, min, max, monthDate, onMonthChange, onSelect, onClose }) {
@@ -315,7 +298,7 @@ const [
   const [packPendingDelete, setPackPendingDelete] = useState(null)
   const [expandedPackIds, setExpandedPackIds] = useState({})
   const topSalesRows = topSalesMode === 'games' ? topSalesData.games : topSalesData.ticket_values
-  const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 118)
+  const topSalesChartMinWidth = Math.max(760, topSalesRows.length * 142)
   const handleOpenReports = () => {
     clearManagerAccessToken('reports')
     setShowReportsPin(true)
@@ -1016,7 +999,11 @@ const [
                 <div className="sales-chart-inner" style={{ minWidth: `${topSalesChartMinWidth}px` }}>
                   <Bar
                     data={{
-                      labels: topSalesRows.map((item) => wrapChartLabel(item.label)),
+                      labels: topSalesRows.map((item) =>
+                        topSalesMode === 'games'
+                          ? shortenChartAxisLabel(item.label, 20)
+                          : item.label
+                      ),
                       datasets: [
                         {
                           label: topSalesMode === 'games' ? 'Game Sales ($)' : 'Ticket Value Sales ($)',
