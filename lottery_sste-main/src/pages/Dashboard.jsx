@@ -1020,14 +1020,9 @@ const [
                       responsive: true,
                       maintainAspectRatio: false,
                       plugins: {
-                        legend: {
-                          display: true,
-                          position: 'top',
-                          labels: {
-                            color: '#333',
-                            font: { size: 12, weight: 'bold' },
-                          },
-                        },
+	                        legend: {
+	                          display: false,
+	                        },
                         tooltip: {
                           backgroundColor: 'rgba(0,0,0,0.8)',
                           padding: 12,
