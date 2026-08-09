@@ -1908,6 +1908,8 @@ def build_shift_report_pdf_bytes(
     # ---------------------------------------------------------
     shift_expected_drop = (
         shift_total_sales
+        - shift_instant_cashes
+        - shift_online_cashes
         - shift_debit
         - shift_credit
     )
@@ -2225,6 +2227,8 @@ def build_shift_report_pdf_bytes(
     # ---------------------------------------------------------
     daily_expected_drop = (
         daily_total_sales
+        - daily_instant_cashes
+        - daily_online_cashes
         - daily_debit
         - daily_credit
     )
@@ -3194,6 +3198,23 @@ def build_shift_report_pdf_bytes(
                             or 0
                         )
                     )
+
+                    -
+                    Decimal(
+                        str(
+                            shift.instant_cashes
+                            or 0
+                        )
+                    )
+
+                    -
+                    Decimal(
+                        str(
+                            shift.online_cashes
+                            or 0
+                        )
+                    )
+
                     -
                     Decimal(
                         str(
@@ -3201,6 +3222,7 @@ def build_shift_report_pdf_bytes(
                             or 0
                         )
                     )
+
                     -
                     Decimal(
                         str(
@@ -3289,6 +3311,23 @@ def build_shift_report_pdf_bytes(
                                 or 0
                             )
                         )
+
+                        -
+                        Decimal(
+                            str(
+                                shift.instant_cashes
+                                or 0
+                            )
+                        )
+
+                        -
+                        Decimal(
+                            str(
+                                shift.online_cashes
+                                or 0
+                            )
+                        )
+
                         -
                         Decimal(
                             str(
@@ -3296,6 +3335,7 @@ def build_shift_report_pdf_bytes(
                                 or 0
                             )
                         )
+
                         -
                         Decimal(
                             str(
@@ -5557,6 +5597,8 @@ class DailyReportListView(
 
             expected_drop = (
                 total_sales
+                - instant_cashes
+                - online_cashes
                 - debit
                 - credit
             )
@@ -5619,15 +5661,29 @@ class DailyReportListView(
 
                 shift_expected_drop = (
                     shift_total_sales
-                    -
-                    Decimal(
+
+                    - Decimal(
+                        str(
+                            shift.instant_cashes
+                            or 0
+                        )
+                    )
+
+                    - Decimal(
+                        str(
+                            shift.online_cashes
+                            or 0
+                        )
+                    )
+
+                    - Decimal(
                         str(
                             shift.debit
                             or 0
                         )
                     )
-                    -
-                    Decimal(
+
+                    - Decimal(
                         str(
                             shift.credit
                             or 0
