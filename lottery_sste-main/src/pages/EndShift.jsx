@@ -46,6 +46,11 @@ export default function EndShift() {
     onlineSales: '',
     onlineCashes: '',
     onlineCancels: '',
+
+    coamPayout: '',
+    debit: '',
+    credit: '',
+    cashDrop: '',
   })
 
   const playBeep = (type) => {
@@ -122,6 +127,11 @@ export default function EndShift() {
           onlineSales: preview.onlineSales ?? '',
           onlineCashes: preview.onlineCashes ?? '',
           onlineCancels: preview.onlineCancels ?? '',
+
+          coamPayout: preview.coamPayout ?? '',
+          debit: preview.debit ?? '',
+          credit: preview.credit ?? '',
+          cashDrop: preview.cashDrop ?? '',
         })
       }
 
@@ -438,6 +448,11 @@ export default function EndShift() {
           onlineSales: formData.onlineSales,
           onlineCashes: formData.onlineCashes,
           onlineCancels: formData.onlineCancels,
+
+          coamPayout: formData.coamPayout,
+          debit: formData.debit,
+          credit: formData.credit,
+          cashDrop: formData.cashDrop,
         },
         {
           headers: getAuthHeaders(),
@@ -763,6 +778,79 @@ export default function EndShift() {
                 value={formData.onlineCancels}
                 onChange={(event) =>
                   handleInputChange('onlineCancels', event.target.value)
+                }
+                placeholder="Enter value"
+                step="0.01"
+                min="0"
+              />
+            </div>
+          </div>
+          <div className="sales-summary">
+            <div className="summary-card">
+              <label>COAM Payout</label>
+
+              <input
+                type="number"
+                value={formData.coamPayout}
+                onChange={(event) =>
+                  handleInputChange(
+                    'coamPayout',
+                    event.target.value
+                  )
+                }
+                placeholder="Enter value"
+                step="0.01"
+                min="0"
+              />
+            </div>
+
+            <div className="summary-card">
+              <label>Debit</label>
+
+              <input
+                type="number"
+                value={formData.debit}
+                onChange={(event) =>
+                  handleInputChange(
+                    'debit',
+                    event.target.value
+                  )
+                }
+                placeholder="Enter value"
+                step="0.01"
+                min="0"
+              />
+            </div>
+
+            <div className="summary-card">
+              <label>Credit</label>
+
+              <input
+                type="number"
+                value={formData.credit}
+                onChange={(event) =>
+                  handleInputChange(
+                    'credit',
+                    event.target.value
+                  )
+                }
+                placeholder="Enter value"
+                step="0.01"
+                min="0"
+              />
+            </div>
+
+            <div className="summary-card">
+              <label>Cash Drop</label>
+
+              <input
+                type="number"
+                value={formData.cashDrop}
+                onChange={(event) =>
+                  handleInputChange(
+                    'cashDrop',
+                    event.target.value
+                  )
                 }
                 placeholder="Enter value"
                 step="0.01"

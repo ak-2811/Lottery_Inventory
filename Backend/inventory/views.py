@@ -598,6 +598,10 @@ def build_end_shift_preview(user):
         'onlineSales': '0.00',
         'onlineCashes': '0.00',
         'onlineCancels': '0.00',
+        'coamPayout': '0.00',
+        'debit': '0.00',
+        'credit': '0.00',
+        'cashDrop': '0.00',
 
         'boxDetails': preview_rows,
 
@@ -811,6 +815,40 @@ def parse_required_report_decimal(value, field_label):
 
     return parsed_value
 
+def parse_shift_balance_decimal(value, field_label):
+    """
+    Parses the shift balancing fields:
+    - COAM Payout
+    - Debit
+    - Credit
+    - Cash Drop
+
+    These are shift-specific values,
+    not cumulative daily values.
+    """
+
+    if value in [None, '', 'null']:
+        return Decimal('0.00')
+
+    try:
+        parsed_value = Decimal(
+            str(value)
+        ).quantize(
+            Decimal('0.01')
+        )
+    except Exception:
+        raise ShiftReportValidationError(
+            f'{field_label} must be '
+            f'a valid number.'
+        )
+
+    if parsed_value < Decimal('0.00'):
+        raise ShiftReportValidationError(
+            f'{field_label} cannot be negative.'
+        )
+
+    return parsed_value
+
 def get_shift_cumulative_totals(user, report_date):
     """
     Since ShiftReport stores differences, summing today's shift reports
@@ -971,6 +1009,34 @@ def create_shift_report_snapshot(user, extra_data):
             'differences'
         ]
 
+        coam_payout = (
+            parse_shift_balance_decimal(
+                extra_data.get('coamPayout'),
+                'COAM Payout'
+            )
+        )
+
+        debit = (
+            parse_shift_balance_decimal(
+                extra_data.get('debit'),
+                'Debit'
+            )
+        )
+
+        credit = (
+            parse_shift_balance_decimal(
+                extra_data.get('credit'),
+                'Credit'
+            )
+        )
+
+        cash_drop = (
+            parse_shift_balance_decimal(
+                extra_data.get('cashDrop'),
+                'Cash Drop'
+            )
+        )
+
         existing_report = ShiftReport.objects.filter(
             user=user,
             report_date=today,
@@ -979,6 +1045,26 @@ def create_shift_report_snapshot(user, extra_data):
 
         if existing_report:
             return existing_report, False
+
+        coam_payout = parse_shift_balance_decimal(
+            extra_data.get('coamPayout'),
+            'COAM Payout'
+        )
+
+        debit = parse_shift_balance_decimal(
+            extra_data.get('debit'),
+            'Debit'
+        )
+
+        credit = parse_shift_balance_decimal(
+            extra_data.get('credit'),
+            'Credit'
+        )
+
+        cash_drop = parse_shift_balance_decimal(
+            extra_data.get('cashDrop'),
+            'Cash Drop'
+        )
 
         report = ShiftReport.objects.create(
             user=user,
@@ -999,6 +1085,10 @@ def create_shift_report_snapshot(user, extra_data):
             online_cancels=differences[
                 'online_cancels'
             ],
+            coam_payout=coam_payout,
+            debit=debit,
+            credit=credit,
+            cash_drop=cash_drop,
         )
 
         # ==============================================
@@ -1549,24 +1639,33 @@ def build_missing_verification_boxes(user):
 
     return missing_boxes
 
-def build_shift_report_pdf_bytes(report, user):
+def build_shift_report_pdf_bytes(
+    report,
+    user
+):
     """
-    Generates a detailed shift report similar to the supplied reference.
+    Generates the detailed Shift Report PDF.
 
-    Sections:
-    1. Store and shift information
-    2. Lottery box sales details
-    3. Selected shift totals
-    4. Daily shift-by-shift sales summary
-    5. Inventory and active ticket information
-    6. Active, sold and returned ticket details
+    Includes:
+    - Store/shift information
+    - Lottery box details
+    - Shift sales summary
+    - Debit / Credit
+    - Cash Drop
+    - COAM Payout
+    - Expected Drop
+    - Actual Drop
+    - Short / Over / Matched status
+    - Daily shift-by-shift summary
+    - Inventory details
+    - Active / Sold / Returned packs
     """
 
     zero = Decimal('0.00')
 
-    # ---------------------------------------------------------
+    # =========================================================
     # SELECTED SHIFT DETAILS
-    # ---------------------------------------------------------
+    # =========================================================
     shift_details = list(
         ShiftReportBoxDetail.objects
         .select_related(
@@ -1581,51 +1680,75 @@ def build_shift_report_pdf_bytes(report, user):
 
     shift_details.sort(
         key=lambda item: (
-            get_numeric_box_sort_value(item.box_num),
+            get_numeric_box_sort_value(
+                item.box_num
+            ),
             item.id
         )
     )
 
-    # ---------------------------------------------------------
-    # ALL SHIFTS FOR THE SAME DATE
-    # ---------------------------------------------------------
+    # =========================================================
+    # ALL SHIFTS FOR THIS DATE
+    # =========================================================
     daily_shifts = list(
-        ShiftReport.objects.filter(
+        ShiftReport.objects
+        .filter(
             user=user,
-            report_date=report.report_date
-        ).order_by('shift_number')
+            report_date=(
+                report.report_date
+            )
+        )
+        .order_by(
+            'shift_number'
+        )
     )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # STORE INFORMATION
-    # ---------------------------------------------------------
+    # =========================================================
     store = (
         Store.objects
-        .filter(user=user)
-        .select_related('owner')
+        .filter(
+            user=user
+        )
+        .select_related(
+            'owner'
+        )
         .first()
     )
 
     location_name = (
         store.name
         if store
-        else user.first_name or user.username
+        else (
+            user.first_name
+            or user.username
+        )
     )
 
     legal_name = (
         store.owner.name
-        if store and store.owner
-        else user.first_name or user.username
+        if (
+            store
+            and store.owner
+        )
+        else (
+            user.first_name
+            or user.username
+        )
     )
 
-    user_login = user.username
+    user_login = (
+        user.username
+    )
 
-    # The Store model currently does not have an address.
-    store_address = 'Not configured'
+    store_address = (
+        'Not configured'
+    )
 
-    # ---------------------------------------------------------
-    # SELECTED SHIFT CALCULATIONS
-    # ---------------------------------------------------------
+    # =========================================================
+    # SELECTED SHIFT LOTTERY DETAILS
+    # =========================================================
     total_ticket_count = 0
     details_total = zero
 
@@ -1640,43 +1763,215 @@ def build_shift_report_pdf_bytes(report, user):
         )
 
         total_ticket_count += count
+
         details_total += Decimal(
-            str(detail.total_amount or 0)
+            str(
+                detail.total_amount
+                or 0
+            )
         )
 
         normalized_status = (
-            detail.closing_status or ''
+            detail.closing_status
+            or ''
         ).strip().lower()
 
-        if normalized_status == 'sold':
-            sold_details.append(detail)
-        elif normalized_status == 'returned':
-            returned_details.append(detail)
-        else:
-            active_details.append(detail)
+        if (
+            normalized_status
+            == 'sold'
+        ):
+            sold_details.append(
+                detail
+            )
 
-    shift_total_sales = (
-        Decimal(str(report.instant_sales or 0))
-        + Decimal(str(report.online_sales or 0))
+        elif (
+            normalized_status
+            == 'returned'
+        ):
+            returned_details.append(
+                detail
+            )
+
+        else:
+            active_details.append(
+                detail
+            )
+
+    active_details.sort(
+        key=lambda item: (
+            get_numeric_box_sort_value(
+                item.box_num
+            ),
+            item.id
+        )
     )
 
+    sold_details.sort(
+        key=lambda item: (
+            get_numeric_box_sort_value(
+                item.box_num
+            ),
+            item.id
+        )
+    )
+
+    returned_details.sort(
+        key=lambda item: (
+            get_numeric_box_sort_value(
+                item.box_num
+            ),
+            item.id
+        )
+    )
+
+    # =========================================================
+    # SELECTED SHIFT FINANCIAL CALCULATIONS
+    # =========================================================
+    shift_instant_sales = Decimal(
+        str(
+            report.instant_sales
+            or 0
+        )
+    )
+
+    shift_online_sales = Decimal(
+        str(
+            report.online_sales
+            or 0
+        )
+    )
+
+    shift_instant_cashes = Decimal(
+        str(
+            report.instant_cashes
+            or 0
+        )
+    )
+
+    shift_online_cashes = Decimal(
+        str(
+            report.online_cashes
+            or 0
+        )
+    )
+
+    shift_online_cancels = Decimal(
+        str(
+            report.online_cancels
+            or 0
+        )
+    )
+
+    shift_coam_payout = Decimal(
+        str(
+            report.coam_payout
+            or 0
+        )
+    )
+
+    shift_debit = Decimal(
+        str(
+            report.debit
+            or 0
+        )
+    )
+
+    shift_credit = Decimal(
+        str(
+            report.credit
+            or 0
+        )
+    )
+
+    shift_cash_drop = Decimal(
+        str(
+            report.cash_drop
+            or 0
+        )
+    )
+
+    # ---------------------------------------------------------
+    # TOTAL SALES
+    # ---------------------------------------------------------
+    shift_total_sales = (
+        shift_instant_sales
+        + shift_online_sales
+    )
+
+    # ---------------------------------------------------------
+    # YOUR REQUESTED EXPECTED DROP
+    #
+    # Instant Sales
+    # + Online Sales
+    # - Debit
+    # - Credit
+    # ---------------------------------------------------------
+    shift_expected_drop = (
+        shift_total_sales
+        - shift_debit
+        - shift_credit
+    )
+
+    # ---------------------------------------------------------
+    # ACTUAL DROP
+    #
+    # Cash Drop
+    # + COAM Payout
+    # ---------------------------------------------------------
+    shift_actual_drop = (
+        shift_cash_drop
+        + shift_coam_payout
+    )
+
+    # ---------------------------------------------------------
+    # DIFFERENCE
+    #
+    # Positive = Over
+    # Negative = Short
+    # ---------------------------------------------------------
+    shift_drop_difference = (
+        shift_actual_drop
+        - shift_expected_drop
+    )
+
+    if shift_drop_difference < 0:
+        shift_drop_status = (
+            'SHORT'
+        )
+
+    elif shift_drop_difference > 0:
+        shift_drop_status = (
+            'OVER'
+        )
+
+    else:
+        shift_drop_status = (
+            'MATCHED'
+        )
+
+    shift_drop_variance = abs(
+        shift_drop_difference
+    )
+
+    # Keep your old cashout calculation too.
     shift_total_cashes = (
-        Decimal(str(report.instant_cashes or 0))
-        + Decimal(str(report.online_cashes or 0))
+        shift_instant_cashes
+        + shift_online_cashes
     )
 
     calculated_money_drop = (
-        Decimal(str(report.instant_sales or 0))
-        + Decimal(str(report.online_sales or 0))
-        - Decimal(str(report.instant_cashes or 0))
-        - Decimal(str(report.online_cashes or 0))
-        - Decimal(str(report.online_cancels or 0))
+        shift_instant_sales
+        + shift_online_sales
+        - shift_instant_cashes
+        - shift_online_cashes
+        - shift_online_cancels
     )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # ACTIVE TICKET SNAPSHOT
-    # ---------------------------------------------------------
+    # =========================================================
     active_remaining_ticket_count = 0
+
     active_remaining_value = zero
 
     for detail in active_details:
@@ -1686,74 +1981,117 @@ def build_shift_report_pdf_bytes(report, user):
             continue
 
         remaining_tickets = max(
-            int(book.total_tickets or 0)
-            - int(detail.current_num or 0),
+            int(
+                book.total_tickets
+                or 0
+            )
+            -
+            int(
+                detail.current_num
+                or 0
+            ),
             0
         )
 
-        active_remaining_ticket_count += remaining_tickets
-
-        active_remaining_value += (
-            Decimal(remaining_tickets)
-            * Decimal(str(detail.ticket_value or 0))
+        active_remaining_ticket_count += (
+            remaining_tickets
         )
 
-    # ---------------------------------------------------------
+        active_remaining_value += (
+            Decimal(
+                remaining_tickets
+            )
+            *
+            Decimal(
+                str(
+                    detail.ticket_value
+                    or 0
+                )
+            )
+        )
+
+    # =========================================================
     # CURRENT INACTIVE INVENTORY
-    # ---------------------------------------------------------
-    #
-    # This is current inventory at PDF generation time.
-    # It is exact when the report is emailed immediately at shift end.
-    #
+    # =========================================================
     inactive_inventory = list(
-        InventoryBook.objects.filter(
+        InventoryBook.objects
+        .filter(
             user=user,
             is_activated=False,
             is_sold=False,
             is_returned=False,
-        ).select_related('game')
+        )
+        .select_related(
+            'game'
+        )
     )
 
-    inactive_pack_count = len(inactive_inventory)
+    inactive_pack_count = len(
+        inactive_inventory
+    )
+
     inactive_ticket_count = 0
     inactive_inventory_value = zero
 
     for book in inactive_inventory:
         inactive_ticket_count += int(
-            book.total_tickets or 0
+            book.total_tickets
+            or 0
         )
 
         inactive_inventory_value += (
-            Decimal(book.total_tickets or 0)
-            * Decimal(str(book.ticket_value or 0))
+            Decimal(
+                book.total_tickets
+                or 0
+            )
+            *
+            Decimal(
+                str(
+                    book.ticket_value
+                    or 0
+                )
+            )
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # EMPTY BOXES
-    # ---------------------------------------------------------
-    #
-    # Your application currently supports box numbers through 70.
-    #
+    # =========================================================
     used_boxes = set()
 
     for detail in shift_details:
         try:
-            used_boxes.add(int(str(detail.box_num)))
-        except (TypeError, ValueError):
+            used_boxes.add(
+                int(
+                    str(
+                        detail.box_num
+                    )
+                )
+            )
+        except (
+            TypeError,
+            ValueError
+        ):
             continue
 
     empty_boxes = [
         str(box_number)
-        for box_number in range(1, 71)
-        if box_number not in used_boxes
+        for box_number
+        in range(1, 71)
+        if box_number
+        not in used_boxes
     ]
 
-    # ---------------------------------------------------------
+    # =========================================================
     # DAILY TOTALS
-    # ---------------------------------------------------------
+    # =========================================================
     daily_instant_sales = sum(
         (
-            Decimal(str(item.instant_sales or 0))
+            Decimal(
+                str(
+                    item.instant_sales
+                    or 0
+                )
+            )
             for item in daily_shifts
         ),
         zero
@@ -1761,7 +2099,12 @@ def build_shift_report_pdf_bytes(report, user):
 
     daily_online_sales = sum(
         (
-            Decimal(str(item.online_sales or 0))
+            Decimal(
+                str(
+                    item.online_sales
+                    or 0
+                )
+            )
             for item in daily_shifts
         ),
         zero
@@ -1769,7 +2112,12 @@ def build_shift_report_pdf_bytes(report, user):
 
     daily_instant_cashes = sum(
         (
-            Decimal(str(item.instant_cashes or 0))
+            Decimal(
+                str(
+                    item.instant_cashes
+                    or 0
+                )
+            )
             for item in daily_shifts
         ),
         zero
@@ -1777,7 +2125,12 @@ def build_shift_report_pdf_bytes(report, user):
 
     daily_online_cashes = sum(
         (
-            Decimal(str(item.online_cashes or 0))
+            Decimal(
+                str(
+                    item.online_cashes
+                    or 0
+                )
+            )
             for item in daily_shifts
         ),
         zero
@@ -1785,7 +2138,67 @@ def build_shift_report_pdf_bytes(report, user):
 
     daily_online_cancels = sum(
         (
-            Decimal(str(item.online_cancels or 0))
+            Decimal(
+                str(
+                    item.online_cancels
+                    or 0
+                )
+            )
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    # ---------------------------------------------------------
+    # NEW DAILY TOTALS
+    # ---------------------------------------------------------
+    daily_coam_payout = sum(
+        (
+            Decimal(
+                str(
+                    item.coam_payout
+                    or 0
+                )
+            )
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_debit = sum(
+        (
+            Decimal(
+                str(
+                    item.debit
+                    or 0
+                )
+            )
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_credit = sum(
+        (
+            Decimal(
+                str(
+                    item.credit
+                    or 0
+                )
+            )
+            for item in daily_shifts
+        ),
+        zero
+    )
+
+    daily_cash_drop = sum(
+        (
+            Decimal(
+                str(
+                    item.cash_drop
+                    or 0
+                )
+            )
             for item in daily_shifts
         ),
         zero
@@ -1808,8 +2221,46 @@ def build_shift_report_pdf_bytes(report, user):
     )
 
     # ---------------------------------------------------------
-    # PDF SETUP
+    # NEW DAILY RECONCILIATION
     # ---------------------------------------------------------
+    daily_expected_drop = (
+        daily_total_sales
+        - daily_debit
+        - daily_credit
+    )
+
+    daily_actual_drop = (
+        daily_cash_drop
+        + daily_coam_payout
+    )
+
+    daily_drop_difference = (
+        daily_actual_drop
+        - daily_expected_drop
+    )
+
+    if daily_drop_difference < 0:
+        daily_drop_status = (
+            'SHORT'
+        )
+
+    elif daily_drop_difference > 0:
+        daily_drop_status = (
+            'OVER'
+        )
+
+    else:
+        daily_drop_status = (
+            'MATCHED'
+        )
+
+    daily_drop_variance = abs(
+        daily_drop_difference
+    )
+
+    # =========================================================
+    # PDF SETUP
+    # =========================================================
     buffer = BytesIO()
 
     document = SimpleDocTemplate(
@@ -1820,17 +2271,25 @@ def build_shift_report_pdf_bytes(report, user):
         topMargin=22,
         bottomMargin=22,
         title=(
-            f"Shift {report.shift_number} Report "
+            f"Shift "
+            f"{report.shift_number} "
+            f"Report "
             f"{report.report_date}"
         ),
-        author='Bright Core Solutions',
+        author=(
+            'Bright Core Solutions'
+        ),
     )
 
-    stylesheet = getSampleStyleSheet()
+    stylesheet = (
+        getSampleStyleSheet()
+    )
 
     title_style = ParagraphStyle(
         'CustomTitle',
-        parent=stylesheet['Title'],
+        parent=stylesheet[
+            'Title'
+        ],
         fontName='Helvetica-Bold',
         fontSize=17,
         leading=20,
@@ -1840,7 +2299,9 @@ def build_shift_report_pdf_bytes(report, user):
 
     subtitle_style = ParagraphStyle(
         'CustomSubtitle',
-        parent=stylesheet['Heading2'],
+        parent=stylesheet[
+            'Heading2'
+        ],
         fontName='Helvetica-Bold',
         fontSize=12,
         leading=14,
@@ -1850,7 +2311,9 @@ def build_shift_report_pdf_bytes(report, user):
 
     section_style = ParagraphStyle(
         'SectionHeading',
-        parent=stylesheet['Heading2'],
+        parent=stylesheet[
+            'Heading2'
+        ],
         fontName='Helvetica-Bold',
         fontSize=12,
         leading=15,
@@ -1861,29 +2324,37 @@ def build_shift_report_pdf_bytes(report, user):
 
     small_style = ParagraphStyle(
         'SmallText',
-        parent=stylesheet['Normal'],
+        parent=stylesheet[
+            'Normal'
+        ],
         fontName='Helvetica',
         fontSize=8,
         leading=10,
     )
 
-    small_bold_style = ParagraphStyle(
-        'SmallBoldText',
-        parent=small_style,
-        fontName='Helvetica-Bold',
+    small_bold_style = (
+        ParagraphStyle(
+            'SmallBoldText',
+            parent=small_style,
+            fontName=(
+                'Helvetica-Bold'
+            ),
+        )
     )
 
-    right_small_style = ParagraphStyle(
-        'RightSmallText',
-        parent=small_style,
-        alignment=TA_RIGHT,
+    right_small_style = (
+        ParagraphStyle(
+            'RightSmallText',
+            parent=small_style,
+            alignment=TA_RIGHT,
+        )
     )
 
     story = []
 
-    # ---------------------------------------------------------
-    # REPORT TITLE
-    # ---------------------------------------------------------
+    # =========================================================
+    # TITLE
+    # =========================================================
     story.append(
         Paragraph(
             'THE LOTTERY SYSTEM',
@@ -1893,14 +2364,17 @@ def build_shift_report_pdf_bytes(report, user):
 
     story.append(
         Paragraph(
-            f"Detailed Shift Report - {location_name}",
+            (
+                f"Detailed Shift Report "
+                f"- {location_name}"
+            ),
             subtitle_style
         )
     )
 
-    # ---------------------------------------------------------
-    # HEADER INFORMATION
-    # ---------------------------------------------------------
+    # =========================================================
+    # HEADER
+    # =========================================================
     left_header = [
         [
             Paragraph(
@@ -1908,7 +2382,9 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                str(location_name),
+                str(
+                    location_name
+                ),
                 small_style
             ),
         ],
@@ -1918,7 +2394,9 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                str(legal_name),
+                str(
+                    legal_name
+                ),
                 small_style
             ),
         ],
@@ -1928,7 +2406,9 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                str(store_address),
+                str(
+                    store_address
+                ),
                 small_style
             ),
         ],
@@ -1941,7 +2421,9 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                str(user_login),
+                str(
+                    user_login
+                ),
                 small_style
             ),
         ],
@@ -1951,7 +2433,10 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                f"Shift {report.shift_number}",
+                (
+                    f"Shift "
+                    f"{report.shift_number}"
+                ),
                 small_style
             ),
         ],
@@ -1961,7 +2446,9 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                pdf_datetime(report.shift_started_at),
+                pdf_datetime(
+                    report.shift_started_at
+                ),
                 small_style
             ),
         ],
@@ -1971,7 +2458,9 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                pdf_datetime(report.shift_ended_at),
+                pdf_datetime(
+                    report.shift_ended_at
+                ),
                 small_style
             ),
         ],
@@ -1981,7 +2470,9 @@ def build_shift_report_pdf_bytes(report, user):
                 small_style
             ),
             Paragraph(
-                str(report.id),
+                str(
+                    report.id
+                ),
                 small_style
             ),
         ],
@@ -1992,31 +2483,72 @@ def build_shift_report_pdf_bytes(report, user):
             [
                 Table(
                     left_header,
-                    colWidths=[0.9 * inch, 2.35 * inch],
+                    colWidths=[
+                        0.9 * inch,
+                        2.35 * inch,
+                    ],
                 ),
                 Table(
                     right_header,
-                    colWidths=[0.85 * inch, 2.25 * inch],
+                    colWidths=[
+                        0.85 * inch,
+                        2.25 * inch,
+                    ],
                 ),
             ]
         ],
-        colWidths=[3.35 * inch, 3.25 * inch],
+        colWidths=[
+            3.35 * inch,
+            3.25 * inch,
+        ],
     )
 
-    header_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 0),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-        ('TOPPADDING', (0, 0), (-1, -1), 1),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
-    ]))
+    header_table.setStyle(
+        TableStyle([
+            (
+                'VALIGN',
+                (0, 0),
+                (-1, -1),
+                'TOP'
+            ),
+            (
+                'LEFTPADDING',
+                (0, 0),
+                (-1, -1),
+                0
+            ),
+            (
+                'RIGHTPADDING',
+                (0, 0),
+                (-1, -1),
+                4
+            ),
+            (
+                'TOPPADDING',
+                (0, 0),
+                (-1, -1),
+                1
+            ),
+            (
+                'BOTTOMPADDING',
+                (0, 0),
+                (-1, -1),
+                1
+            ),
+        ])
+    )
 
-    story.append(header_table)
-    story.append(Spacer(1, 10))
+    story.append(
+        header_table
+    )
 
-    # ---------------------------------------------------------
-    # LOTTERY BOX DETAIL TABLE
-    # ---------------------------------------------------------
+    story.append(
+        Spacer(1, 10)
+    )
+
+    # =========================================================
+    # LOTTERY BOX DETAILS
+    # =========================================================
     story.append(
         Paragraph(
             'Lottery Box Sales Details',
@@ -2037,27 +2569,55 @@ def build_shift_report_pdf_bytes(report, user):
     ]]
 
     for detail in shift_details:
-        ticket_count = safe_ticket_count(
-            detail.start_num,
-            detail.current_num
+        ticket_count = (
+            safe_ticket_count(
+                detail.start_num,
+                detail.current_num
+            )
         )
 
         box_table_data.append([
             Paragraph(
-                str(detail.box_num),
+                str(
+                    detail.box_num
+                ),
                 small_style
             ),
-            str(detail.game_num),
-            str(detail.pack_num),
+
+            str(
+                detail.game_num
+            ),
+
+            str(
+                detail.pack_num
+            ),
+
             Paragraph(
-                str(detail.lottery_name),
+                str(
+                    detail.lottery_name
+                ),
                 small_bold_style
             ),
-            str(detail.start_num),
-            str(detail.current_num),
-            pdf_money(detail.ticket_value),
-            str(ticket_count),
-            pdf_money(detail.total_amount),
+
+            str(
+                detail.start_num
+            ),
+
+            str(
+                detail.current_num
+            ),
+
+            pdf_money(
+                detail.ticket_value
+            ),
+
+            str(
+                ticket_count
+            ),
+
+            pdf_money(
+                detail.total_amount
+            ),
         ])
 
     if not shift_details:
@@ -2084,22 +2644,26 @@ def build_shift_report_pdf_bytes(report, user):
         '',
         '',
         '',
-        str(total_ticket_count),
-        pdf_money(details_total),
+        str(
+            total_ticket_count
+        ),
+        pdf_money(
+            details_total
+        ),
     ])
 
     box_table = build_pdf_table(
         box_table_data,
         col_widths=[
-            0.82 * inch,   # Box / Direct Sale / Inventory Return
-            0.55 * inch,   # Ticket ID
-            0.68 * inch,   # Pack #
-            1.78 * inch,   # Ticket Name
-            0.52 * inch,   # Open #
-            0.54 * inch,   # Close #
-            0.60 * inch,   # Value
-            0.50 * inch,   # Count
-            0.72 * inch,   # Total
+            0.82 * inch,
+            0.55 * inch,
+            0.68 * inch,
+            1.78 * inch,
+            0.52 * inch,
+            0.54 * inch,
+            0.60 * inch,
+            0.50 * inch,
+            0.72 * inch,
         ],
         font_size=6.8,
         alignments={
@@ -2108,70 +2672,159 @@ def build_shift_report_pdf_bytes(report, user):
         },
     )
 
-    box_table.setStyle(TableStyle([
-        (
-            'SPAN',
-            (0, len(box_table_data) - 1),
-            (2, len(box_table_data) - 1)
-        ),
-        (
-            'SPAN',
-            (3, len(box_table_data) - 1),
-            (6, len(box_table_data) - 1)
-        ),
-        (
-            'FONTNAME',
-            (0, len(box_table_data) - 1),
-            (-1, len(box_table_data) - 1),
-            'Helvetica-Bold'
-        ),
-    ]))
+    box_table.setStyle(
+        TableStyle([
+            (
+                'SPAN',
+                (
+                    0,
+                    len(
+                        box_table_data
+                    ) - 1
+                ),
+                (
+                    2,
+                    len(
+                        box_table_data
+                    ) - 1
+                )
+            ),
+            (
+                'SPAN',
+                (
+                    3,
+                    len(
+                        box_table_data
+                    ) - 1
+                ),
+                (
+                    6,
+                    len(
+                        box_table_data
+                    ) - 1
+                )
+            ),
+            (
+                'FONTNAME',
+                (
+                    0,
+                    len(
+                        box_table_data
+                    ) - 1
+                ),
+                (
+                    -1,
+                    len(
+                        box_table_data
+                    ) - 1
+                ),
+                'Helvetica-Bold'
+            ),
+        ])
+    )
 
-    story.append(box_table)
-    story.append(Spacer(1, 12))
+    story.append(
+        box_table
+    )
 
-    # ---------------------------------------------------------
+    story.append(
+        Spacer(1, 12)
+    )
+
+    # =========================================================
     # SHIFT FINANCIAL SUMMARY
-    # ---------------------------------------------------------
+    # =========================================================
     shift_summary_left = [
-        ['Online Cancels', pdf_money(
-            report.online_cancels,
-            negative_parentheses=True
-        )],
-        ['Total Tickets Sold', str(total_ticket_count)],
-        ['Active Boxes', str(len(active_details))],
-        ['Sold Packs', str(len(sold_details))],
-        ['Returned Packs', str(len(returned_details))],
+        [
+            'Instant Sales',
+            pdf_money(
+                shift_instant_sales
+            )
+        ],
+        [
+            'Online Sales',
+            pdf_money(
+                shift_online_sales
+            )
+        ],
+        [
+            'Total Sales',
+            pdf_money(
+                shift_total_sales
+            )
+        ],
+        [
+            'Debit',
+            pdf_money(
+                shift_debit,
+                negative_parentheses=True
+            )
+        ],
+        [
+            'Credit',
+            pdf_money(
+                shift_credit,
+                negative_parentheses=True
+            )
+        ],
+        [
+            'Expected Drop',
+            pdf_money(
+                shift_expected_drop
+            )
+        ],
     ]
 
     shift_summary_right = [
-        ['Instant Sales', pdf_money(report.instant_sales)],
-        ['Online Sales', pdf_money(report.online_sales)],
-        ['Total Sales', pdf_money(shift_total_sales)],
         [
-            'Online CashOut',
+            'Cash Drop',
             pdf_money(
-                report.online_cashes,
-                negative_parentheses=True
+                shift_cash_drop
             )
         ],
         [
-            'Instant CashOut',
+            'COAM Payout',
             pdf_money(
-                report.instant_cashes,
-                negative_parentheses=True
+                shift_coam_payout
             )
         ],
         [
-            'Total CashOut',
+            'Actual Drop',
             pdf_money(
-                shift_total_cashes,
-                negative_parentheses=True
+                shift_actual_drop
             )
         ],
         [
-            'Calculated Money Drop',
-            pdf_money(calculated_money_drop)
+            'Drop Status',
+            shift_drop_status
+        ],
+        [
+            (
+                'Short Amount'
+                if (
+                    shift_drop_status
+                    == 'SHORT'
+                )
+                else
+                (
+                    'Over Amount'
+                    if (
+                        shift_drop_status
+                        == 'OVER'
+                    )
+                    else
+                    'Difference'
+                )
+            ),
+            pdf_money(
+                shift_drop_variance
+            )
+        ],
+        [
+            'Total Tickets Sold',
+            str(
+                total_ticket_count
+            )
         ],
     ]
 
@@ -2180,56 +2833,241 @@ def build_shift_report_pdf_bytes(report, user):
             [
                 Table(
                     shift_summary_left,
-                    colWidths=[1.25 * inch, 1.15 * inch],
+                    colWidths=[
+                        1.35 * inch,
+                        1.25 * inch,
+                    ],
                 ),
+
                 Table(
                     shift_summary_right,
-                    colWidths=[1.35 * inch, 1.25 * inch],
+                    colWidths=[
+                        1.35 * inch,
+                        1.25 * inch,
+                    ],
                 ),
             ]
         ],
-        colWidths=[3.2 * inch, 3.2 * inch],
+        colWidths=[
+            3.2 * inch,
+            3.2 * inch,
+        ],
     )
 
-    financial_summary.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 3),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
-    ]))
+    financial_summary.setStyle(
+        TableStyle([
+            (
+                'VALIGN',
+                (0, 0),
+                (-1, -1),
+                'TOP'
+            ),
+            (
+                'LEFTPADDING',
+                (0, 0),
+                (-1, -1),
+                3
+            ),
+            (
+                'RIGHTPADDING',
+                (0, 0),
+                (-1, -1),
+                3
+            ),
+        ])
+    )
 
-    for nested_data in [
-        financial_summary._cellvalues[0][0],
-        financial_summary._cellvalues[0][1],
+    for nested_table in [
+        financial_summary
+        ._cellvalues[0][0],
+
+        financial_summary
+        ._cellvalues[0][1],
     ]:
-        nested_data.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 8),
-            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ]))
+        nested_table.setStyle(
+            TableStyle([
+                (
+                    'FONTNAME',
+                    (0, 0),
+                    (0, -1),
+                    'Helvetica-Bold'
+                ),
+                (
+                    'FONTNAME',
+                    (1, 0),
+                    (1, -1),
+                    'Helvetica-Bold'
+                ),
+                (
+                    'FONTSIZE',
+                    (0, 0),
+                    (-1, -1),
+                    8
+                ),
+                (
+                    'ALIGN',
+                    (1, 0),
+                    (1, -1),
+                    'RIGHT'
+                ),
+                (
+                    'BOTTOMPADDING',
+                    (0, 0),
+                    (-1, -1),
+                    4
+                ),
+            ])
+        )
 
-    story.append(financial_summary)
-    story.append(Spacer(1, 14))
-
-    # ---------------------------------------------------------
-    # DAILY SALES SUMMARY
-    # ---------------------------------------------------------
     story.append(
         Paragraph(
-            'Daily Sales Summary',
+            'Shift Reconciliation',
             section_style
         )
     )
 
-    daily_summary_header = ['']
+    story.append(
+        financial_summary
+    )
+
+    story.append(
+        Spacer(1, 14)
+    )
+
+    # =========================================================
+    # EXISTING CASHOUT INFORMATION
+    # =========================================================
+    old_financial_data = [
+        [
+            'Online CashOut',
+            pdf_money(
+                shift_online_cashes,
+                negative_parentheses=True
+            ),
+        ],
+        [
+            'Instant CashOut',
+            pdf_money(
+                shift_instant_cashes,
+                negative_parentheses=True
+            ),
+        ],
+        [
+            'Total CashOut',
+            pdf_money(
+                shift_total_cashes,
+                negative_parentheses=True
+            ),
+        ],
+        [
+            'Online Cancels',
+            pdf_money(
+                shift_online_cancels,
+                negative_parentheses=True
+            ),
+        ],
+        [
+            'Previous Calculated Money Drop',
+            pdf_money(
+                calculated_money_drop
+            ),
+        ],
+        [
+            'Active Boxes',
+            str(
+                len(
+                    active_details
+                )
+            ),
+        ],
+        [
+            'Sold Packs',
+            str(
+                len(
+                    sold_details
+                )
+            ),
+        ],
+        [
+            'Returned Packs',
+            str(
+                len(
+                    returned_details
+                )
+            ),
+        ],
+    ]
+
+    old_financial_table = Table(
+        old_financial_data,
+        colWidths=[
+            2.2 * inch,
+            1.4 * inch,
+        ],
+    )
+
+    old_financial_table.setStyle(
+        TableStyle([
+            (
+                'FONTNAME',
+                (0, 0),
+                (0, -1),
+                'Helvetica-Bold'
+            ),
+            (
+                'FONTSIZE',
+                (0, 0),
+                (-1, -1),
+                8
+            ),
+            (
+                'ALIGN',
+                (1, 0),
+                (1, -1),
+                'RIGHT'
+            ),
+            (
+                'BOTTOMPADDING',
+                (0, 0),
+                (-1, -1),
+                4
+            ),
+        ])
+    )
+
+    story.append(
+        old_financial_table
+    )
+
+    story.append(
+        Spacer(1, 14)
+    )
+
+    # =========================================================
+    # DAILY SALES / DROP SUMMARY
+    # =========================================================
+    story.append(
+        Paragraph(
+            'Daily Sales & Drop Summary',
+            section_style
+        )
+    )
+
+    daily_summary_header = [
+        ''
+    ]
 
     for shift in daily_shifts:
         daily_summary_header.append(
-            f"Shift {shift.shift_number}"
+            (
+                f"Shift "
+                f"{shift.shift_number}"
+            )
         )
 
-    daily_summary_header.append('Daily Total')
+    daily_summary_header.append(
+        'Daily Total'
+    )
 
     def build_daily_summary_row(
         label,
@@ -2242,7 +3080,11 @@ def build_shift_report_pdf_bytes(report, user):
 
         for shift in daily_shifts:
             if calculated_function:
-                value = calculated_function(shift)
+                value = (
+                    calculated_function(
+                        shift
+                    )
+                )
             else:
                 value = getattr(
                     shift,
@@ -2253,14 +3095,18 @@ def build_shift_report_pdf_bytes(report, user):
             row.append(
                 pdf_money(
                     value,
-                    negative_parentheses=negative
+                    negative_parentheses=(
+                        negative
+                    )
                 )
             )
 
         row.append(
             pdf_money(
                 daily_total,
-                negative_parentheses=negative
+                negative_parentheses=(
+                    negative
+                )
             )
         )
 
@@ -2268,98 +3114,362 @@ def build_shift_report_pdf_bytes(report, user):
 
     daily_summary_data = [
         daily_summary_header,
+
         build_daily_summary_row(
             'Instant Sales',
-            field_name='instant_sales',
-            daily_total=daily_instant_sales,
+            field_name=(
+                'instant_sales'
+            ),
+            daily_total=(
+                daily_instant_sales
+            ),
         ),
+
         build_daily_summary_row(
             'Online Sales',
-            field_name='online_sales',
-            daily_total=daily_online_sales,
+            field_name=(
+                'online_sales'
+            ),
+            daily_total=(
+                daily_online_sales
+            ),
         ),
+
         build_daily_summary_row(
             'Total Sales',
-            calculated_function=lambda shift: (
-                Decimal(str(shift.instant_sales or 0))
-                + Decimal(str(shift.online_sales or 0))
+            calculated_function=(
+                lambda shift: (
+                    Decimal(
+                        str(
+                            shift.instant_sales
+                            or 0
+                        )
+                    )
+                    +
+                    Decimal(
+                        str(
+                            shift.online_sales
+                            or 0
+                        )
+                    )
+                )
             ),
-            daily_total=daily_total_sales,
-        ),
-        build_daily_summary_row(
-            'Online CashOut',
-            field_name='online_cashes',
-            negative=True,
-            daily_total=daily_online_cashes,
-        ),
-        build_daily_summary_row(
-            'Instant CashOut',
-            field_name='instant_cashes',
-            negative=True,
-            daily_total=daily_instant_cashes,
-        ),
-        build_daily_summary_row(
-            'Total CashOut',
-            calculated_function=lambda shift: (
-                Decimal(str(shift.instant_cashes or 0))
-                + Decimal(str(shift.online_cashes or 0))
+            daily_total=(
+                daily_total_sales
             ),
-            negative=True,
-            daily_total=daily_total_cashes,
         ),
+
         build_daily_summary_row(
-            'Online Cancels',
-            field_name='online_cancels',
+            'Debit',
+            field_name='debit',
             negative=True,
-            daily_total=daily_online_cancels,
-        ),
-        build_daily_summary_row(
-            'Calculated Money Drop',
-            calculated_function=lambda shift: (
-                Decimal(str(shift.instant_sales or 0))
-                + Decimal(str(shift.online_sales or 0))
-                - Decimal(str(shift.instant_cashes or 0))
-                - Decimal(str(shift.online_cashes or 0))
-                - Decimal(str(shift.online_cancels or 0))
+            daily_total=(
+                daily_debit
             ),
-            daily_total=daily_calculated_money_drop,
+        ),
+
+        build_daily_summary_row(
+            'Credit',
+            field_name='credit',
+            negative=True,
+            daily_total=(
+                daily_credit
+            ),
+        ),
+
+        build_daily_summary_row(
+            'Expected Drop',
+            calculated_function=(
+                lambda shift: (
+                    Decimal(
+                        str(
+                            shift.instant_sales
+                            or 0
+                        )
+                    )
+                    +
+                    Decimal(
+                        str(
+                            shift.online_sales
+                            or 0
+                        )
+                    )
+                    -
+                    Decimal(
+                        str(
+                            shift.debit
+                            or 0
+                        )
+                    )
+                    -
+                    Decimal(
+                        str(
+                            shift.credit
+                            or 0
+                        )
+                    )
+                )
+            ),
+            daily_total=(
+                daily_expected_drop
+            ),
+        ),
+
+        build_daily_summary_row(
+            'Cash Drop',
+            field_name='cash_drop',
+            daily_total=(
+                daily_cash_drop
+            ),
+        ),
+
+        build_daily_summary_row(
+            'COAM Payout',
+            field_name='coam_payout',
+            daily_total=(
+                daily_coam_payout
+            ),
+        ),
+
+        build_daily_summary_row(
+            'Actual Drop',
+            calculated_function=(
+                lambda shift: (
+                    Decimal(
+                        str(
+                            shift.cash_drop
+                            or 0
+                        )
+                    )
+                    +
+                    Decimal(
+                        str(
+                            shift.coam_payout
+                            or 0
+                        )
+                    )
+                )
+            ),
+            daily_total=(
+                daily_actual_drop
+            ),
+        ),
+
+        build_daily_summary_row(
+            'Difference',
+            calculated_function=(
+                lambda shift: (
+                    (
+                        Decimal(
+                            str(
+                                shift.cash_drop
+                                or 0
+                            )
+                        )
+                        +
+                        Decimal(
+                            str(
+                                shift.coam_payout
+                                or 0
+                            )
+                        )
+                    )
+                    -
+                    (
+                        Decimal(
+                            str(
+                                shift.instant_sales
+                                or 0
+                            )
+                        )
+                        +
+                        Decimal(
+                            str(
+                                shift.online_sales
+                                or 0
+                            )
+                        )
+                        -
+                        Decimal(
+                            str(
+                                shift.debit
+                                or 0
+                            )
+                        )
+                        -
+                        Decimal(
+                            str(
+                                shift.credit
+                                or 0
+                            )
+                        )
+                    )
+                )
+            ),
+            daily_total=(
+                daily_drop_difference
+            ),
         ),
     ]
 
     shift_column_count = max(
-        len(daily_summary_header) - 1,
+        len(
+            daily_summary_header
+        ) - 1,
         1
     )
 
-    daily_summary_table = build_pdf_table(
-        daily_summary_data,
-        col_widths=[
-            1.45 * inch,
-            *(
-                [5.2 * inch / shift_column_count]
-                * shift_column_count
-            ),
-        ],
-        font_size=7,
-        alignments={
-            0: 'LEFT',
-        },
+    daily_summary_table = (
+        build_pdf_table(
+            daily_summary_data,
+            col_widths=[
+                1.45 * inch,
+                *(
+                    [
+                        5.2 * inch
+                        /
+                        shift_column_count
+                    ]
+                    *
+                    shift_column_count
+                ),
+            ],
+            font_size=6.7,
+            alignments={
+                0: 'LEFT',
+            },
+        )
     )
 
-    daily_summary_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (-1, 0), (-1, -1), 'Helvetica-Bold'),
-    ]))
+    daily_summary_table.setStyle(
+        TableStyle([
+            (
+                'FONTNAME',
+                (0, 1),
+                (0, -1),
+                'Helvetica-Bold'
+            ),
+            (
+                'FONTNAME',
+                (-1, 0),
+                (-1, -1),
+                'Helvetica-Bold'
+            ),
+        ])
+    )
 
-    story.append(daily_summary_table)
-    story.append(Spacer(1, 14))
+    story.append(
+        daily_summary_table
+    )
 
-    # ---------------------------------------------------------
-    # INVENTORY AND ACTIVE TICKET INFORMATION
-    # ---------------------------------------------------------
+    story.append(
+        Spacer(1, 8)
+    )
+
+    # =========================================================
+    # DAILY DROP STATUS
+    # =========================================================
+    daily_drop_data = [
+        [
+            'Daily Expected Drop',
+            pdf_money(
+                daily_expected_drop
+            )
+        ],
+        [
+            'Daily Actual Drop',
+            pdf_money(
+                daily_actual_drop
+            )
+        ],
+        [
+            'Daily Drop Status',
+            daily_drop_status
+        ],
+        [
+            (
+                'Daily Short Amount'
+                if (
+                    daily_drop_status
+                    == 'SHORT'
+                )
+                else
+                (
+                    'Daily Over Amount'
+                    if (
+                        daily_drop_status
+                        == 'OVER'
+                    )
+                    else
+                    'Daily Difference'
+                )
+            ),
+            pdf_money(
+                daily_drop_variance
+            )
+        ],
+    ]
+
+    daily_drop_table = Table(
+        daily_drop_data,
+        colWidths=[
+            2.3 * inch,
+            1.5 * inch,
+        ],
+    )
+
+    daily_drop_table.setStyle(
+        TableStyle([
+            (
+                'FONTNAME',
+                (0, 0),
+                (0, -1),
+                'Helvetica-Bold'
+            ),
+            (
+                'FONTNAME',
+                (1, 0),
+                (1, -1),
+                'Helvetica-Bold'
+            ),
+            (
+                'FONTSIZE',
+                (0, 0),
+                (-1, -1),
+                8
+            ),
+            (
+                'ALIGN',
+                (1, 0),
+                (1, -1),
+                'RIGHT'
+            ),
+            (
+                'BOTTOMPADDING',
+                (0, 0),
+                (-1, -1),
+                4
+            ),
+        ])
+    )
+
+    story.append(
+        daily_drop_table
+    )
+
+    story.append(
+        Spacer(1, 14)
+    )
+
+    # =========================================================
+    # INVENTORY SUMMARY
+    # =========================================================
     story.append(
         Paragraph(
-            'Inventory and Active Ticket Information',
+            (
+                'Inventory and Active '
+                'Ticket Information'
+            ),
             section_style
         )
     )
@@ -2373,59 +3483,93 @@ def build_shift_report_pdf_bytes(report, user):
         ],
         [
             'Active Display Boxes',
-            str(len(active_details)),
-            str(active_remaining_ticket_count),
-            pdf_money(active_remaining_value),
+            str(
+                len(
+                    active_details
+                )
+            ),
+            str(
+                active_remaining_ticket_count
+            ),
+            pdf_money(
+                active_remaining_value
+            ),
         ],
         [
             'Inactive Inventory',
-            str(inactive_pack_count),
-            str(inactive_ticket_count),
-            pdf_money(inactive_inventory_value),
+            str(
+                inactive_pack_count
+            ),
+            str(
+                inactive_ticket_count
+            ),
+            pdf_money(
+                inactive_inventory_value
+            ),
         ],
         [
             'Combined Total',
             str(
-                len(active_details)
-                + inactive_pack_count
+                len(
+                    active_details
+                )
+                +
+                inactive_pack_count
             ),
             str(
                 active_remaining_ticket_count
-                + inactive_ticket_count
+                +
+                inactive_ticket_count
             ),
             pdf_money(
                 active_remaining_value
-                + inactive_inventory_value
+                +
+                inactive_inventory_value
             ),
         ],
     ]
 
-    inventory_table = build_pdf_table(
-        inventory_summary_data,
-        col_widths=[
-            2.2 * inch,
-            1.1 * inch,
-            1.25 * inch,
-            1.5 * inch,
-        ],
-        font_size=8,
-        alignments={
-            0: 'LEFT',
-            3: 'RIGHT',
-        },
+    inventory_table = (
+        build_pdf_table(
+            inventory_summary_data,
+            col_widths=[
+                2.2 * inch,
+                1.1 * inch,
+                1.25 * inch,
+                1.5 * inch,
+            ],
+            font_size=8,
+            alignments={
+                0: 'LEFT',
+                3: 'RIGHT',
+            },
+        )
     )
 
-    inventory_table.setStyle(TableStyle([
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-    ]))
+    inventory_table.setStyle(
+        TableStyle([
+            (
+                'FONTNAME',
+                (0, -1),
+                (-1, -1),
+                'Helvetica-Bold'
+            ),
+        ])
+    )
 
-    story.append(inventory_table)
-    story.append(Spacer(1, 8))
+    story.append(
+        inventory_table
+    )
+
+    story.append(
+        Spacer(1, 8)
+    )
 
     story.append(
         Paragraph(
             (
-                '<b>Total Value of Leftover Tickets in Display Boxes:</b> '
+                '<b>Total Value of Leftover '
+                'Tickets in Display Boxes:</b> '
                 f'{pdf_money(active_remaining_value)}'
             ),
             small_style
@@ -2435,32 +3579,40 @@ def build_shift_report_pdf_bytes(report, user):
     story.append(
         Paragraph(
             (
-                '<b>Total Inventory Ticket Value:</b> '
+                '<b>Total Inventory '
+                'Ticket Value:</b> '
                 f'{pdf_money(inactive_inventory_value)}'
             ),
             small_style
         )
     )
 
+    empty_boxes_text = (
+        ', '.join(empty_boxes)
+        if empty_boxes
+        else 'None'
+    )
+
     story.append(
         Paragraph(
             (
                 '<b>Empty Boxes:</b> '
-                f'{", ".join(empty_boxes) if empty_boxes else "None"}'
+                f'{empty_boxes_text}'
             ),
             small_style
         )
     )
 
-    story.append(PageBreak())
+    story.append(
+        PageBreak()
+    )
 
-    # ---------------------------------------------------------
-    # TICKET STATUS TABLE BUILDER
-    # ---------------------------------------------------------
+    # =========================================================
+    # STATUS TABLE HELPER
+    # =========================================================
     def add_ticket_status_section(
         heading,
         rows,
-        include_count=False,
     ):
         story.append(
             Paragraph(
@@ -2490,21 +3642,50 @@ def build_shift_report_pdf_bytes(report, user):
 
             status_data.append([
                 Paragraph(
-                    str(detail.box_num),
+                    str(
+                        detail.box_num
+                    ),
                     small_style
                 ),
-                str(detail.game_num),
-                str(detail.pack_num),
+
+                str(
+                    detail.game_num
+                ),
+
+                str(
+                    detail.pack_num
+                ),
+
                 Paragraph(
-                    str(detail.lottery_name),
+                    str(
+                        detail.lottery_name
+                    ),
                     small_style
                 ),
-                str(detail.start_num),
-                str(detail.current_num),
-                pdf_money(detail.ticket_value),
-                str(count),
-                pdf_money(detail.total_amount),
-                str(detail.closing_status),
+
+                str(
+                    detail.start_num
+                ),
+
+                str(
+                    detail.current_num
+                ),
+
+                pdf_money(
+                    detail.ticket_value
+                ),
+
+                str(
+                    count
+                ),
+
+                pdf_money(
+                    detail.total_amount
+                ),
+
+                str(
+                    detail.closing_status
+                ),
             ])
 
         if not rows:
@@ -2524,16 +3705,16 @@ def build_shift_report_pdf_bytes(report, user):
         status_table = build_pdf_table(
             status_data,
             col_widths=[
-                0.85 * inch,   # Box label
-                0.52 * inch,   # Ticket ID
-                0.66 * inch,   # Pack #
-                1.36 * inch,   # Ticket Name
-                0.45 * inch,   # Open #
-                0.47 * inch,   # Close #
-                0.55 * inch,   # Value
-                0.44 * inch,   # Count
-                0.64 * inch,   # Total
-                0.64 * inch,   # Status
+                0.85 * inch,
+                0.52 * inch,
+                0.66 * inch,
+                1.36 * inch,
+                0.45 * inch,
+                0.47 * inch,
+                0.55 * inch,
+                0.44 * inch,
+                0.64 * inch,
+                0.64 * inch,
             ],
             font_size=6.2,
             alignments={
@@ -2542,31 +3723,51 @@ def build_shift_report_pdf_bytes(report, user):
             },
         )
 
-        story.append(status_table)
-        story.append(Spacer(1, 12))
+        story.append(
+            status_table
+        )
 
-    # ---------------------------------------------------------
-    # ACTIVE, SOLD AND RETURNED DETAILS
-    # ---------------------------------------------------------
+        story.append(
+            Spacer(1, 12)
+        )
+
+    # =========================================================
+    # ACTIVE / SOLD / RETURNED
+    # =========================================================
     add_ticket_status_section(
-        f"Shift {report.shift_number} - Active Tickets at Shift Close",
+        (
+            f"Shift "
+            f"{report.shift_number} "
+            f"- Active Tickets at Shift Close"
+        ),
         active_details,
     )
 
     add_ticket_status_section(
-        f"Shift {report.shift_number} - Sold Out Tickets",
+        (
+            f"Shift "
+            f"{report.shift_number} "
+            f"- Sold Out Tickets"
+        ),
         sold_details,
     )
 
     add_ticket_status_section(
-        f"Shift {report.shift_number} - Returned Tickets",
+        (
+            f"Shift "
+            f"{report.shift_number} "
+            f"- Returned Tickets"
+        ),
         returned_details,
     )
 
-    # ---------------------------------------------------------
-    # FOOTER CALLBACK
-    # ---------------------------------------------------------
-    def add_page_number(canvas, doc):
+    # =========================================================
+    # FOOTER
+    # =========================================================
+    def add_page_number(
+        canvas,
+        doc
+    ):
         canvas.saveState()
 
         canvas.setFont(
@@ -2594,12 +3795,18 @@ def build_shift_report_pdf_bytes(report, user):
 
     document.build(
         story,
-        onFirstPage=add_page_number,
-        onLaterPages=add_page_number,
+        onFirstPage=(
+            add_page_number
+        ),
+        onLaterPages=(
+            add_page_number
+        ),
     )
 
     buffer.seek(0)
+
     return buffer.getvalue()
+
 
 def send_report_email(report, user):
     if not user.email:
@@ -4148,97 +5355,499 @@ def can_access_report_user(request, report_user):
         user=report_user
     ).exists()
 
-class DailyReportListView(APIView, ManagerReportsAccessMixin):
+class DailyReportListView(
+    APIView,
+    ManagerReportsAccessMixin
+):
     """
-    Returns one cumulative report row per date.
+    Returns one cumulative row per report date.
 
-    ShiftReport stores individual shift differences.
-    Summing all ShiftReport rows for a date gives the full daily totals.
+    ShiftReport stores one record per shift.
+
+    Daily values are calculated by summing all shifts
+    belonging to the same user and date.
+
+    Drop calculation:
+
+        Total Sales
+            = Instant Sales + Online Sales
+
+        Expected Drop
+            = Total Sales - Debit - Credit
+
+        Actual Drop
+            = Cash Drop + COAM Payout
+
+        Difference
+            = Actual Drop - Expected Drop
+
+        Difference < 0  -> Short
+        Difference > 0  -> Over
+        Difference == 0 -> Matched
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [
+        IsAuthenticated
+    ]
 
     def get(self, request):
         target_user, access_error = (
-            self.get_reports_access(request)
+            self.get_reports_access(
+                request
+            )
         )
 
         if access_error:
             return access_error
 
-        # report_user = get_report_user_for_request(request)
-
-        # if report_user is None:
-        #     return Response(
-        #         {'error': 'Store not found.'},
-        #         status=status.HTTP_404_NOT_FOUND
-        #     )
-
+        # ==================================================
+        # GROUP ALL SHIFT REPORTS BY DATE
+        # ==================================================
         grouped_reports = (
             ShiftReport.objects
-            .filter(user=target_user)
-            .values('report_date')
-            .annotate(
-                instant_sales_total=Sum('instant_sales'),
-                instant_cashes_total=Sum('instant_cashes'),
-                online_sales_total=Sum('online_sales'),
-                online_cashes_total=Sum('online_cashes'),
-                online_cancels_total=Sum('online_cancels'),
-                shifts_count=Count('id'),
+            .filter(
+                user=target_user
             )
-            .order_by('-report_date')
+            .values(
+                'report_date'
+            )
+            .annotate(
+                instant_sales_total=Sum(
+                    'instant_sales'
+                ),
+                instant_cashes_total=Sum(
+                    'instant_cashes'
+                ),
+                online_sales_total=Sum(
+                    'online_sales'
+                ),
+                online_cashes_total=Sum(
+                    'online_cashes'
+                ),
+                online_cancels_total=Sum(
+                    'online_cancels'
+                ),
+
+                # ==========================================
+                # NEW FIELDS
+                # ==========================================
+                coam_payout_total=Sum(
+                    'coam_payout'
+                ),
+                debit_total=Sum(
+                    'debit'
+                ),
+                credit_total=Sum(
+                    'credit'
+                ),
+                cash_drop_total=Sum(
+                    'cash_drop'
+                ),
+
+                shifts_count=Count(
+                    'id'
+                ),
+            )
+            .order_by(
+                '-report_date'
+            )
         )
 
         response_data = []
 
+        # ==================================================
+        # BUILD ONE DAILY ROW
+        # ==================================================
         for daily_group in grouped_reports:
-            report_date = daily_group['report_date']
+            report_date = (
+                daily_group[
+                    'report_date'
+                ]
+            )
 
-            shifts = ShiftReport.objects.filter(
-                user=target_user,
-                report_date=report_date
-            ).order_by('shift_number')
+            instant_sales = Decimal(
+                str(
+                    daily_group[
+                        'instant_sales_total'
+                    ]
+                    or 0
+                )
+            )
 
-            shift_options = [
-                {
+            instant_cashes = Decimal(
+                str(
+                    daily_group[
+                        'instant_cashes_total'
+                    ]
+                    or 0
+                )
+            )
+
+            online_sales = Decimal(
+                str(
+                    daily_group[
+                        'online_sales_total'
+                    ]
+                    or 0
+                )
+            )
+
+            online_cashes = Decimal(
+                str(
+                    daily_group[
+                        'online_cashes_total'
+                    ]
+                    or 0
+                )
+            )
+
+            online_cancels = Decimal(
+                str(
+                    daily_group[
+                        'online_cancels_total'
+                    ]
+                    or 0
+                )
+            )
+
+            coam_payout = Decimal(
+                str(
+                    daily_group[
+                        'coam_payout_total'
+                    ]
+                    or 0
+                )
+            )
+
+            debit = Decimal(
+                str(
+                    daily_group[
+                        'debit_total'
+                    ]
+                    or 0
+                )
+            )
+
+            credit = Decimal(
+                str(
+                    daily_group[
+                        'credit_total'
+                    ]
+                    or 0
+                )
+            )
+
+            cash_drop = Decimal(
+                str(
+                    daily_group[
+                        'cash_drop_total'
+                    ]
+                    or 0
+                )
+            )
+
+            # ==================================================
+            # DAILY RECONCILIATION
+            # ==================================================
+
+            total_sales = (
+                instant_sales
+                + online_sales
+            )
+
+            expected_drop = (
+                total_sales
+                - debit
+                - credit
+            )
+
+            actual_drop = (
+                cash_drop
+                + coam_payout
+            )
+
+            drop_difference = (
+                actual_drop
+                - expected_drop
+            )
+
+            if drop_difference < 0:
+                drop_status = 'Short'
+
+            elif drop_difference > 0:
+                drop_status = 'Over'
+
+            else:
+                drop_status = 'Matched'
+
+            drop_variance = abs(
+                drop_difference
+            )
+
+            # ==================================================
+            # SHIFT OPTIONS FOR VIEW DETAILS
+            # ==================================================
+            shifts = (
+                ShiftReport.objects
+                .filter(
+                    user=target_user,
+                    report_date=report_date
+                )
+                .order_by(
+                    'shift_number'
+                )
+            )
+
+            shift_options = []
+
+            for shift in shifts:
+                shift_total_sales = (
+                    Decimal(
+                        str(
+                            shift.instant_sales
+                            or 0
+                        )
+                    )
+                    +
+                    Decimal(
+                        str(
+                            shift.online_sales
+                            or 0
+                        )
+                    )
+                )
+
+                shift_expected_drop = (
+                    shift_total_sales
+                    -
+                    Decimal(
+                        str(
+                            shift.debit
+                            or 0
+                        )
+                    )
+                    -
+                    Decimal(
+                        str(
+                            shift.credit
+                            or 0
+                        )
+                    )
+                )
+
+                shift_actual_drop = (
+                    Decimal(
+                        str(
+                            shift.cash_drop
+                            or 0
+                        )
+                    )
+                    +
+                    Decimal(
+                        str(
+                            shift.coam_payout
+                            or 0
+                        )
+                    )
+                )
+
+                shift_difference = (
+                    shift_actual_drop
+                    - shift_expected_drop
+                )
+
+                if shift_difference < 0:
+                    shift_status = 'Short'
+
+                elif shift_difference > 0:
+                    shift_status = 'Over'
+
+                else:
+                    shift_status = 'Matched'
+
+                shift_options.append({
                     'id': shift.id,
-                    'shiftNumber': shift.shift_number,
-                    'label': f"Shift {shift.shift_number}",
-                    'shiftStartedAt': shift.shift_started_at,
-                    'shiftEndedAt': shift.shift_ended_at,
-                }
-                for shift in shifts
-            ]
 
+                    'shiftNumber': (
+                        shift.shift_number
+                    ),
+
+                    'label': (
+                        f"Shift "
+                        f"{shift.shift_number}"
+                    ),
+
+                    'shiftStartedAt': (
+                        shift.shift_started_at
+                    ),
+
+                    'shiftEndedAt': (
+                        shift.shift_ended_at
+                    ),
+
+                    # Existing shift values
+                    'instantSales': str(
+                        shift.instant_sales
+                        or Decimal('0.00')
+                    ),
+
+                    'instantCashes': str(
+                        shift.instant_cashes
+                        or Decimal('0.00')
+                    ),
+
+                    'onlineSales': str(
+                        shift.online_sales
+                        or Decimal('0.00')
+                    ),
+
+                    'onlineCashes': str(
+                        shift.online_cashes
+                        or Decimal('0.00')
+                    ),
+
+                    'onlineCancels': str(
+                        shift.online_cancels
+                        or Decimal('0.00')
+                    ),
+
+                    # New values
+                    'coamPayout': str(
+                        shift.coam_payout
+                        or Decimal('0.00')
+                    ),
+
+                    'debit': str(
+                        shift.debit
+                        or Decimal('0.00')
+                    ),
+
+                    'credit': str(
+                        shift.credit
+                        or Decimal('0.00')
+                    ),
+
+                    'cashDrop': str(
+                        shift.cash_drop
+                        or Decimal('0.00')
+                    ),
+
+                    # Calculated values
+                    'totalSales': str(
+                        shift_total_sales
+                    ),
+
+                    'expectedDrop': str(
+                        shift_expected_drop
+                    ),
+
+                    'actualDrop': str(
+                        shift_actual_drop
+                    ),
+
+                    'dropStatus': (
+                        shift_status
+                    ),
+
+                    'dropVariance': str(
+                        abs(
+                            shift_difference
+                        )
+                    ),
+
+                    'dropDifference': str(
+                        shift_difference
+                    ),
+                })
+
+            # ==================================================
+            # FINAL DAILY RESPONSE
+            # ==================================================
             response_data.append({
-                # Date is the unique row identifier on the frontend.
-                'id': report_date.isoformat(),
-                'report_date': report_date.isoformat(),
+                'id': (
+                    report_date.isoformat()
+                ),
 
-                # Daily cumulative totals.
+                'report_date': (
+                    report_date.isoformat()
+                ),
+
+                # Existing daily totals
                 'instantSales': str(
-                    daily_group['instant_sales_total']
-                    or Decimal('0.00')
-                ),
-                'instantCashes': str(
-                    daily_group['instant_cashes_total']
-                    or Decimal('0.00')
-                ),
-                'onlineSales': str(
-                    daily_group['online_sales_total']
-                    or Decimal('0.00')
-                ),
-                'onlineCashes': str(
-                    daily_group['online_cashes_total']
-                    or Decimal('0.00')
-                ),
-                'onlineCancels': str(
-                    daily_group['online_cancels_total']
-                    or Decimal('0.00')
+                    instant_sales
                 ),
 
-                'shiftsCount': daily_group['shifts_count'],
-                'shifts': shift_options,
+                'instantCashes': str(
+                    instant_cashes
+                ),
+
+                'onlineSales': str(
+                    online_sales
+                ),
+
+                'onlineCashes': str(
+                    online_cashes
+                ),
+
+                'onlineCancels': str(
+                    online_cancels
+                ),
+
+                # ==========================================
+                # NEW DAILY TOTALS
+                # ==========================================
+                'coamPayout': str(
+                    coam_payout
+                ),
+
+                'debit': str(
+                    debit
+                ),
+
+                'credit': str(
+                    credit
+                ),
+
+                'cashDrop': str(
+                    cash_drop
+                ),
+
+                # ==========================================
+                # CALCULATED DAILY VALUES
+                # ==========================================
+                'totalSales': str(
+                    total_sales
+                ),
+
+                'expectedDrop': str(
+                    expected_drop
+                ),
+
+                'actualDrop': str(
+                    actual_drop
+                ),
+
+                'dropDifference': str(
+                    drop_difference
+                ),
+
+                'dropVariance': str(
+                    drop_variance
+                ),
+
+                'dropStatus': (
+                    drop_status
+                ),
+
+                'shiftsCount': (
+                    daily_group[
+                        'shifts_count'
+                    ]
+                ),
+
+                'shifts': (
+                    shift_options
+                ),
             })
 
         return Response(
@@ -4348,6 +5957,25 @@ class ShiftReportUpdateView(ManagerReportsAccessMixin, APIView):
                 request.data.get('onlineCancels'),
                 'Online Cancels'
             )
+            coam_payout = parse_shift_value(
+                request.data.get('coamPayout'),
+                'COAM Payout'
+            )
+
+            debit = parse_shift_value(
+                request.data.get('debit'),
+                'Debit'
+            )
+
+            credit = parse_shift_value(
+                request.data.get('credit'),
+                'Credit'
+            )
+
+            cash_drop = parse_shift_value(
+                request.data.get('cashDrop'),
+                'Cash Drop'
+            )
 
         except ShiftReportValidationError as error:
             return Response(
@@ -4359,6 +5987,10 @@ class ShiftReportUpdateView(ManagerReportsAccessMixin, APIView):
         report.online_sales = online_sales
         report.online_cashes = online_cashes
         report.online_cancels = online_cancels
+        report.coam_payout = coam_payout
+        report.debit = debit
+        report.credit = credit
+        report.cash_drop = cash_drop
 
         report.save(
             update_fields=[
@@ -4366,6 +5998,10 @@ class ShiftReportUpdateView(ManagerReportsAccessMixin, APIView):
                 'online_sales',
                 'online_cashes',
                 'online_cancels',
+                'coam_payout',
+                'debit',
+                'credit',
+                'cash_drop',
                 'updated_at',
             ]
         )
@@ -4482,6 +6118,41 @@ class EndShiftSaveView(APIView):
                     'onlineSales': str(report.online_sales),
                     'onlineCashes': str(report.online_cashes),
                     'onlineCancels': str(report.online_cancels),
+                    'coamPayout': str(
+                        report.coam_payout
+                    ),
+
+                    'debit': str(
+                        report.debit
+                    ),
+
+                    'credit': str(
+                        report.credit
+                    ),
+
+                    'cashDrop': str(
+                        report.cash_drop
+                    ),
+
+                    'totalSales': str(
+                        report.total_sales
+                    ),
+
+                    'expectedDrop': str(
+                        report.expected_drop
+                    ),
+
+                    'actualDrop': str(
+                        report.actual_drop
+                    ),
+
+                    'dropStatus': (
+                        report.drop_status
+                    ),
+
+                    'dropVariance': str(
+                        report.drop_variance_amount
+                    ),
 
                     # Complete cumulative totals after this shift.
                     'cumulativeTotals': {
@@ -6022,6 +7693,41 @@ class ShiftReportListView(ManagerReportsAccessMixin, APIView):
                 'onlineSales': str(report.online_sales),
                 'onlineCashes': str(report.online_cashes),
                 'onlineCancels': str(report.online_cancels),
+                'coamPayout': str(
+                    report.coam_payout
+                ),
+
+                'debit': str(
+                    report.debit
+                ),
+
+                'credit': str(
+                    report.credit
+                ),
+
+                'cashDrop': str(
+                    report.cash_drop
+                ),
+
+                'totalSales': str(
+                    report.total_sales
+                ),
+
+                'expectedDrop': str(
+                    report.expected_drop
+                ),
+
+                'actualDrop': str(
+                    report.actual_drop
+                ),
+
+                'dropStatus': (
+                    report.drop_status
+                ),
+
+                'dropVariance': str(
+                    report.drop_variance_amount
+                ),
                 'createdAt': report.created_at,
             })
 

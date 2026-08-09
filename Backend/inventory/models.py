@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password, check_password, identify_hasher
+from decimal import Decimal
 
 
 class LotteryGame(models.Model):
@@ -234,8 +235,99 @@ class ShiftReport(models.Model):
         default=0
     )
 
+    coam_payout = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
+    debit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
+    credit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
+    cash_drop = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def total_sales(self):
+        return (
+            Decimal(str(self.instant_sales or 0))
+            + Decimal(str(self.online_sales or 0))
+        )
+
+
+    @property
+    def expected_drop(self):
+        """
+        Amount that should be accounted for after
+        deducting Debit and Credit from sales.
+        """
+        return (
+            self.total_sales
+            - Decimal(str(self.debit or 0))
+            - Decimal(str(self.credit or 0))
+        )
+
+
+    @property
+    def actual_drop(self):
+        """
+        Actual amount accounted for by:
+        Cash Drop + COAM Payout.
+        """
+        return (
+            Decimal(str(self.cash_drop or 0))
+            + Decimal(str(self.coam_payout or 0))
+        )
+
+
+    @property
+    def drop_difference(self):
+        """
+        Positive = Over
+        Negative = Short
+        Zero = Matched
+        """
+        return (
+            self.actual_drop
+            - self.expected_drop
+        )
+
+
+    @property
+    def drop_status(self):
+        difference = self.drop_difference
+
+        if difference < 0:
+            return 'Short'
+
+        if difference > 0:
+            return 'Over'
+
+        return 'Matched'
+
+
+    @property
+    def drop_variance_amount(self):
+        """
+        Always returns the positive amount of the
+        over/short difference.
+        """
+        return abs(self.drop_difference)
 
     class Meta:
         ordering = ['-report_date', '-shift_number', '-created_at']

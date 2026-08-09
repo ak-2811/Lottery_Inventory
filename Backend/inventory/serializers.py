@@ -264,6 +264,30 @@ class ShiftReportDetailSerializer(serializers.ModelSerializer):
         decimal_places=2,
         read_only=True
     )
+    coamPayout = serializers.DecimalField(
+        source='coam_payout',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+    debit = serializers.DecimalField(
+        # source='debit',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+    credit = serializers.DecimalField(
+        # source='credit',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
+    cashDrop = serializers.DecimalField(
+        source='cash_drop',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True
+    )
 
     shiftStartedAt = serializers.DateTimeField(
         source='shift_started_at',
@@ -294,6 +318,10 @@ class ShiftReportDetailSerializer(serializers.ModelSerializer):
             'onlineSales',
             'onlineCashes',
             'onlineCancels',
+            'coamPayout',
+            'debit',
+            'credit',
+            'cashDrop',
             'boxDetails',
             'created_at',
         ]

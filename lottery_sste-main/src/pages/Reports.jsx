@@ -50,6 +50,11 @@ export default function Reports() {
     onlineSales: '',
     onlineCashes: '',
     onlineCancels: '',
+
+    coamPayout: '',
+    debit: '',
+    credit: '',
+    cashDrop: '',
   })
 
   const [pageMessage, setPageMessage] = useState('')
@@ -97,10 +102,29 @@ export default function Reports() {
             ? getAuthHeaders()
             : getManagerProtectedHeaders('reports'),
           body: JSON.stringify({
-            instantCashes: detailFormData.instantCashes,
-            onlineSales: detailFormData.onlineSales,
-            onlineCashes: detailFormData.onlineCashes,
-            onlineCancels: detailFormData.onlineCancels,
+            instantCashes:
+              detailFormData.instantCashes,
+
+            onlineSales:
+              detailFormData.onlineSales,
+
+            onlineCashes:
+              detailFormData.onlineCashes,
+
+            onlineCancels:
+              detailFormData.onlineCancels,
+
+            coamPayout:
+              detailFormData.coamPayout,
+
+            debit:
+              detailFormData.debit,
+
+            credit:
+              detailFormData.credit,
+
+            cashDrop:
+              detailFormData.cashDrop,
           }),
         }
       )
@@ -125,12 +149,27 @@ export default function Reports() {
       setDetailFormData({
         instantCashes:
           updatedReport.instantCashes ?? '0.00',
+
         onlineSales:
           updatedReport.onlineSales ?? '0.00',
+
         onlineCashes:
           updatedReport.onlineCashes ?? '0.00',
+
         onlineCancels:
           updatedReport.onlineCancels ?? '0.00',
+
+        coamPayout:
+          updatedReport.coamPayout ?? '0.00',
+
+        debit:
+          updatedReport.debit ?? '0.00',
+
+        credit:
+          updatedReport.credit ?? '0.00',
+
+        cashDrop:
+          updatedReport.cashDrop ?? '0.00',
       })
 
       setIsEditMode(false)
@@ -287,11 +326,30 @@ export default function Reports() {
       setSelectedShiftReport(data)
       setBoxDetails(data.boxDetails || [])
       setDetailFormData({
-      instantCashes: data.instantCashes ?? '0.00',
-      onlineSales: data.onlineSales ?? '0.00',
-      onlineCashes: data.onlineCashes ?? '0.00',
-      onlineCancels: data.onlineCancels ?? '0.00',
-    })
+        instantCashes:
+          data.instantCashes ?? '0.00',
+
+        onlineSales:
+          data.onlineSales ?? '0.00',
+
+        onlineCashes:
+          data.onlineCashes ?? '0.00',
+
+        onlineCancels:
+          data.onlineCancels ?? '0.00',
+
+        coamPayout:
+          data.coamPayout ?? '0.00',
+
+        debit:
+          data.debit ?? '0.00',
+
+        credit:
+          data.credit ?? '0.00',
+
+        cashDrop:
+          data.cashDrop ?? '0.00',
+      })
 
     setIsEditMode(false)
     } catch (error) {
@@ -363,6 +421,21 @@ export default function Reports() {
         accumulator.onlineCancels += parseFloat(
           report.onlineCancels || 0
         )
+        accumulator.coamPayout += parseFloat(
+          report.coamPayout || 0
+        )
+
+        accumulator.debit += parseFloat(
+          report.debit || 0
+        )
+
+        accumulator.credit += parseFloat(
+          report.credit || 0
+        )
+
+        accumulator.cashDrop += parseFloat(
+          report.cashDrop || 0
+        )
 
         return accumulator
       },
@@ -372,6 +445,10 @@ export default function Reports() {
         onlineSales: 0,
         onlineCashes: 0,
         onlineCancels: 0,
+        coamPayout: 0,
+        debit: 0,
+        credit: 0,
+        cashDrop: 0,
       }
     )
 
@@ -395,6 +472,30 @@ export default function Reports() {
       {
         label: 'Online Cancels',
         value: formatMoney(totals.onlineCancels),
+      },
+      {
+        label: 'COAM Payout',
+        value: formatMoney(
+          totals.coamPayout
+        ),
+      },
+      {
+        label: 'Debit',
+        value: formatMoney(
+          totals.debit
+        ),
+      },
+      {
+        label: 'Credit',
+        value: formatMoney(
+          totals.credit
+        ),
+      },
+      {
+        label: 'Cash Drop',
+        value: formatMoney(
+          totals.cashDrop
+        ),
       },
     ]
   }, [filteredReports])
@@ -776,6 +877,10 @@ export default function Reports() {
                   <th>Online Sales</th>
                   <th>Online Cashes</th>
                   <th>Online Cancels</th>
+                  <th>COAM Payout</th>
+                  <th>Debit</th>
+                  <th>Credit</th>
+                  <th>Cash Drop</th>
                   <th style={{ textAlign: 'center' }}>
                     Action
                   </th>
@@ -829,6 +934,29 @@ export default function Reports() {
                           report.onlineCancels
                         )}
                       </td>
+                      <td>
+                        {formatMoney(
+                          report.coamPayout
+                        )}
+                      </td>
+
+                      <td>
+                        {formatMoney(
+                          report.debit
+                        )}
+                      </td>
+
+                      <td>
+                        {formatMoney(
+                          report.credit
+                        )}
+                      </td>
+
+                      <td>
+                        {formatMoney(
+                          report.cashDrop
+                        )}
+                      </td>
 
                       <td className="action-cell">
                         <button
@@ -853,7 +981,7 @@ export default function Reports() {
                   filteredReports.length === 0 && (
                     <tr>
                       <td
-                        colSpan="9"
+                        colSpan="13"
                         style={{
                           textAlign: 'center',
                           padding: '20px',
@@ -1125,6 +1253,89 @@ export default function Reports() {
                                   onChange={(event) =>
                                     handleInputChange(
                                       'onlineCancels',
+                                      event.target.value
+                                    )
+                                  }
+                                  disabled={!isEditMode}
+                                  className="form-field-input"
+                                />
+                              </div>
+                              <div className="form-field-card">
+                                <label>COAM Payout</label>
+
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={
+                                    detailFormData.coamPayout
+                                  }
+                                  onChange={(event) =>
+                                    handleInputChange(
+                                      'coamPayout',
+                                      event.target.value
+                                    )
+                                  }
+                                  disabled={!isEditMode}
+                                  className="form-field-input"
+                                />
+                              </div>
+
+                              <div className="form-field-card">
+                                <label>Debit</label>
+
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={
+                                    detailFormData.debit
+                                  }
+                                  onChange={(event) =>
+                                    handleInputChange(
+                                      'debit',
+                                      event.target.value
+                                    )
+                                  }
+                                  disabled={!isEditMode}
+                                  className="form-field-input"
+                                />
+                              </div>
+
+                              <div className="form-field-card">
+                                <label>Credit</label>
+
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={
+                                    detailFormData.credit
+                                  }
+                                  onChange={(event) =>
+                                    handleInputChange(
+                                      'credit',
+                                      event.target.value
+                                    )
+                                  }
+                                  disabled={!isEditMode}
+                                  className="form-field-input"
+                                />
+                              </div>
+
+                              <div className="form-field-card">
+                                <label>Cash Drop</label>
+
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={
+                                    detailFormData.cashDrop
+                                  }
+                                  onChange={(event) =>
+                                    handleInputChange(
+                                      'cashDrop',
                                       event.target.value
                                     )
                                   }
