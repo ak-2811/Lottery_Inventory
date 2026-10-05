@@ -273,13 +273,28 @@ class ShiftReport(models.Model):
     @property
     def expected_drop(self):
         """
-        Amount that should be accounted for after
-        deducting Debit and Credit from sales.
+        Expected cash drop after subtracting:
+
+        - Instant Cashes
+        - Online Cashes
+        - Debit
+        - Credit
         """
+
         return (
             self.total_sales
-            - Decimal(str(self.debit or 0))
-            - Decimal(str(self.credit or 0))
+            - Decimal(
+                str(self.instant_cashes or 0)
+            )
+            - Decimal(
+                str(self.online_cashes or 0)
+            )
+            - Decimal(
+                str(self.debit or 0)
+            )
+            - Decimal(
+                str(self.credit or 0)
+            )
         )
 
 
